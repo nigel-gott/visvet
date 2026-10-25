@@ -212,15 +212,19 @@ function face(t: Item) {
   return pub.length ? pub : t.kids
 }
 
+/** The most outside boxes a zoomed view links to and still shows them exactly; beyond this it shows their files. */
+const PEERS = 12
+
 /**
  * The boxes one map view shows, the edges (of the kinds `shows` lets through) lifted onto them, and each box's member
  * rows; a box in `expanded` also lists members not shown as boxes. Unzoomed: every box down to `level`, objects
  * listing their members as rows. Zoomed: one level only, the box and its direct children (a type's public members),
- * each drawn compact. A link leaving the zoomed box ends at the file it leads to (beside the zoomed box), or for the
- * selected box, at the exact box it leads to, e.g. a function inside that file.
+ * each drawn compact. A link leaving the zoomed box ends at the exact box it leads to, e.g. a type in another file,
+ * when there are at most `PEERS` of those; with more, it ends at that box's file, so a busy view stays readable.
+ * Selection never changes the view, so boxes don't move as you click around.
  */
 export function mapView(ix: Index, links: Review['dependencies'], top: Item | undefined, level: number,
-  shows: (kind: string) => boolean, expanded: Set<string>, sel: string | null) {
+  shows: (kind: string) => boolean, expanded: Set<string>) {
   const inner = !top ? ix.all.filter(it => it.depth <= level && !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
@@ -240,19 +244,18 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     return it
   }
   const ext = new Map<string, Item>()
-  /** Whether `id` is the selected box or inside it: its arrows end at the exact box outside, e.g. a function, not its file. */
-  // Only a function, a type or a file with nothing inside (e.g. an issue): selecting a folder or a whole file, as Up
-  // does with the box it leaves, would make every arrow inside it exact.
-  const chosen = sel ? ix.items.get(sel) : undefined
-  const fine = !!chosen && chosen !== top && (!chosen.kids.length || (!!chosen.o && chosen.kind !== 'file'))
-  const picked = (id: string) => fine && (id === sel || id.startsWith(sel + '::'))
-  const outside = (id: string, fine: boolean) => (fine ? ix.items.get(id) : peer(id))
-  const exact = links.filter(e => shows(e.kind)).flatMap(e => {
+  const shown = links.filter(e => shows(e.kind))
+  // Peer to peer when few outside boxes are linked: arrows end at them exactly. Otherwise at their files, except for
+  // boxes in the zoomed box's own file (e.g. the types next to a zoomed type), which have no other file to show.
+  const peers = new Set(shown.flatMap(e => (lift(e.from) || lift(e.to) ? [e.from, e.to].filter(id => !lift(id)) : [])))
+  const exactPeers = !!top && peers.size <= PEERS
+  const home = top && peer(top.id)
+  const outside = (id: string) => (exactPeers || (home && home !== top && peer(id) === home) ? ix.items.get(id) : peer(id))
+  const exact = shown.flatMap(e => {
     let a = lift(e.from), b = lift(e.to)
     if (!a && !b) return [] // wholly outside the zoomed box
-    const near = picked(e.from) || picked(e.to)
-    a ??= outside(e.from, near)
-    b ??= outside(e.to, near)
+    a ??= outside(e.from)
+    b ??= outside(e.to)
     // Skip edges between a box and a box inside it: they'd loop onto the outer box.
     if (!a || !b || within(a, b.id) || within(b, a.id)) return []
     // An outside end always gets its box, plus its parent boxes down to the zoomed box's depth (it can sit higher up).
@@ -260,13 +263,14 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     return [{ ...e, a: a.id, b: b.id }]
   })
   /**
-   * A box hands its arrows to its outermost box in this view (a child of the zoomed box, or an
-   * outside peer's outermost shown box), so arrows connect only the top boxes; the selected box's own are drawn instead.
+   * A box hands its arrows to its outermost box in this view (a child of the zoomed box, or with outside files rather
+   * than exact peers, the outermost box around them), so arrows connect only the top boxes; the selected box's own
+   * are drawn instead.
    */
   const owner = (id: string) => {
     let it = ix.items.get(id)
     if (!it) return id // e.g. a selected arrow
-    while (it.parent && it.parent !== top && (ids.has(it.parent.id) || ext.has(it.parent.id))) it = it.parent
+    while (it.parent && it.parent !== top && (ids.has(it.parent.id) || (!exactPeers && ext.has(it.parent.id)))) it = it.parent
     return it.id
   }
   const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
@@ -447,7 +451,8 @@ function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl:
     .filter(([[, [e]]]) => placed.has(e.a) && placed.has(e.b)).map(([[id, es], exact]) => ({
       id, source: es[0].a, target: es[0].b, type: 'routed',
       data: { points: dragged(es[0].a) || dragged(es[0].b) ? undefined : graph.routes[id] },
-      className: (es.every(e => e.kind === es[0].kind) ? es[0].kind : 'mix') + (hl.has(id) ? ' hl' : '') + (exact ? ' exact' : ''),
+      // With a box selected, its own arrows stay bright and the rest fade, so selecting never moves anything.
+      className: (es.every(e => e.kind === es[0].kind) ? es[0].kind : 'mix') + (hl.has(id) ? ' hl' : '') + (exact ? ' exact' : '') + (sel && !es.some(e => touches(e.a) || touches(e.b)) ? ' faded' : ''),
       markerEnd: es.some(e => e.kind !== 'has') ? { type: MarkerType.ArrowClosed } : undefined,
       // Only a count of the links merged into the arrow.
       label: es.length > 1 ? es.length : undefined,
@@ -485,7 +490,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const top = x.scope ? x.ix.items.get(x.scope) : undefined
   const shows = (k: string) => kinds[k] ?? !(k === 'has' && top?.kind === 'folder')
   const view = top ? top.id : String(x.level)
-  const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded, x.sel)
+  const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded)
   const graph = useLayout(view, v, it => height(it, x, v.rowsOf(it)), it => width(it, v.rowsOf(it), x))
   useFit(box, graph, view, visible, pop)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
