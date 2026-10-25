@@ -64,6 +64,36 @@ const AVATAR = { user: '🧑', ai: '🤖' }
 /** Each thread state, as a short line under the thread. */
 const LABEL: Record<ThreadState, string> = { open: 'waiting for Claude', working: 'Claude is on it', question: 'waiting for you', resolved: '✓ resolved' }
 
+/** Sends `text` on box `target`: a reply to its open thread, or a new thread if none is open. */
+function sender(x: Ctx, target: string) {
+  const last = x.threads.filter(t => t.target === target).at(-1)
+  const live = last?.state === 'resolved' ? undefined : last
+  return { live, send: (text: string) => (live ? post(`/api/threads/${live.id}`, { text }) : post('/api/threads', { target, text })) }
+}
+
+/**
+ * A small bubble over the map's corner with the selected box's latest message (or the AI's note); clicking it opens the
+ * whole conversation in the drawer. Typing with the box selected replies under it.
+ */
+export function Peek({ target }: { target: string }) {
+  const x = useContext(X)
+  const { live, send } = sender(x, target)
+  const last = x.threads.filter(t => t.target === target).at(-1)
+  const m = last?.messages.at(-1)
+  const note = x.notes.get(target)
+  return (
+    <div className="peek threads" onClick={e => e.stopPropagation()}>
+      {(m || note) && (
+        <div className={'msg ' + (m?.author ?? 'ai note')} title="Show the whole thread" onClick={() => x.setFull(target)}>
+          <span className="avatar">{m ? AVATAR[m.author] : '📝'}</span><div className="bubble"><Rich text={m?.text ?? note!} /></div>
+        </div>
+      )}
+      {last && <div className="state">{LABEL[last.state]}</div>}
+      {x.draft && <Say text={x.draft.text} focus placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} />}
+    </div>
+  )
+}
+
 /** Whether the selected box `target` has anything for the side drawer: threads, the AI's note, a clicked debuff, or a comment being typed. */
 export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target === target) || x.notes.has(target) || !!x.detail || !!x.draft
 
@@ -75,13 +105,12 @@ export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target
 export function ThreadPanel({ target }: { target: string }) {
   const x = useContext(X)
   const ts = x.threads.filter(t => t.target === target)
-  const live = ts.at(-1)?.state === 'resolved' ? undefined : ts.at(-1)
+  const { live, send } = sender(x, target)
   const note = x.notes.get(target)
-  const send = (text: string) => (live ? post(`/api/threads/${live.id}`, { text }) : post('/api/threads', { target, text }))
   return (
     <div className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       {x.detail && <DebuffDetail id={x.detail.id} kind={x.detail.kind} />}
-      {(ts.length > 0 || note) && <div className="who">💬 {x.ix.items.get(target)?.name ?? target}</div>}
+      {(ts.length > 0 || note) && <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" onClick={() => x.setFull(null)}>✕</button></div>}
       {note && <div className="msg ai note"><span className="avatar">📝</span><div className="bubble"><Rich text={note} /></div></div>}
       {ts.map(t => (
         <div key={t.id} className={'thread ' + t.state}>

@@ -33,6 +33,9 @@ export type Ctx = {
   /** Whether the drawer shows the inbox of unresolved threads instead of the selected box. */
   inbox: boolean
   setInbox: (open: boolean) => void
+  /** Whether the drawer shows the selected box's whole conversation; otherwise a bubble shows only its latest message. */
+  full: boolean
+  setFull: (target: string | null) => void
 }
 export const X = createContext<Ctx>(null!)
 

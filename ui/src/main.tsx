@@ -9,7 +9,7 @@ import './style.css'
 import { flip, getModel, index, reportView, type Item, type Review, type Show } from './model'
 import Graph from './Graph'
 import { X, type Ctx } from './Views'
-import { hasPanel, Inbox, ThreadCounts, ThreadPanel } from './Threads'
+import { hasPanel, Inbox, Peek, ThreadCounts, ThreadPanel } from './Threads'
 
 /** Git's empty tree: comparing against it shows the whole project as the change under review. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
@@ -154,6 +154,7 @@ function App() {
   const [detail, showDetail] = useState<{ id: string; kind: string } | null>(null)
   const [draft, setDraft] = useState<{ target: string; text: string } | null>(null)
   const [inbox, setInbox] = useState(false)
+  const [full, setFull] = useState<string | null>(null)
   // Typing a character with a box selected (and no field focused) starts a comment on it with that character.
   useEffect(() => {
     const type = (e: KeyboardEvent) => {
@@ -185,14 +186,14 @@ function App() {
     notes: new Map(model.annotations.notes.map(n => [n.target, n.why])),
     threads: model.annotations.threads,
     detail: detail?.id === sel ? detail : null, showDetail: (id, kind) => showDetail(kind ? { id, kind } : null),
-    draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox,
+    draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox, full: full === sel, setFull,
   }
   return (
     <X.Provider value={x}>
       <div className="app">
         <Header error={error} />
         <main><Graph visible pop={pop} /></main>
-        {inbox ? <aside className="drawer"><Inbox /></aside> : sel && hasPanel(x, sel) && <aside className="drawer"><ThreadPanel target={sel} /></aside>}
+        {inbox ? <aside className="drawer"><Inbox /></aside> : sel && hasPanel(x, sel) && (x.full || x.detail ? <aside className="drawer"><ThreadPanel target={sel} /></aside> : <Peek target={sel} />)}
       </div>
     </X.Provider>
   )

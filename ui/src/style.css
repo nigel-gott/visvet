@@ -199,6 +199,11 @@ main { grid-area: 2 / 1; min-height: 0 }
 .detail-card .head button { margin-left: auto; border: 0; background: none; color: var(--muted); cursor: pointer }
 .detail-card .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; font-family: var(--mono); cursor: pointer }
 .detail-card .row:hover { color: var(--sel) }
+/* The selected box's latest message, small, over the map's bottom-right corner; it opens the drawer. */
+.peek { grid-area: 2 / 1; align-self: end; justify-self: end; z-index: 5; width: min(380px, 40vw); margin: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); box-shadow: 0 6px 20px rgb(0 0 0 / .25) }
+.peek .msg { cursor: pointer }
+.peek .bubble { max-height: 7.5em; overflow: hidden; mask-image: linear-gradient(#000 70%, transparent) }
+
 /* The inbox of unresolved threads in the drawer. */
 .who { display: flex; align-items: center }
 .who .close { margin-left: auto; border: 0; background: none; color: var(--muted); cursor: pointer }
