@@ -11,11 +11,11 @@ string_methods!(GitRef);
 
 /// One review, as the UI shows it. GET /api/model returns it.
 /// It has two halves: `units` and `dependencies` describe the code and are rebuilt from git on every
-/// request; `annotations` is the review work kept in `.visvet/state.json`.
+/// request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct Review {
-    /// What the working tree is compared against to find the changes under review (`visvet serve --base`).
+    /// What the working tree is compared against, to highlight what changed (`visvet serve --base`, `HEAD` by default).
     pub compared_against: GitRef,
     pub units: Vec<CodeUnit>,
     pub dependencies: Vec<Dependency>,

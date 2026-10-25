@@ -128,11 +128,11 @@ export type RepoPath = string;
 /**
  * One review, as the UI shows it. GET /api/model returns it.
  * It has two halves: `units` and `dependencies` describe the code and are rebuilt from git on every
- * request; `annotations` is the review work kept in `.visvet/state.json`.
+ * request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
  */
 export type Review = { 
 /**
- * What the working tree is compared against to find the changes under review (`visvet serve --base`).
+ * What the working tree is compared against, to highlight what changed (`visvet serve --base`, `HEAD` by default).
  */
 compared_against: GitRef, units: Array<CodeUnit>, dependencies: Array<Dependency>, annotations: ReviewAnnotations, };
 

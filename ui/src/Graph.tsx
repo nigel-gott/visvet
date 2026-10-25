@@ -298,7 +298,7 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
       addDetail({ ...e, a: ca, b: childOf(e.b, cb) }, cb, replaces)
     }
   }
-  /** A box's rows: everything directly inside it when expanded (More); else its members, only unzoomed and never for context objects. */
+  /** A box's rows: everything directly inside it when expanded (More); else its members, only unzoomed. */
   const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top ? [] : it.kids.filter(k => k.m)
   /** Whether a box can expand: it holds something to list, or code to show. */
   const expands = (it: Item) => !ext.has(it.id) && (it.kids.length > 0 || it.diff.length > 0)
