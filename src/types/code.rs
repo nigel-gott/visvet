@@ -192,6 +192,8 @@ pub enum DependencyKind {
     /// Function `from` really uses type `to`: reads one of its values, like `ChangeStatus::Removed`, passes
     /// it as a type argument, like `get::<View>()`, or unpacks a parameter holding it, like `Json(v): Json<View>`.
     Uses,
+    /// A code generator writes `to` from type `from`, e.g. ts-rs writes a TypeScript copy of a Rust type.
+    Generates,
 }
 
 impl DependencyKind {
@@ -199,7 +201,7 @@ impl DependencyKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Has => "has", Self::Implements => "implements", Self::Imports => "imports",
-            Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses",
+            Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses", Self::Generates => "generates",
         }
     }
 }

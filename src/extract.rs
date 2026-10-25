@@ -94,7 +94,7 @@ fn dir(path: &str) -> &str {
 }
 
 /// Joins a relative path onto a repo-relative dir, resolving `.` and `..`.
-fn join(dir: &str, rel: &str) -> String {
+pub fn join(dir: &str, rel: &str) -> String {
     let mut out = vec![];
     for s in dir.split('/').chain(rel.split('/')) {
         match s {

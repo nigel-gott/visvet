@@ -1,4 +1,5 @@
 //! The visvet CLI: serves the review UI, and gives agents the explain, graph, view, show, coverage and comment-thread commands.
+mod codegen;
 mod coverage;
 mod extract;
 mod git;

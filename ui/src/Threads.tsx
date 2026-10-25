@@ -115,8 +115,14 @@ export function ThreadPanel({ target }: { target: string }) {
   const { live, send } = sender(x, target)
   const ref = useRef<HTMLDivElement>(null)
   const said = ts.reduce((n, t) => n + t.messages.length, 0)
+  // What the user just sent, shown at once until the server's copy arrives (the message count goes up).
+  const [sent, setSent] = useState<{ text: string; said: number } | null>(null)
+  const pending = sent?.said === said ? sent.text : null
+  const say = (text: string) => { setSent({ text, said }); return send(text).catch(e => { setSent(null); throw e }) }
+  // While a thread waits for Claude, a typing bubble shows Claude is on it.
+  const typing = !!pending || ['open', 'working'].includes(ts.at(-1)?.state ?? '')
   // Opening a box's thread, or a new message on it, scrolls the drawer to the latest message.
-  useEffect(() => { ref.current?.parentElement?.scrollTo({ top: 1e9 }) }, [target, said])
+  useEffect(() => { ref.current?.parentElement?.scrollTo({ top: 1e9 }) }, [target, said, pending])
   return (
     <div ref={ref} className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" title="Close" onClick={() => { x.setFull(null); x.showDetail(target, null) }}>✕</button></div>
@@ -133,8 +139,10 @@ export function ThreadPanel({ target }: { target: string }) {
           </div>}
         </div>
       ))}
+      {pending && <div className="msg user sending"><span className="avatar">🧑</span><div className="bubble"><Rich text={pending} /></div></div>}
+      {typing && <div className="msg ai typing" title="Claude is on it"><span className="avatar">🤖</span><div className="bubble"><i /><i /><i /></div></div>}
       {/* Always there; typing anywhere with the box selected starts it (`draft`), remounting it with that text. */}
-      <Say key={x.draft ? 'draft' : 'idle'} text={x.draft?.text ?? ''} focus={!!x.draft} placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} />
+      <Say key={x.draft ? 'draft' : 'idle'} text={x.draft?.text ?? ''} focus={!!x.draft} placeholder={live ? 'Reply…' : 'Comment…'} send={say} done={() => x.setDraft(null)} />
     </div>
   )
 }

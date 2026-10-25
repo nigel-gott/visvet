@@ -1,6 +1,6 @@
 //! Builds the `Review`: code units and members diffed against `base`, plus the dependencies between them.
 use crate::extract::extract;
-use crate::git;
+use crate::{codegen, git};
 use crate::types::{BoxId, ChangeStatus, CodeUnit, Dependency, DependencyKind, DiffLine, DiffLineKind, GitRef, LineRange, Member, MemberId, MemberKind, Review, RepoPath, TraitRef, UnitId, UnitKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -26,7 +26,7 @@ pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
 /// A code unit as parsed, with the names it mentions before they are resolved into dependencies:
 /// type names it uses outside any member (a type alias, a tuple struct), type names per member as
 /// `(member id, kind, names)`, traits it implements, candidate files per import, and calls or
-/// constructions as `[from member id, qualifier, name]`.
+/// constructions as `[from member id, qualifier, name]`, and the ids of the types a code generator writes from it.
 struct Parsed {
     unit: CodeUnit,
     types: Vec<String>,
@@ -34,6 +34,7 @@ struct Parsed {
     traits: Vec<String>,
     imports: Vec<Vec<String>>,
     calls: Vec<[String; 3]>,
+    generates: Vec<String>,
 }
 
 /// A dependency arrow.
@@ -46,6 +47,7 @@ fn dep(from: &str, to: &str, kind: DependencyKind) -> Dependency {
 fn link(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUnit>, Vec<Dependency>) {
     let ix = Index::new(&all);
     let (mut edges, mut links, mut implements) = (vec![], BTreeSet::new(), vec![]);
+    let ids: HashSet<&str> = all.iter().map(|p| p.unit.id.as_str()).collect();
     for p in &all {
         let o = &p.unit;
         let files: BTreeSet<&String> = p.imports.iter().filter_map(|c| c.iter().find(|f| cur.contains(*f))).collect();
@@ -62,6 +64,7 @@ fn link(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUnit>, Vec<Dependen
                 edges.push(dep(member, to, arrow));
             }
         }
+        edges.extend(p.generates.iter().filter(|to| ids.contains(to.as_str())).map(|to| dep(o.id.as_str(), to, DependencyKind::Generates)));
         implements.push(p.traits.iter().map(|name| TraitRef { name: name.clone(), unit: ix.ty(o, name).map(|id| UnitId(id.into())) }).collect());
         for [from, q, name] in &p.calls {
             let (to, kind) = if q == "new" { (ix.ty(o, name), DependencyKind::Creates) } else { (ix.callee(o, q, name).filter(|to| to != from), DependencyKind::Calls) };
@@ -199,7 +202,8 @@ fn file_objects(file: &str, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parse
             members,
             diff: diff(n.map(|n| (&*n.text, n.line)), o.map(|o| (&*o.text, o.line))),
         };
-        Parsed { unit, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls }
+        let generates = codegen::targets(file, &x.text).into_iter().map(|f| format!("{f}::{}", x.name)).collect();
+        Parsed { unit, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates }
     }).collect()
 }
 

@@ -442,7 +442,7 @@ function MapPanel({ top, moved, reset, showContext, setShowContext, innerArrows,
   )
 }
 
-const KINDS: DependencyKind[] = ['calls', 'creates', 'uses', 'implements', 'has', 'imports']
+const KINDS: DependencyKind[] = ['calls', 'creates', 'uses', 'implements', 'has', 'imports', 'generates']
 
 /** The legend, whose chips show or hide each kind of arrow. */
 function Kinds({ shows, flip }: { shows: (kind: string) => boolean; flip: (kind: string) => void }) {
