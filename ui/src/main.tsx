@@ -22,6 +22,19 @@ if (location.hash && !history.state) {
 }
 
 /** The review model, reloaded on every server change event, the last load error, and the last `visvet show` request. */
+/**
+ * Reloads the page if the server now serves a newer UI build (it restarts with every build, so this runs on each
+ * reconnect). Waits while a comment is being typed, so a reload never loses it; the URL keeps the place on the map.
+ */
+async function reloadIfRebuilt() {
+  const page = await fetch('/', { cache: 'no-store' }).then(r => r.text(), () => '')
+  const mine = document.querySelector('script[type=module][src]')?.getAttribute('src')
+  if (!page || !mine || page.includes(mine)) return
+  const typing = () => !!document.querySelector<HTMLTextAreaElement>('textarea.say')?.value.trim()
+  const reload = () => (typing() ? setTimeout(reload, 2000) : location.reload())
+  reload()
+}
+
 function useModel() {
   const [model, setModel] = useState<Review>()
   const [error, setError] = useState<string>()
@@ -38,6 +51,7 @@ function useModel() {
     const connect = () => {
       events = new EventSource('/api/events')
       events.addEventListener('change', load)
+      events.onopen = reloadIfRebuilt
       events.addEventListener('show', e => setShow(JSON.parse(e.data)))
       events.onerror = () => { load(); if (events.readyState === EventSource.CLOSED) setTimeout(connect, 3000) }
     }
