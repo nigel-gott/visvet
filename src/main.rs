@@ -10,6 +10,7 @@ mod server;
 mod store;
 mod threads;
 mod types;
+mod watch;
 
 use clap::{Args, Parser, Subcommand};
 use std::path::{Path, PathBuf};

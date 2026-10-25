@@ -1,4 +1,5 @@
 //! HTTP API, change and show events and the embedded UI, answering only to known host names.
+use crate::watch::{self, RepoEvent};
 use crate::{coverage, model::build_review, store, types::{Author, MapId, Review, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
@@ -8,10 +9,9 @@ use axum::{
     response::{IntoResponse, Response, sse::{Event, Sse}},
     routing::{get, post},
 };
-use notify::{RecursiveMode, Watcher};
 use serde::Deserialize;
 use std::{convert::Infallible, fmt::Display};
-use std::{path::{Path, PathBuf}, sync::mpsc, time::Duration};
+use std::path::PathBuf;
 use tokio::sync::broadcast;
 use tokio_stream::{Stream, StreamExt, wrappers::BroadcastStream};
 
@@ -37,11 +37,7 @@ pub struct Addr {
 
 /// Shared server state: the repo, the diff base, events for the UI and the host names it answers to.
 #[derive(Clone)]
-struct App { repo_root: PathBuf, base: String, tx: broadcast::Sender<Push>, hosts: Vec<String> }
-
-/// An event pushed to the UI: files changed, so reload; or `visvet show` asked to navigate, with its JSON.
-#[derive(Clone)]
-enum Push { Change, Show(String) }
+struct App { repo_root: PathBuf, base: String, tx: broadcast::Sender<RepoEvent>, hosts: Vec<String> }
 
 /// A handler result whose error is a 500 with a message.
 type Res<T> = Result<T, (StatusCode, String)>;
@@ -57,7 +53,8 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
     let mut hosts: Vec<String> = [addr.host.as_str(), "127.0.0.1", "localhost"].iter().map(|h| format!("{h}:{}", addr.port)).collect();
     hosts.extend(addr.url.as_deref().and_then(|u| u.split("://").nth(1)?.split('/').next()).map(String::from));
     let (tx, _) = broadcast::channel(16);
-    let _watcher = watch(repo_root.clone(), tx.clone())?;
+    let to_ui = tx.clone();
+    let _watcher = watch::watch(repo_root.clone(), move |e| _ = to_ui.send(e))?;
     let app = App { repo_root, base, tx, hosts };
     let router = Router::new()
         .route("/api/model", get(model))
@@ -86,44 +83,6 @@ async fn check_host(State(app): State<App>, req: Request, next: Next) -> Respons
     next.run(req).await
 }
 
-/// Per burst of file events (150ms apart at most): a `Show` if `visvet show` wrote `.visvet/show.json`,
-/// and a `Change` if any other relevant file changed.
-fn watch(repo_root: PathBuf, tx: broadcast::Sender<Push>) -> notify::Result<notify::RecommendedWatcher> {
-    let (raw_tx, raw_rx) = mpsc::channel();
-    let mut watcher = notify::recommended_watcher(raw_tx)?;
-    watcher.watch(&repo_root, RecursiveMode::Recursive)?;
-    let show = repo_root.join(".visvet/show.json");
-    std::thread::spawn(move || {
-        while let Ok(first) = raw_rx.recv() {
-            let mut burst = vec![first];
-            while let Ok(ev) = raw_rx.recv_timeout(Duration::from_millis(150)) {
-                burst.push(ev);
-            }
-            let paths: Vec<PathBuf> = burst.into_iter().flatten().filter(|ev| !ev.kind.is_access()).flat_map(|ev| ev.paths).collect();
-            if paths.contains(&show) && let Ok(json) = std::fs::read_to_string(&show) {
-                let _ = tx.send(Push::Show(json));
-            }
-            if paths.iter().any(|p| relevant(&repo_root, p)) {
-                let _ = tx.send(Push::Change);
-            }
-        }
-    });
-    Ok(watcher)
-}
-
-/// Inside `.git`, only HEAD and ref moves count, so commits and checkouts refresh.
-/// Inside `.visvet`, only the comment threads and test coverage count, not the view and show hand-offs.
-fn relevant(repo_root: &Path, path: &Path) -> bool {
-    let rel = path.strip_prefix(repo_root).unwrap_or(path);
-    if let Ok(own) = rel.strip_prefix(".visvet") {
-        return own.starts_with("threads") || own == Path::new("coverage.lcov");
-    }
-    if let Ok(git) = rel.strip_prefix(".git") {
-        return ["HEAD", "packed-refs", "refs"].iter().any(|p| git.starts_with(p));
-    }
-    !rel.components().any(|c| matches!(c.as_os_str().to_str(), Some(".git" | "target" | "node_modules")))
-}
-
 /// Builds the review for the working tree and adds the stored review state.
 async fn model(State(app): State<App>) -> Res<Json<Review>> {
     let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {
@@ -137,9 +96,9 @@ async fn model(State(app): State<App>) -> Res<Json<Review>> {
 
 /// Server-sent events: `change` on connect and per burst of file changes; `show` with the JSON `visvet show` wrote.
 async fn events(State(app): State<App>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let pushes = tokio_stream::once(Ok(Push::Change)).chain(BroadcastStream::new(app.tx.subscribe()));
+    let pushes = tokio_stream::once(Ok(RepoEvent::Changed)).chain(BroadcastStream::new(app.tx.subscribe()));
     Sse::new(pushes.map(|p| Ok(match p {
-        Ok(Push::Show(json)) => Event::default().event("show").data(json),
+        Ok(RepoEvent::Show(json)) => Event::default().event("show").data(json),
         _ => Event::default().event("change").data("change"),
     })))
 }
