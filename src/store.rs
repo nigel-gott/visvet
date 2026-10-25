@@ -1,4 +1,4 @@
-//! Review state in `<root>/.visvet/state.json`: the AI's notes and comment threads.
+//! Review state in `<repo_root>/.visvet/state.json`: the AI's notes and comment threads.
 //! Also the hand-off files between the UI and the AI: `view.json` (what the user sees) and `show.json` (where the AI sends them).
 use crate::types::{AiNote, Author, MapId, ReviewAnnotations, Thread, ThreadMessage, ThreadState};
 use anyhow::anyhow;
@@ -7,13 +7,13 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::{fs, io::ErrorKind, path::{Path, PathBuf}};
 
 /// Reads the review state; a missing file is an empty state.
-pub fn load(root: &Path) -> Result<ReviewAnnotations> {
-    Ok(get(root, "state.json")?.unwrap_or_default())
+pub fn load(repo_root: &Path) -> Result<ReviewAnnotations> {
+    Ok(get(repo_root, "state.json")?.unwrap_or_default())
 }
 
 /// Reads `.visvet/<name>` as JSON, or none if it doesn't exist.
-pub fn get<T: DeserializeOwned>(root: &Path, name: &str) -> Result<Option<T>> {
-    match fs::read(root.join(".visvet").join(name)) {
+pub fn get<T: DeserializeOwned>(repo_root: &Path, name: &str) -> Result<Option<T>> {
+    match fs::read(repo_root.join(".visvet").join(name)) {
         Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.into()),
@@ -21,15 +21,15 @@ pub fn get<T: DeserializeOwned>(root: &Path, name: &str) -> Result<Option<T>> {
 }
 
 /// Writes `value` to `.visvet/<name>` as one-line JSON, through a temporary file so readers never see half of it.
-pub fn put(root: &Path, name: &str, value: &impl Serialize) -> Result<()> {
-    let tmp = dir(root)?.join(format!("{name}.tmp"));
+pub fn put(repo_root: &Path, name: &str, value: &impl Serialize) -> Result<()> {
+    let tmp = dir(repo_root)?.join(format!("{name}.tmp"));
     fs::write(&tmp, serde_json::to_vec(value)?)?;
-    Ok(fs::rename(tmp, root.join(".visvet").join(name))?)
+    Ok(fs::rename(tmp, repo_root.join(".visvet").join(name))?)
 }
 
 /// `.visvet/`, created on first use with a .gitignore that keeps it out of git.
-fn dir(root: &Path) -> Result<PathBuf> {
-    let dir = root.join(".visvet");
+fn dir(repo_root: &Path) -> Result<PathBuf> {
+    let dir = repo_root.join(".visvet");
     fs::create_dir_all(&dir)?;
     if !dir.join(".gitignore").exists() {
         fs::write(dir.join(".gitignore"), "*\n")?;
@@ -38,18 +38,18 @@ fn dir(root: &Path) -> Result<PathBuf> {
 }
 
 /// Apply `f` to the state under an exclusive lock on `.visvet/`, then save it.
-fn update<R>(root: &Path, f: impl FnOnce(&mut ReviewAnnotations) -> Result<R>) -> Result<R> {
-    let lock = fs::File::open(dir(root)?)?;
+fn update<R>(repo_root: &Path, f: impl FnOnce(&mut ReviewAnnotations) -> Result<R>) -> Result<R> {
+    let lock = fs::File::open(dir(repo_root)?)?;
     lock.lock()?;
-    let mut state = load(root)?;
+    let mut state = load(repo_root)?;
     let r = f(&mut state)?;
-    put(root, "state.json", &state)?;
+    put(repo_root, "state.json", &state)?;
     Ok(r)
 }
 
 /// Sets the AI's note on a box, folder or arrow, replacing any earlier one.
-pub fn add_note(root: &Path, target: MapId, why: String) -> Result<()> {
-    update(root, |s| {
+pub fn add_note(repo_root: &Path, target: MapId, why: String) -> Result<()> {
+    update(repo_root, |s| {
         s.notes.retain(|n| n.target != target);
         s.notes.push(AiNote { target, why });
         Ok(())
@@ -57,8 +57,8 @@ pub fn add_note(root: &Path, target: MapId, why: String) -> Result<()> {
 }
 
 /// Starts a comment thread from the user on `target`, waiting for the AI.
-pub fn new_thread(root: &Path, target: MapId, text: String) -> Result<()> {
-    update(root, |s| {
+pub fn new_thread(repo_root: &Path, target: MapId, text: String) -> Result<()> {
+    update(repo_root, |s| {
         let id = s.threads.iter().map(|t| t.id).max().unwrap_or(0) + 1;
         s.threads.push(Thread { id, target, state: ThreadState::Open, messages: vec![ThreadMessage { author: Author::User, text }] });
         Ok(())
@@ -66,8 +66,8 @@ pub fn new_thread(root: &Path, target: MapId, text: String) -> Result<()> {
 }
 
 /// Adds a message to thread `id` and moves it on: a user message (re)opens it for the AI; an AI message sets `state`.
-pub fn reply(root: &Path, id: u32, author: Author, text: String, state: ThreadState) -> Result<()> {
-    update(root, |s| {
+pub fn reply(repo_root: &Path, id: u32, author: Author, text: String, state: ThreadState) -> Result<()> {
+    update(repo_root, |s| {
         let t = s.threads.iter_mut().find(|t| t.id == id).ok_or_else(|| anyhow!("no thread #{id}"))?;
         t.messages.push(ThreadMessage { author, text });
         // A user's message hands the thread back to the AI, unless it resolves it.
@@ -82,18 +82,18 @@ mod tests {
 
     #[test]
     fn threads_move_between_user_and_ai() {
-        let root = std::env::temp_dir().join(format!("visvet-threads-{}", std::process::id()));
-        fs::create_dir_all(&root).unwrap();
-        new_thread(&root, MapId("src/a.rs".into()), "rename this".into()).unwrap();
+        let repo_root = std::env::temp_dir().join(format!("visvet-threads-{}", std::process::id()));
+        fs::create_dir_all(&repo_root).unwrap();
+        new_thread(&repo_root, MapId("src/a.rs".into()), "rename this".into()).unwrap();
         let state = |r: &Path| load(r).unwrap().threads[0].state;
-        assert_eq!(state(&root), ThreadState::Open);
-        reply(&root, 1, Author::Ai, "which name?".into(), ThreadState::Question).unwrap();
-        assert_eq!(state(&root), ThreadState::Question);
-        reply(&root, 1, Author::User, "call it b".into(), ThreadState::Open).unwrap();
-        assert_eq!(state(&root), ThreadState::Open); // a user message hands it back to the AI
-        reply(&root, 1, Author::Ai, "renamed; tests too?".into(), ThreadState::Question).unwrap();
-        reply(&root, 1, Author::User, "fine as is".into(), ThreadState::Resolved).unwrap(); // the user dismisses it
-        assert_eq!((state(&root), load(&root).unwrap().threads[0].messages.len()), (ThreadState::Resolved, 5));
-        fs::remove_dir_all(root).unwrap();
+        assert_eq!(state(&repo_root), ThreadState::Open);
+        reply(&repo_root, 1, Author::Ai, "which name?".into(), ThreadState::Question).unwrap();
+        assert_eq!(state(&repo_root), ThreadState::Question);
+        reply(&repo_root, 1, Author::User, "call it b".into(), ThreadState::Open).unwrap();
+        assert_eq!(state(&repo_root), ThreadState::Open); // a user message hands it back to the AI
+        reply(&repo_root, 1, Author::Ai, "renamed; tests too?".into(), ThreadState::Question).unwrap();
+        reply(&repo_root, 1, Author::User, "fine as is".into(), ThreadState::Resolved).unwrap(); // the user dismisses it
+        assert_eq!((state(&repo_root), load(&repo_root).unwrap().threads[0].messages.len()), (ThreadState::Resolved, 5));
+        fs::remove_dir_all(repo_root).unwrap();
     }
 }

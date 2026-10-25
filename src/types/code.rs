@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use ts_rs::TS;
 
-/// A file's path from the repository root, e.g. "src/types/code.rs". A real path (`PathBuf`, Rust's path type), but
+/// A file's path from the repository repo_root, e.g. "src/types/code.rs". A real path (`PathBuf`, Rust's path type), but
 /// not a place on this computer: the file may exist only in git (deleted, or its older version), so visvet never
 /// opens it directly, only through the repository's folder or git.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]

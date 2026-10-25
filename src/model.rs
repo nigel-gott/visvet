@@ -6,17 +6,17 @@ use similar::{ChangeTag, TextDiff};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
-/// Builds the `Review` for `root`: the working tree compared against git ref `base`.
+/// Builds the `Review` for `repo_root`: the working tree compared against git ref `base`.
 /// Leaves `annotations` empty; the caller fills it from the store.
-pub fn build_review(root: &Path, base: &str) -> anyhow::Result<Review> {
-    let cur: HashSet<String> = git::current_files(root)?.into_iter().collect();
-    let old: HashSet<String> = git::base_files(root, base)?.into_iter().collect();
-    let diffs: Option<HashSet<String>> = git::changed(root, base).map(HashSet::from_iter);
+pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
+    let cur: HashSet<String> = git::current_files(repo_root)?.into_iter().collect();
+    let old: HashSet<String> = git::base_files(repo_root, base)?.into_iter().collect();
+    let diffs: Option<HashSet<String>> = git::changed(repo_root, base).map(HashSet::from_iter);
     let mut all = vec![];
     for f in cur.union(&old).collect::<BTreeSet<_>>() {
-        let new = cur.contains(f).then(|| std::fs::read(root.join(f)).ok()).flatten();
+        let new = cur.contains(f).then(|| std::fs::read(repo_root.join(f)).ok()).flatten();
         let same = diffs.as_ref().is_some_and(|d| !d.contains(f));
-        let prev = if !old.contains(f) { None } else if same { new.clone() } else { git::show(root, base, f) };
+        let prev = if !old.contains(f) { None } else if same { new.clone() } else { git::show(repo_root, base, f) };
         all.extend(file_objects(f, new.as_deref(), prev.as_deref()));
     }
     let (units, dependencies) = link(all, &cur);

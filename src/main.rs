@@ -16,9 +16,9 @@ use types::{Author, MapId, Show, ThreadState, View};
 /// Review AI coding changes one level above the code.
 #[derive(Parser)]
 struct Cli {
-    /// Any path inside the git repository to review
+    /// The git repository to review: its folder, or any folder inside it
     #[arg(long, global = true, default_value = ".")]
-    root: PathBuf,
+    repo: PathBuf,
     #[command(subcommand)]
     cmd: Option<Cmd>,
     #[command(flatten)]
@@ -92,36 +92,36 @@ enum Cmd {
     },
 }
 
-/// Resolves the repository root, then runs the chosen command.
+/// Resolves the repository repo_root, then runs the chosen command.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let top = git::git(&cli.root, &["rev-parse", "--show-toplevel"])?;
-    let root = PathBuf::from(String::from_utf8(top)?.trim()).canonicalize()?;
+    let top = git::git(&cli.repo, &["rev-parse", "--show-toplevel"])?;
+    let repo_root = PathBuf::from(String::from_utf8(top)?.trim()).canonicalize()?;
     match cli.cmd.unwrap_or(Cmd::Serve(cli.serve)) {
-        Cmd::Serve(s) => server::serve(root, s.base, s.addr, !s.no_open).await,
-        Cmd::Explain { symbol, why } => store::add_note(&root, MapId(symbol), why.join(" ")),
-        Cmd::Graph { base } => graph::print(&root, &base),
-        Cmd::View => view(&root),
-        Cmd::Coverage => coverage::run(&root),
-        Cmd::Threads { stop_hook: true, .. } => threads::stop_hook(&root),
-        Cmd::Threads { all, .. } => threads::print(&root, all),
+        Cmd::Serve(s) => server::serve(repo_root, s.base, s.addr, !s.no_open).await,
+        Cmd::Explain { symbol, why } => store::add_note(&repo_root, MapId(symbol), why.join(" ")),
+        Cmd::Graph { base } => graph::print(&repo_root, &base),
+        Cmd::View => view(&repo_root),
+        Cmd::Coverage => coverage::run(&repo_root),
+        Cmd::Threads { stop_hook: true, .. } => threads::stop_hook(&repo_root),
+        Cmd::Threads { all, .. } => threads::print(&repo_root, all),
         Cmd::Reply { id, text, resolve, ask } => {
             let state = if resolve { ThreadState::Resolved } else if ask { ThreadState::Question } else { ThreadState::Working };
-            store::reply(&root, id, Author::Ai, text.join(" "), state)
+            store::reply(&repo_root, id, Author::Ai, text.join(" "), state)
         }
-        Cmd::Wait => threads::wait(&root),
-        Cmd::Show { symbol, highlight } => store::put(&root, "show.json", &Show { target: MapId(symbol), highlight: highlight.into_iter().map(MapId).collect() }),
+        Cmd::Wait => threads::wait(&repo_root),
+        Cmd::Show { symbol, highlight } => store::put(&repo_root, "show.json", &Show { target: MapId(symbol), highlight: highlight.into_iter().map(MapId).collect() }),
     }
 }
 
 /// Prints what the user is looking at, and how long ago it last changed.
-fn view(root: &Path) -> anyhow::Result<()> {
-    let Some(v) = store::get::<View>(root, "view.json")? else {
+fn view(repo_root: &Path) -> anyhow::Result<()> {
+    let Some(v) = store::get::<View>(repo_root, "view.json")? else {
         println!("visvet view: unknown, the UI has not been opened");
         return Ok(());
     };
-    let age = std::fs::metadata(root.join(".visvet/view.json"))?.modified()?.elapsed().unwrap_or_default().as_secs();
+    let age = std::fs::metadata(repo_root.join(".visvet/view.json"))?.modified()?.elapsed().unwrap_or_default().as_secs();
     let scope = v.scope.map_or(format!("whole map, {} levels deep", v.level + 1), |s| format!("zoomed into {s}"));
     println!("visvet view ({age}s ago): {scope}");
     let lines = [("selected", v.selected.into_iter().collect()), ("highlighted", v.highlight), ("on screen", v.visible)];

@@ -7,16 +7,16 @@ use std::path::Path;
 type Lines = HashMap<String, HashMap<u32, bool>>;
 
 /// Runs the Rust tests under `cargo llvm-cov` and saves their line coverage to `.visvet/coverage.lcov`.
-pub fn run(root: &Path) -> anyhow::Result<()> {
-    let out = root.join(".visvet/coverage.lcov");
-    let ok = std::process::Command::new("cargo").args(["llvm-cov", "--lcov", "--output-path"]).arg(&out).current_dir(root).status()?.success();
+pub fn run(repo_root: &Path) -> anyhow::Result<()> {
+    let out = repo_root.join(".visvet/coverage.lcov");
+    let ok = std::process::Command::new("cargo").args(["llvm-cov", "--lcov", "--output-path"]).arg(&out).current_dir(repo_root).status()?.success();
     anyhow::ensure!(ok, "cargo llvm-cov failed; install it with `cargo install cargo-llvm-cov`");
     Ok(())
 }
 
 /// Sets the coverage of every file unit and function in `review`, if `visvet coverage` has run.
-pub fn add(root: &Path, review: &mut Review) {
-    let all = load(root);
+pub fn add(repo_root: &Path, review: &mut Review) {
+    let all = load(repo_root);
     for u in &mut review.units {
         if u.kind == UnitKind::File {
             u.coverage = of(&all, u.file.as_str(), u.lines);
@@ -28,12 +28,12 @@ pub fn add(root: &Path, review: &mut Review) {
 }
 
 /// Reads `.visvet/coverage.lcov` (LCOV: "SF:<file>" starts a file, "DA:<line>,<count>" says how often a line ran).
-fn load(root: &Path) -> Lines {
-    let Ok(text) = std::fs::read_to_string(root.join(".visvet/coverage.lcov")) else { return Lines::new() };
+fn load(repo_root: &Path) -> Lines {
+    let Ok(text) = std::fs::read_to_string(repo_root.join(".visvet/coverage.lcov")) else { return Lines::new() };
     let (mut all, mut file) = (Lines::new(), String::new());
     for line in text.lines() {
         if let Some(p) = line.strip_prefix("SF:") {
-            file = Path::new(p).strip_prefix(root).map_or(p.into(), |r| r.to_string_lossy().into_owned());
+            file = Path::new(p).strip_prefix(repo_root).map_or(p.into(), |r| r.to_string_lossy().into_owned());
         } else if let Some((n, count)) = line.strip_prefix("DA:").and_then(|d| d.split_once(','))
             && let (Ok(n), Ok(count)) = (n.parse(), count.split(',').next().unwrap_or("").parse::<u64>())
         {
@@ -55,13 +55,13 @@ mod tests {
 
     #[test]
     fn reads_lcov_and_counts_lines() {
-        let root = std::env::temp_dir().join(format!("visvet-cov-{}", std::process::id()));
-        std::fs::create_dir_all(root.join(".visvet")).unwrap();
-        let lcov = format!("SF:{}/src/a.rs\nDA:2,3\nDA:3,0\nDA:5,1\nend_of_record\n", root.display());
-        std::fs::write(root.join(".visvet/coverage.lcov"), lcov).unwrap();
-        let all = load(&root);
+        let repo_root = std::env::temp_dir().join(format!("visvet-cov-{}", std::process::id()));
+        std::fs::create_dir_all(repo_root.join(".visvet")).unwrap();
+        let lcov = format!("SF:{}/src/a.rs\nDA:2,3\nDA:3,0\nDA:5,1\nend_of_record\n", repo_root.display());
+        std::fs::write(repo_root.join(".visvet/coverage.lcov"), lcov).unwrap();
+        let all = load(&repo_root);
         assert_eq!(of(&all, "src/a.rs", LineRange { first: 1, last: 4 }), Some(Coverage { covered: 1, coverable: 2 }));
         assert_eq!(of(&all, "src/a.rs", LineRange { first: 6, last: 9 }), None);
-        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(repo_root).unwrap();
     }
 }

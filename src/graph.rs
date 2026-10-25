@@ -29,8 +29,8 @@ struct Tally<'a> {
 
 /// Prints the map of the change against `base`, each section worst first: totals, top-folder coupling, cycles,
 /// files linked across top folders, zoom views, then the most complex and most connected functions. Removed code is left out.
-pub fn print(root: &Path, base: &str) -> anyhow::Result<()> {
-    let m = build_review(root, base)?;
+pub fn print(repo_root: &Path, base: &str) -> anyhow::Result<()> {
+    let m = build_review(repo_root, base)?;
     let objs: Vec<&CodeUnit> = m.units.iter().filter(|o| o.status != ChangeStatus::Removed).collect();
     let path = paths(&objs);
     let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), ..Default::default() };

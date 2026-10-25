@@ -119,7 +119,7 @@ export type MemberId = string;
 export type MemberKind = "field" | "method" | "variant" | "fn";
 
 /**
- * A file's path from the repository root, e.g. "src/types/code.rs". A real path (`PathBuf`, Rust's path type), but
+ * A file's path from the repository repo_root, e.g. "src/types/code.rs". A real path (`PathBuf`, Rust's path type), but
  * not a place on this computer: the file may exist only in git (deleted, or its older version), so visvet never
  * opens it directly, only through the repository's folder or git.
  */

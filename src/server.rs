@@ -37,7 +37,7 @@ pub struct Addr {
 
 /// Shared server state: the repo, the diff base, events for the UI and the host names it answers to.
 #[derive(Clone)]
-struct App { root: PathBuf, base: String, tx: broadcast::Sender<Push>, hosts: Vec<String> }
+struct App { repo_root: PathBuf, base: String, tx: broadcast::Sender<Push>, hosts: Vec<String> }
 
 /// An event pushed to the UI: files changed, so reload; or `visvet show` asked to navigate, with its JSON.
 #[derive(Clone)]
@@ -52,13 +52,13 @@ fn err(e: impl Display) -> (StatusCode, String) {
 }
 
 /// Serves the API and UI to the allowed host names, prints the URL and opens the browser.
-pub async fn serve(root: PathBuf, base: String, addr: Addr, open_browser: bool) -> anyhow::Result<()> {
+pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: bool) -> anyhow::Result<()> {
     let local = format!("http://{}:{}", if addr.host == "0.0.0.0" { "127.0.0.1" } else { &addr.host }, addr.port);
     let mut hosts: Vec<String> = [addr.host.as_str(), "127.0.0.1", "localhost"].iter().map(|h| format!("{h}:{}", addr.port)).collect();
     hosts.extend(addr.url.as_deref().and_then(|u| u.split("://").nth(1)?.split('/').next()).map(String::from));
     let (tx, _) = broadcast::channel(16);
-    let _watcher = watch(root.clone(), tx.clone())?;
-    let app = App { root, base, tx, hosts };
+    let _watcher = watch(repo_root.clone(), tx.clone())?;
+    let app = App { repo_root, base, tx, hosts };
     let router = Router::new()
         .route("/api/model", get(model))
         .route("/api/events", get(events))
@@ -88,11 +88,11 @@ async fn check_host(State(app): State<App>, req: Request, next: Next) -> Respons
 
 /// Per burst of file events (150ms apart at most): a `Show` if `visvet show` wrote `.visvet/show.json`,
 /// and a `Change` if any other relevant file changed.
-fn watch(root: PathBuf, tx: broadcast::Sender<Push>) -> notify::Result<notify::RecommendedWatcher> {
+fn watch(repo_root: PathBuf, tx: broadcast::Sender<Push>) -> notify::Result<notify::RecommendedWatcher> {
     let (raw_tx, raw_rx) = mpsc::channel();
     let mut watcher = notify::recommended_watcher(raw_tx)?;
-    watcher.watch(&root, RecursiveMode::Recursive)?;
-    let show = root.join(".visvet/show.json");
+    watcher.watch(&repo_root, RecursiveMode::Recursive)?;
+    let show = repo_root.join(".visvet/show.json");
     std::thread::spawn(move || {
         while let Ok(first) = raw_rx.recv() {
             let mut burst = vec![first];
@@ -103,7 +103,7 @@ fn watch(root: PathBuf, tx: broadcast::Sender<Push>) -> notify::Result<notify::R
             if paths.contains(&show) && let Ok(json) = std::fs::read_to_string(&show) {
                 let _ = tx.send(Push::Show(json));
             }
-            if paths.iter().any(|p| relevant(&root, p)) {
+            if paths.iter().any(|p| relevant(&repo_root, p)) {
                 let _ = tx.send(Push::Change);
             }
         }
@@ -113,8 +113,8 @@ fn watch(root: PathBuf, tx: broadcast::Sender<Push>) -> notify::Result<notify::R
 
 /// Inside `.git`, only HEAD and ref moves count, so commits and checkouts refresh.
 /// Inside `.visvet`, only the review state and test coverage count, not the view and show hand-offs.
-fn relevant(root: &Path, path: &Path) -> bool {
-    let rel = path.strip_prefix(root).unwrap_or(path);
+fn relevant(repo_root: &Path, path: &Path) -> bool {
+    let rel = path.strip_prefix(repo_root).unwrap_or(path);
     if let Ok(own) = rel.strip_prefix(".visvet") {
         return own == Path::new("state.json") || own == Path::new("coverage.lcov");
     }
@@ -127,9 +127,9 @@ fn relevant(root: &Path, path: &Path) -> bool {
 /// Builds the review for the working tree and adds the stored review state.
 async fn model(State(app): State<App>) -> Res<Json<Review>> {
     let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {
-        let mut m = build_review(&app.root, &app.base)?;
-        m.annotations = store::load(&app.root)?;
-        coverage::add(&app.root, &mut m);
+        let mut m = build_review(&app.repo_root, &app.base)?;
+        m.annotations = store::load(&app.repo_root)?;
+        coverage::add(&app.repo_root, &mut m);
         Ok(m)
     });
     m.await.map_err(err)?.map(Json).map_err(err)
@@ -150,7 +150,7 @@ struct NewThread { target: MapId, text: String }
 
 /// Starts a comment thread from the user.
 async fn new_thread(State(app): State<App>, Json(t): Json<NewThread>) -> Res<()> {
-    store::new_thread(&app.root, t.target, t.text).map_err(err)
+    store::new_thread(&app.repo_root, t.target, t.text).map_err(err)
 }
 
 /// Body of POST /api/threads/{id}: the user's reply, and whether it closes the thread (the user dismissing a question).
@@ -160,12 +160,12 @@ struct Reply { text: String, #[serde(default)] resolve: bool }
 /// Adds the user's reply to a thread, reopening it for the AI unless the reply resolves it.
 async fn reply(State(app): State<App>, UrlPath(id): UrlPath<u32>, Json(r): Json<Reply>) -> Res<()> {
     let state = if r.resolve { ThreadState::Resolved } else { ThreadState::Open };
-    store::reply(&app.root, id, Author::User, r.text, state).map_err(err)
+    store::reply(&app.repo_root, id, Author::User, r.text, state).map_err(err)
 }
 
 /// Saves what the user is looking at, for `visvet view`.
 async fn set_view(State(app): State<App>, Json(v): Json<View>) -> Res<()> {
-    store::put(&app.root, "view.json", &v).map_err(err)
+    store::put(&app.repo_root, "view.json", &v).map_err(err)
 }
 
 /// Serves a UI file, falling back to index.html so client routes load the app.
