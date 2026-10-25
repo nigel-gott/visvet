@@ -1,0 +1,191 @@
+/* Styles for the outline, detail and map, in light and dark. */
+
+:root {
+  --bg: #fff; --fg: #1f2328; --muted: #656d76; --line: #d0d7de; --panel: #f6f8fa; --sel: #0969da; --sel-bg: #ddf4ff; --hl: #bf8700;
+  --add: #1a7f37; --add-bg: #dafbe1; --chg: #9a6700; --del: #cf222e; --del-bg: #ffebe9; --ai: #8250df;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --k-folder: #8250df; --k-file: #57606a; --k-struct: #0969da; --k-class: #1b7c83; --k-enum: #bc4c00; --k-trait: #1a7f37;
+  --k-type: #9a6700; --k-fn: #bf3989; --k-field: #0550ae;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --line: #30363d; --panel: #161b22; --sel: #4493f8; --sel-bg: #172c4a; --hl: #d29922;
+    --add: #3fb950; --add-bg: #12261e; --chg: #d29922; --del: #f85149; --del-bg: #2d1214; --ai: #a371f7;
+    --k-folder: #a371f7; --k-file: #8d96a0; --k-struct: #4493f8; --k-class: #39c5cf; --k-enum: #f0883e; --k-trait: #3fb950;
+    --k-type: #d29922; --k-fn: #db61a2; --k-field: #79c0ff;
+  }
+}
+
+* { box-sizing: border-box }
+body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: var(--bg); color: var(--fg) }
+code { font-family: var(--mono) }
+button, input { font: inherit }
+input[type=search] { display: block; width: 100%; padding: 6px }
+label { display: inline-flex; align-items: center; gap: 4px }
+
+.app { height: 100vh; display: grid; grid-template: auto 1fr / 1fr }
+header { grid-area: 1 / 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel) }
+.steps { display: flex; gap: 4px }
+.steps button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 18px; line-height: 1; cursor: pointer }
+.steps button:disabled { opacity: .35; cursor: default }
+.path { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; white-space: nowrap; font-weight: 600 }
+.path a { color: var(--sel); cursor: pointer }
+.path a.here { color: var(--fg); cursor: default }
+.path span { color: var(--muted) }
+.vs { color: var(--muted); font-size: 12px; white-space: nowrap }
+main { grid-area: 2 / 1; min-height: 0 }
+.err { color: var(--del); overflow-wrap: anywhere }
+.fatal { height: 100vh; margin: 0; padding: 24px; align-content: center; text-align: center }
+
+.react-flow {
+  --xy-edge-stroke: var(--muted); --xy-edge-stroke-width: 1.5;
+  --xy-edge-label-background-color: var(--panel); --xy-edge-label-color: var(--fg);
+}
+.react-flow__handle { opacity: 0 }
+.react-flow__edge.implements path { stroke-dasharray: 6 4 }
+.react-flow__edge.imports { opacity: .5 }
+.react-flow__edge.imports path { stroke-width: 1 }
+.react-flow__edge.calls path { stroke: var(--sel) }
+.react-flow__edge.creates path { stroke: var(--add); stroke-dasharray: 2 3 }
+.react-flow__edge.uses path { stroke: var(--k-type); stroke-dasharray: 1 3 }
+.react-flow .legend { margin: 8px; padding: 2px 6px; border-radius: 4px; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px }
+.legend i { width: 18px; border-top: 2px solid var(--muted) }
+.legend .calls { border-color: var(--sel) }
+.legend .creates { border-top-style: dotted; border-color: var(--add) }
+.legend .uses { border-top-style: dotted; border-color: var(--k-type) }
+.legend .implements { border-top-style: dashed }
+.legend .imports { opacity: .5; border-top-width: 1px }
+.card.ext { opacity: .6; border-style: dashed }
+.legend button { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer }
+.legend button.off { opacity: .35; text-decoration: line-through }
+.react-flow .card { user-select: none }
+.react-flow__edge-text { font-size: 11px }
+.react-flow__node > .card { height: 100% }
+.parent > .card { border-color: var(--muted) }
+
+.added { --st: var(--add) }
+.changed { --st: var(--chg) }
+.removed { --st: var(--del) }
+.card { pointer-events: all; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; font-size: 13px }
+.card.ctx { opacity: .45 }
+.hdr, .mrow, .meta { display: flex; align-items: center; gap: 6px; padding: 0 8px; white-space: nowrap; background: var(--panel) }
+.hdr { height: 34px; border-left: 4px solid var(--st, transparent); cursor: pointer }
+.mrow { height: 22px; border-top: 1px solid var(--line); font-family: var(--mono); cursor: pointer }
+.meta { height: 22px; color: var(--muted); font-size: 11px }
+.sel { background: var(--sel-bg) }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600 }
+.mrow .name, .orow .name { font-weight: normal }
+.name.removed { text-decoration: line-through }
+.mk { width: 1ch; flex: none; color: var(--st); font-family: var(--mono) }
+/* Each kind's colour and symbol, so modules, files, types and members are told apart at a glance. */
+.badge { display: inline-flex; flex: none; align-items: center; gap: 3px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  color: var(--k, var(--muted)); background: color-mix(in srgb, var(--k, var(--muted)) 14%, transparent) }
+.badge::before { font-size: 12px; font-weight: normal }
+.k-folder { --k: var(--k-folder) } .k-folder::before { content: '▦' }
+.k-file { --k: var(--k-file) } .k-file::before { content: '▤' }
+.k-struct { --k: var(--k-struct) } .k-struct::before { content: '◆' }
+.k-class { --k: var(--k-class) } .k-class::before { content: '●' }
+.k-enum { --k: var(--k-enum) } .k-enum::before { content: '≡' }
+.k-trait, .k-interface { --k: var(--k-trait) } .k-trait::before, .k-interface::before { content: '◇' }
+.k-type { --k: var(--k-type) } .k-type::before { content: '=' }
+.k-impl { --k: var(--k-struct) } .k-impl::before { content: '+' }
+.k-fn, .k-method { --k: var(--k-fn) } .k-fn::before, .k-method::before { content: 'ƒ' }
+.k-field { --k: var(--k-field) } .k-field::before { content: '•' }
+.k-variant { --k: var(--k-enum) } .k-variant::before { content: '▹' }
+.ok { color: var(--add) }
+.legend { margin: 0 0 8px; color: var(--muted); font-size: 11px }
+.doc, .ai { flex-basis: 100%; padding: 0 8px; font-size: 12px; line-height: 16px; overflow-wrap: anywhere }
+.doc { color: var(--muted) }
+.ai, .why { color: var(--ai) }
+.card .doc, .card .ai { padding-block: 1px; background: var(--panel) }
+
+.orow { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 4px 0; border-bottom: 1px solid var(--line); cursor: pointer }
+.orow .doc, .orow .ai { padding-left: 36px }
+.tog { width: 30px; padding: 0; border: 0; background: none; color: var(--muted) }
+.sub { margin-left: 12px }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 }
+.chips button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); color: var(--fg) }
+.chips .on { background: var(--sel); border-color: var(--sel); color: #fff }
+
+.bar, .nav { position: sticky; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--bg) }
+.bar { top: 0; border-bottom: 1px solid var(--line) }
+.bar b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono) }
+.nav { bottom: 0; flex-wrap: wrap; border-top: 1px solid var(--line) }
+.nav small { flex-basis: 100%; color: var(--chg); text-align: center }
+.nav button { flex: 1; min-height: 44px }
+.status { color: var(--st, var(--muted)); font-weight: 600 }
+.body { flex: 1; padding: 12px }
+.crumbs { font-size: 12px; overflow-wrap: anywhere }
+.crumbs a { color: var(--sel); cursor: pointer }
+.crumbs a + a::before { content: ' › '; white-space: pre; color: var(--muted) }
+.desc { color: var(--muted) }
+.why { padding: 8px; border-radius: 6px; background: var(--panel); white-space: pre-wrap }
+.diff { margin-top: 12px; border: 1px solid var(--line); border-radius: 6px; font: 13px/1.5 var(--mono) }
+.diff > :not(.ln) { margin: 6px 8px }
+.ln { padding-left: 5ch; text-indent: -5ch; white-space: pre-wrap; overflow-wrap: anywhere }
+.ln.add { background: var(--add-bg) }
+.ln.del { background: var(--del-bg) }
+.diff > .fold { display: block; width: 100%; margin: 0; border: 0; background: var(--panel); color: var(--muted) }
+.no { display: inline-block; min-width: 4ch; margin-right: 1ch; text-indent: 0; text-align: right; color: var(--muted); user-select: none }
+/* Boxes and arrows highlighted by `visvet show`. */
+.react-flow__node.hl .card { outline: 3px solid var(--hl); outline-offset: 2px }
+.react-flow__edge.hl path { stroke: var(--hl); stroke-width: 3 }
+/* The selected box. */
+.card.picked { outline: 2px solid var(--sel); outline-offset: 1px }
+/* An expanded function's code: 140 characters wide, longer lines wrap under their line number, scrolling down past 30 rows. */
+.card .code { overflow: auto; border-top: 1px solid var(--line); background: var(--bg); cursor: auto }
+.card .code .diff { margin: 0; border: 0; border-radius: 0; font: 12px/16px var(--mono) }
+.card .code .ln { padding: 0 8px 0 calc(8px + 5ch); text-indent: -5ch; white-space: pre-wrap; overflow-wrap: anywhere }
+/* Boxes new to the map fade in, so a zoomed box's insides appear rather than pop in. */
+.react-flow__node { animation: appear .4s ease-out }
+@keyframes appear { from { opacity: 0 } }
+/* On the map the header's left edge colour shows the status, so the +/~/- mark is left out; More/Less expands. */
+.card .mk { display: none }
+.card .grow { flex: none; padding: 2px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); font-size: 12px }
+/* Map boxes are sized to fit names in full (see `width` in Graph.tsx); names longer than the widest box wrap. */
+.card .name { white-space: normal; overflow-wrap: anywhere }
+.card .hdr { height: auto; min-height: 34px }
+.card .mrow { height: auto; min-height: 22px }
+/* An enum's values in a compact box: one clickable pill each. */
+.pills { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 8px; background: var(--panel) }
+.pill { padding: 1px 6px; border-radius: 9px; font: 11px/16px var(--mono); color: var(--k-enum); background: color-mix(in srgb, var(--k-enum) 12%, transparent); cursor: pointer }
+.pill.sel { outline: 2px solid var(--sel) }
+/* A small type's fields in a compact box: name and type, one 18px row each. */
+.fields { width: 100%; padding: 3px 8px; border-spacing: 0; background: var(--panel); font: 11px/18px var(--mono) }
+.fields td { padding: 0 8px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; cursor: pointer }
+.fields td:first-child { width: 40%; color: var(--k-field) }
+.fields td:last-child { color: var(--muted) }
+.fields tr.sel td { background: var(--sel-bg) }
+/* The selected box's exact field-level arrows, drawn on top of the arrows merged onto its type. */
+.react-flow__edge.exact path { stroke: var(--sel); stroke-width: 2.5 }
+/* Debuffs: badges shown only when a box is out of the norm. Red: complex functions. Amber: long. Blue: low test coverage. */
+.debuff { position: relative; flex: none; cursor: pointer; padding: 0 5px; border-radius: 8px; font: 600 10px/16px var(--mono); color: var(--d); background: color-mix(in srgb, var(--d) 15%, transparent) }
+.debuff.complex { --d: var(--del) }
+.debuff.long { --d: var(--chg) }
+.debuff.untested { --d: var(--k-struct) }
+/* Comment threads: a state-coloured chip on boxes and in the top bar, and the panel beside the selected box. */
+.talk { flex: none; padding: 0 6px; border-radius: 8px; font: 600 10px/16px system-ui, sans-serif; color: var(--t); background: color-mix(in srgb, var(--t) 15%, transparent) }
+.talk.open, .thread.open { --t: var(--chg) }
+.talk.working, .thread.working { --t: var(--sel) }
+.talk.question, .thread.question { --t: var(--ai) }
+.talk.resolved, .thread.resolved { --t: var(--add) }
+.counts { display: flex; gap: 4px; padding: 0; border: 0; background: none; cursor: pointer }
+.threads { width: 300px; max-height: min(400px, calc(100vh - 80px)); overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); box-shadow: 0 6px 20px rgb(0 0 0 / .3); font-size: 12px }
+.who { color: var(--muted); font-size: 11px; font-weight: 600 }
+.thread { display: flex; flex-direction: column; gap: 2px }
+.thread .state { align-self: center; margin: 2px 0; color: var(--t); font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em }
+.msg { display: flex; align-items: flex-end; gap: 4px; max-width: 88% }
+.msg.user { align-self: flex-end; flex-direction: row-reverse }
+.msg .avatar { flex: none; width: 18px; font-size: 13px; line-height: 18px; text-align: center }
+.msg p { margin: 0; padding: 4px 9px; border-radius: 12px; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere }
+.msg.user p { background: var(--sel); color: #fff }
+.msg.ai p { background: var(--panel); border: 1px solid var(--line); color: var(--fg) }
+.say { flex: none; width: 100%; max-height: 110px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); font: 12px/1.4 system-ui, sans-serif; resize: none; overflow-y: auto; outline-color: var(--sel) }
+/* A debuff's hover label, and its details card in the side panel. */
+.debuff:hover::after { content: attr(data-tip); position: absolute; top: calc(100% + 4px); right: 0; z-index: 10; width: max-content; max-width: 240px; padding: 4px 8px; border-radius: 6px; background: var(--fg); color: var(--bg); font: 11px/1.3 system-ui, sans-serif; white-space: normal; pointer-events: none }
+.detail-card { padding: 6px 8px; border-radius: 8px; background: var(--panel) }
+.detail-card .head { display: flex; gap: 6px; align-items: flex-start; font-weight: 600 }
+.detail-card .head button { margin-left: auto; border: 0; background: none; color: var(--muted); cursor: pointer }
+.detail-card .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; font-family: var(--mono); cursor: pointer }
+.detail-card .row:hover { color: var(--sel) }

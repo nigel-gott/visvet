@@ -1,0 +1,25 @@
+# visvet: the Rust daemon and CLI that serve the review UI.
+[package]
+name = "visvet"
+version = "0.1.0"
+edition = "2024"
+# File::lock, which guards .visvet/state.json, is stable from 1.89.
+rust-version = "1.89"
+
+[dependencies]
+anyhow = "1.0.104"
+axum = "0.8.9"
+clap = { version = "4.6.7", features = ["derive"] }
+mime_guess = "2.0.5"
+notify = "8.2.0"
+open = "5.4.4"
+rust-embed = "8.13.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+similar = "3.2.0"
+tokio = { version = "1.53.3", features = ["full"] }
+tokio-stream = { version = "0.1.19", features = ["sync"] }
+tree-sitter = "0.27.1"
+tree-sitter-rust = "0.24.2"
+tree-sitter-typescript = "0.23.2"
+ts-rs = "12.0.1"
