@@ -108,8 +108,12 @@ export function ThreadPanel({ target }: { target: string }) {
   const ts = x.threads.filter(t => t.target === target)
   const { live, send } = sender(x, target)
   const note = x.notes.get(target)
+  const ref = useRef<HTMLDivElement>(null)
+  const said = ts.reduce((n, t) => n + t.messages.length, 0)
+  // Opening a box's thread, or a new message on it, scrolls the drawer to the latest message.
+  useEffect(() => { ref.current?.parentElement?.scrollTo({ top: 1e9 }) }, [target, said])
   return (
-    <div className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+    <div ref={ref} className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       {x.detail && <DebuffDetail id={x.detail.id} kind={x.detail.kind} />}
       {(ts.length > 0 || note) && <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" onClick={() => x.setFull(null)}>✕</button></div>}
       {note && <div className="msg ai note"><span className="avatar">📝</span><div className="bubble"><Rich text={note} /></div></div>}
@@ -121,7 +125,7 @@ export function ThreadPanel({ target }: { target: string }) {
             </div>
           ))}
           <div className="state">{LABEL[t.state]}
-            {t.state === 'question' && <button onClick={() => post(`/api/threads/${t.id}`, { text: '👍 Fine as is', resolve: true }).catch(alert)}>Dismiss</button>}
+            {t.state === 'question' && <button title="No answer needed: resolves the thread" onClick={() => post(`/api/threads/${t.id}`, { text: '👍 Fine as is', resolve: true }).catch(alert)}>✓ Fine as is</button>}
           </div>
         </div>
       ))}
