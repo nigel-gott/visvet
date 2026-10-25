@@ -1,6 +1,6 @@
 //! Review state in `<repo_root>/.visvet/state.json`: the AI's notes and comment threads.
 //! Also the hand-off files between the UI and the AI: `view.json` (what the user sees) and `show.json` (where the AI sends them).
-use crate::types::{AiNote, Author, MapId, ReviewAnnotations, Thread, ThreadMessage, ThreadState};
+use crate::types::{AiNote, Author, MapId, ReviewAnnotations, Thread, ThreadId, ThreadMessage, ThreadState};
 use anyhow::anyhow;
 use anyhow::Result;
 use serde::{Serialize, de::DeserializeOwned};
@@ -59,16 +59,16 @@ pub fn add_note(repo_root: &Path, target: MapId, why: String) -> Result<()> {
 /// Starts a comment thread from the user on `target`, waiting for the AI.
 pub fn new_thread(repo_root: &Path, target: MapId, text: String) -> Result<()> {
     update(repo_root, |s| {
-        let id = s.threads.iter().map(|t| t.id).max().unwrap_or(0) + 1;
+        let id = ThreadId(s.threads.iter().map(|t| t.id.0).max().unwrap_or(0) + 1);
         s.threads.push(Thread { id, target, state: ThreadState::Open, messages: vec![ThreadMessage { author: Author::User, text }] });
         Ok(())
     })
 }
 
 /// Adds a message to thread `id` and moves it on: a user message (re)opens it for the AI; an AI message sets `state`.
-pub fn reply(repo_root: &Path, id: u32, author: Author, text: String, state: ThreadState) -> Result<()> {
+pub fn reply(repo_root: &Path, id: ThreadId, author: Author, text: String, state: ThreadState) -> Result<()> {
     update(repo_root, |s| {
-        let t = s.threads.iter_mut().find(|t| t.id == id).ok_or_else(|| anyhow!("no thread #{id}"))?;
+        let t = s.threads.iter_mut().find(|t| t.id == id).ok_or_else(|| anyhow!("no thread {id}"))?;
         t.messages.push(ThreadMessage { author, text });
         // A user's message hands the thread back to the AI, unless it resolves it.
         t.state = if author == Author::User && state != ThreadState::Resolved { ThreadState::Open } else { state };
@@ -87,12 +87,12 @@ mod tests {
         new_thread(&repo_root, MapId("src/a.rs".into()), "rename this".into()).unwrap();
         let state = |r: &Path| load(r).unwrap().threads[0].state;
         assert_eq!(state(&repo_root), ThreadState::Open);
-        reply(&repo_root, 1, Author::Ai, "which name?".into(), ThreadState::Question).unwrap();
+        reply(&repo_root, ThreadId(1), Author::Ai, "which name?".into(), ThreadState::Question).unwrap();
         assert_eq!(state(&repo_root), ThreadState::Question);
-        reply(&repo_root, 1, Author::User, "call it b".into(), ThreadState::Open).unwrap();
+        reply(&repo_root, ThreadId(1), Author::User, "call it b".into(), ThreadState::Open).unwrap();
         assert_eq!(state(&repo_root), ThreadState::Open); // a user message hands it back to the AI
-        reply(&repo_root, 1, Author::Ai, "renamed; tests too?".into(), ThreadState::Question).unwrap();
-        reply(&repo_root, 1, Author::User, "fine as is".into(), ThreadState::Resolved).unwrap(); // the user dismisses it
+        reply(&repo_root, ThreadId(1), Author::Ai, "renamed; tests too?".into(), ThreadState::Question).unwrap();
+        reply(&repo_root, ThreadId(1), Author::User, "fine as is".into(), ThreadState::Resolved).unwrap(); // the user dismisses it
         assert_eq!((state(&repo_root), load(&repo_root).unwrap().threads[0].messages.len()), (ThreadState::Resolved, 5));
         fs::remove_dir_all(repo_root).unwrap();
     }

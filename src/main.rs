@@ -11,7 +11,7 @@ mod types;
 
 use clap::{Args, Parser, Subcommand};
 use std::path::{Path, PathBuf};
-use types::{Author, MapId, Show, ThreadState, View};
+use types::{Author, MapId, Show, ThreadId, ThreadState, View};
 
 /// Review AI coding changes one level above the code.
 #[derive(Parser)]
@@ -68,7 +68,8 @@ enum Cmd {
     },
     /// Answer a comment thread; it stays working unless --resolve or --ask
     Reply {
-        id: u32,
+        #[arg(value_parser = |s: &str| s.parse().map(ThreadId))]
+        id: ThreadId,
         #[arg(required = true)]
         text: Vec<String>,
         /// The thread is done

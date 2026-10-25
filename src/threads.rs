@@ -14,7 +14,7 @@ fn waiting(repo_root: &Path, all: bool) -> anyhow::Result<Vec<Thread>> {
 fn describe(threads: &[Thread]) -> String {
     let mut out = String::new();
     for t in threads {
-        out += &format!("#{} {:?} on {}\n", t.id, t.state, t.target);
+        out += &format!("{} {:?} on {}\n", t.id, t.state, t.target);
         for m in &t.messages {
             out += &format!("   {}: {}\n", if m.author == Author::User { "user" } else { "you" }, m.text.replace('\n', "\n      "));
         }

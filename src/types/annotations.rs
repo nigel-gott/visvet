@@ -34,10 +34,19 @@ pub enum ThreadState {
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct ThreadMessage { pub author: Author, pub text: String }
 
+/// A thread's number, e.g. 3 for "#3": counts up from 1 and is never reused.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct ThreadId(pub u32);
+
+impl std::fmt::Display for ThreadId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { write!(f, "#{}", self.0) }
+}
+
 /// A conversation between the user and the AI about one box, folder or arrow.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct Thread { pub id: u32, pub target: MapId, pub state: ThreadState, pub messages: Vec<ThreadMessage> }
+pub struct Thread { pub id: ThreadId, pub target: MapId, pub state: ThreadState, pub messages: Vec<ThreadMessage> }
 
 /// The review work that can't be rebuilt from code, kept in `.visvet/state.json`: the AI's notes and comment threads.
 /// Missing fields load as empty, and unknown ones are ignored, so old files still load.

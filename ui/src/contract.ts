@@ -150,7 +150,12 @@ export type Show = { target: MapId, highlight: Array<MapId>, };
 /**
  * A conversation between the user and the AI about one box, folder or arrow.
  */
-export type Thread = { id: number, target: MapId, state: ThreadState, messages: Array<ThreadMessage>, };
+export type Thread = { id: ThreadId, target: MapId, state: ThreadState, messages: Array<ThreadMessage>, };
+
+/**
+ * A thread's number, e.g. 3 for "#3": counts up from 1 and is never reused.
+ */
+export type ThreadId = number;
 
 /**
  * One message in a comment thread.

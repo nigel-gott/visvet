@@ -1,5 +1,5 @@
 //! HTTP API, change and show events and the embedded UI, answering only to known host names.
-use crate::{coverage, model::build_review, store, types::{Author, MapId, Review, ThreadState, View}};
+use crate::{coverage, model::build_review, store, types::{Author, MapId, Review, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
     extract::{Path as UrlPath, Request, State},
@@ -158,7 +158,7 @@ async fn new_thread(State(app): State<App>, Json(t): Json<NewThread>) -> Res<()>
 struct Reply { text: String, #[serde(default)] resolve: bool }
 
 /// Adds the user's reply to a thread, reopening it for the AI unless the reply resolves it.
-async fn reply(State(app): State<App>, UrlPath(id): UrlPath<u32>, Json(r): Json<Reply>) -> Res<()> {
+async fn reply(State(app): State<App>, UrlPath(id): UrlPath<ThreadId>, Json(r): Json<Reply>) -> Res<()> {
     let state = if r.resolve { ThreadState::Resolved } else { ThreadState::Open };
     store::reply(&app.repo_root, id, Author::User, r.text, state).map_err(err)
 }
