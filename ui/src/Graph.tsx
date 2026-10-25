@@ -296,6 +296,13 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
 }
 type View = ReturnType<typeof mapView>
 
+/**
+ * Arrows from a box outside the zoomed one into it, given to ELK the other way round. ELK puts an arrow's start to
+ * the left, so this keeps every outside box on the right of the zoomed one instead of some far on the left; their
+ * routes are turned back round after layout.
+ */
+const flipped = (v: View) => new Set([...v.edges, ...v.detail].filter(([, d]) => v.ext.has(('es' in d ? d.es[0] : d[0]).a)).map(([id]) => id))
+
 /** ELK's input: a node per box, nested in its parent's node, and an edge per lifted link. */
 function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number): ElkNode {
   const nodes = new Map(v.boxes.map(it => [it.id, {
@@ -308,7 +315,10 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
     id: 'root',
     children: [],
     // Both the merged top-level arrows and the exact arrows they stand for get routes, so either set can be drawn.
-    edges: [...v.edges, ...v.detail].map(([id, d]) => { const e = 'es' in d ? d.es[0] : d[0]; return { id, sources: [e.a], targets: [e.b] } }),
+    edges: [...v.edges, ...v.detail].map(([id, d]) => {
+      const e = 'es' in d ? d.es[0] : d[0]
+      return v.ext.has(e.a) ? { id, sources: [e.b], targets: [e.a] } : { id, sources: [e.a], targets: [e.b] }
+    }),
     // Nodes sharing a layer line up across the flow, so flowing RIGHT stacks unlinked boxes in a column, not a wide row.
     layoutOptions: { ...LAYOUT, 'elk.direction': 'RIGHT' },
   }
@@ -328,11 +338,12 @@ function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it:
   const key = [...v.boxes.map(it => `${it.id} ${size(it)}x${wide(it)}`), ...v.edges.keys(), ...v.detail.keys()].join('|')
   useEffect(() => {
     let live = true
+    const turned = flipped(v)
     elk.layout(elkGraph(v, size, wide)).then(g => {
       if (!live) return
       const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
-        const s = e.sections?.[0]
-        return s ? [[e.id, [s.startPoint, ...(s.bendPoints ?? []), s.endPoint]]] : []
+        const s = e.sections?.[0], pts = s ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint] : []
+        return s ? [[e.id, turned.has(e.id) ? pts.reverse() : pts]] : []
       }))
       setGraph({ view, width: g.width!, height: g.height!, laid: flat(g), routes })
     })

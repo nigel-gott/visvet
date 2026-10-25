@@ -11,8 +11,6 @@ import Graph from './Graph'
 import { X, type Ctx } from './Views'
 import { hasPanel, Inbox, Peek, ThreadCounts, ThreadPanel } from './Threads'
 
-/** Git's empty tree: comparing against it shows the whole project as the change under review. */
-const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 /** The selected symbol id from the URL hash, or null. */
 const hashSel = () => { try { return decodeURIComponent(location.hash.slice(1)) || null } catch { return null } }
@@ -130,7 +128,7 @@ function Header({ error }: { error?: string }) {
         {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
       </nav>
       <ThreadCounts />
-      <span className="vs">{x.model.compared_against === EMPTY_TREE ? 'whole project' : <>vs <code>{x.model.compared_against}</code></>}</span>
+      <span className="vs">vs <code>{x.model.compared_against}</code></span>
       {error && <span className="err">Refresh failed: {error}</span>}
     </header>
   )
