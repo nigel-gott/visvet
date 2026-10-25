@@ -226,12 +226,13 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     while (it && !ids.has(it.id)) it = up(it)
     return it
   }
-  /** Outside the zoomed box, a link ends at a box next to it or one of its parents, e.g. a sibling file, not inside one. */
-  const around = new Set<string>()
-  for (let p = top?.parent; p; p = p.parent) around.add(p.id)
+  /**
+   * Outside the zoomed box, a link ends at the file it leads to, e.g. src/types/code.rs, shown inside its folders or
+   * module files down to the zoomed box's depth, so you see where it goes without zooming out.
+   */
   const peer = (id: string) => {
     let it = ix.items.get(id)
-    while (it?.parent && !around.has(it.parent.id)) it = it.parent
+    while (it?.parent && it.kind !== 'file') it = it.parent
     return it
   }
   const ext = new Map<string, Item>()
