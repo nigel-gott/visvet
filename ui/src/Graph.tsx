@@ -1,11 +1,11 @@
 // The map: ELK lays out folder, file, code unit and member boxes; clicking selects a box, double-clicking zooms into it.
 
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import { ReactFlow, BaseEdge, Handle, NodeToolbar, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type NodeProps, type XYPosition } from '@xyflow/react'
+import { ReactFlow, BaseEdge, Handle, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type NodeProps, type XYPosition } from '@xyflow/react'
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
 import { flip, reportView, within, type DependencyKind, type Index, type Item, type Review } from './model'
 import { DiffView, Head, Notes, X, type Ctx } from './Views'
-import { hasPanel, ThreadChip, ThreadPanel } from './Threads'
+import { ThreadChip } from './Threads'
 
 const elk = new ELK()
 const LEVELS = ['Top level', '2 levels', '3 levels']
@@ -91,9 +91,8 @@ function pillsHeight(values: Item[], w: number) {
 /** A box's height: header, the full doc and note, enum value pills or a field table, member rows, and its code when expanded. */
 function height(it: Item, x: Ctx, rows: Item[]) {
   const w = width(it, rows, x)
-  const note = x.notes.get(it.id)
   const table = fieldTable(it, rows).length
-  return 36 + wraps(it.m?.signature ?? it.name, HEAD_FONT, w) + (it.doc ? block(it.doc, w) : 0) + (note ? block('AI: ' + note, w) : 0) + pillsHeight(pills(it, rows), w) +
+  return 36 + wraps(it.m?.signature ?? it.name, HEAD_FONT, w) + (it.doc ? block(it.doc, w) : 0) + pillsHeight(pills(it, rows), w) +
     (table ? 18 * table + 6 : 0) +
     rows.reduce((h, r) => h + 22 + wraps(r.m?.signature ?? r.name, ROW_FONT, w), 0) + (it.kind === 'folder' || it.o?.implements.length ? 22 : 0) +
     (showsCode(it, x) ? codeHeight(it) : 0)
@@ -121,16 +120,7 @@ function Card({ data }: NodeProps<Node<CardData>>) {
   const { it, rows, ext } = data
   const x = useContext(X)
   const { getViewport, getInternalNode } = useReactFlow()
-  /**
-   * Where the side panel fits on screen: right of this box if 300px (plus a margin) fit there, else left; lined up
-   * with the box's top if there is room below it for the panel, else with its bottom.
-   */
-  const room = () => {
-    const n = getInternalNode(it.id), vp = getViewport()
-    if (!n) return { right: true, below: true }
-    const { x: nx, y: ny } = n.internals.positionAbsolute
-    return { right: (nx + (n.measured.width ?? 0)) * vp.zoom + vp.x + 330 < innerWidth, below: ny * vp.zoom + vp.y + 420 < innerHeight }
-  }
+
   const pinned = it.id === x.scope
   const zoomable = !pinned && !it.m && it.kids.length > 0
   /**
@@ -186,10 +176,6 @@ function Card({ data }: NodeProps<Node<CardData>>) {
           <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={it.diff} /></div>}
       </div>
       <Handle type="source" position={Position.Right} />
-      {/* The side panel (see `ThreadPanel`) of the selected box, or of the row, pill or field row it lists, unless that has its own box. */}
-      <NodeToolbar isVisible={!!x.sel && hasPanel(x, x.sel) && (x.sel === it.id || (!getInternalNode(x.sel) && [...rows, ...pills(it, rows), ...fieldTable(it, rows)].some(k => k.id === x.sel)))} position={room().right ? Position.Right : Position.Left} align={room().below ? 'start' : 'end'}>
-        <ThreadPanel target={x.sel!} />
-      </NodeToolbar>
     </>
   )
 }

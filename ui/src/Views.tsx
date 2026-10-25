@@ -30,6 +30,9 @@ export type Ctx = {
   /** A comment being typed on the selected box: typing with a box selected starts one. */
   draft: { target: string; text: string } | null
   setDraft: (draft: { target: string; text: string } | null) => void
+  /** Whether the drawer shows the inbox of unresolved threads instead of the selected box. */
+  inbox: boolean
+  setInbox: (open: boolean) => void
 }
 export const X = createContext<Ctx>(null!)
 
@@ -49,15 +52,9 @@ export function Head({ it }: { it: Item }) {
 }
 
 
-/** An item's doc line and the AI's note. */
+/** An item's doc line. The AI's note on it shows in the side drawer, with its threads. */
 export function Notes({ it }: { it: Item }) {
-  const note = useContext(X).notes.get(it.id)
-  return (
-    <>
-      {it.doc && <div className="doc">{it.doc}</div>}
-      {note && <div className="ai">AI: {note}</div>}
-    </>
-  )
+  return it.doc && <div className="doc">{it.doc}</div>
 }
 
 /** A clickable outline row, scrolled into view when it becomes the selection. */

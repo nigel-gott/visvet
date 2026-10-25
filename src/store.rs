@@ -70,7 +70,8 @@ pub fn reply(root: &Path, id: u32, author: Author, text: String, state: ThreadSt
     update(root, |s| {
         let t = s.threads.iter_mut().find(|t| t.id == id).ok_or_else(|| anyhow!("no thread #{id}"))?;
         t.messages.push(ThreadMessage { author, text });
-        t.state = if author == Author::User { ThreadState::Open } else { state };
+        // A user's message hands the thread back to the AI, unless it resolves it.
+        t.state = if author == Author::User && state != ThreadState::Resolved { ThreadState::Open } else { state };
         Ok(())
     })
 }
@@ -88,10 +89,11 @@ mod tests {
         assert_eq!(state(&root), ThreadState::Open);
         reply(&root, 1, Author::Ai, "which name?".into(), ThreadState::Question).unwrap();
         assert_eq!(state(&root), ThreadState::Question);
-        reply(&root, 1, Author::User, "call it b".into(), ThreadState::Resolved).unwrap();
-        assert_eq!(state(&root), ThreadState::Open); // a user message always hands it back to the AI
-        reply(&root, 1, Author::Ai, "renamed".into(), ThreadState::Resolved).unwrap();
-        assert_eq!((state(&root), load(&root).unwrap().threads[0].messages.len()), (ThreadState::Resolved, 4));
+        reply(&root, 1, Author::User, "call it b".into(), ThreadState::Open).unwrap();
+        assert_eq!(state(&root), ThreadState::Open); // a user message hands it back to the AI
+        reply(&root, 1, Author::Ai, "renamed; tests too?".into(), ThreadState::Question).unwrap();
+        reply(&root, 1, Author::User, "fine as is".into(), ThreadState::Resolved).unwrap(); // the user dismisses it
+        assert_eq!((state(&root), load(&root).unwrap().threads[0].messages.len()), (ThreadState::Resolved, 5));
         fs::remove_dir_all(root).unwrap();
     }
 }

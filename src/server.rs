@@ -153,13 +153,14 @@ async fn new_thread(State(app): State<App>, Json(t): Json<NewThread>) -> Res<()>
     store::new_thread(&app.root, t.target, t.text).map_err(err)
 }
 
-/// Body of POST /api/threads/{id}: the user's reply.
+/// Body of POST /api/threads/{id}: the user's reply, and whether it closes the thread (the user dismissing a question).
 #[derive(Deserialize)]
-struct Reply { text: String }
+struct Reply { text: String, #[serde(default)] resolve: bool }
 
-/// Adds the user's reply to a thread, reopening it for the AI.
+/// Adds the user's reply to a thread, reopening it for the AI unless the reply resolves it.
 async fn reply(State(app): State<App>, UrlPath(id): UrlPath<u32>, Json(r): Json<Reply>) -> Res<()> {
-    store::reply(&app.root, id, Author::User, r.text, ThreadState::Open).map_err(err)
+    let state = if r.resolve { ThreadState::Resolved } else { ThreadState::Open };
+    store::reply(&app.root, id, Author::User, r.text, state).map_err(err)
 }
 
 /// Saves what the user is looking at, for `visvet view`.

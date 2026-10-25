@@ -1,6 +1,6 @@
 // Comment threads between the user and the AI: a chip on each box, a panel on the selected box, counts in the top bar.
 
-import { useContext, useEffect, useRef, useState } from 'react'
+import { Fragment, useContext, useEffect, useRef, useState } from 'react'
 import { post, type Item, type Thread, type ThreadState } from './model'
 import { DebuffDetail } from './Debuffs'
 import { X, type Ctx } from './Views'
@@ -15,27 +15,28 @@ const urgent = (ts: Thread[]) => URGENCY.find(s => ts.some(t => t.state === s))!
 
 /** A box's header chip: how many unresolved threads are on it or inside it, coloured by the most urgent. */
 export function ThreadChip({ it }: { it: Item }) {
-  const ts = threadsIn(it.id, useContext(X).threads)
+  const x = useContext(X)
+  const ts = threadsIn(it.id, x.threads)
   const live = ts.filter(t => t.state !== 'resolved')
-  if (!ts.length) return null
+  if (!ts.length) return x.notes.has(it.id) && <span className="talk note" title={x.notes.get(it.id)}>📝</span>
   const last = live.at(-1)?.messages.at(-1)
   return <span className={'talk ' + urgent(live.length ? live : ts)} title={last ? last.text : `${ts.length} resolved`}>💬 {live.length || '✓'}</span>
 }
 
 /**
- * A comment field, focused, starting with `text`, that wraps and grows with what is typed. Enter sends it (Shift+Enter
- * adds a line); Escape, or sending, calls `done`.
+ * A comment field starting with `text`, focused if `focus`, that wraps and grows with what is typed. Enter sends it
+ * (Shift+Enter adds a line); Escape leaves it; Escape or sending calls `done`.
  */
-function Say({ text: start, placeholder, send, done }: { text: string; placeholder: string; send: (text: string) => Promise<unknown>; done: () => void }) {
+function Say({ text: start, focus, placeholder, send, done }: { text: string; focus: boolean; placeholder: string; send: (text: string) => Promise<unknown>; done: () => void }) {
   const [text, setText] = useState(start)
   const ref = useRef<HTMLTextAreaElement>(null)
-  useEffect(() => ref.current?.focus({ preventScroll: true }), [])
+  useEffect(() => { if (focus) ref.current?.focus({ preventScroll: true }) }, [])
   // Grow to fit the text (CSS caps it), so a long comment wraps instead of running off the side.
   useEffect(() => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }, [text])
   return (
     <textarea ref={ref} rows={1} className="say nodrag nopan" placeholder={placeholder} value={text} onChange={e => setText(e.target.value)}
       onKeyDown={e => {
-        if (e.key === 'Escape') done()
+        if (e.key === 'Escape') { e.currentTarget.blur(); done() }
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault()
           if (text.trim()) send(text.trim()).then(done, alert)
@@ -44,16 +45,30 @@ function Say({ text: start, placeholder, send, done }: { text: string; placehold
   )
 }
 
+/** Inline `code` and **bold** in a line of a message. */
+const inline = (s: string) => s.split(/(`[^`]+`|\*\*[^*]+\*\*)/).map((p, i) =>
+  p.startsWith('`') ? <code key={i}>{p.slice(1, -1)}</code> : p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : p)
+
+/** A message with light markdown: blank lines split paragraphs, "- " and "1. " lines make lists, `code` and **bold** inline. */
+function Rich({ text }: { text: string }) {
+  return text.split(/\n\s*\n/).map((block, i) => {
+    const lines = block.split('\n')
+    if (lines.every(l => /^\s*[-*] /.test(l))) return <ul key={i}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*[-*] /, ''))}</li>)}</ul>
+    if (lines.every(l => /^\s*\d+[.)] /.test(l))) return <ol key={i}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*\d+[.)] /, ''))}</li>)}</ol>
+    return <p key={i}>{lines.map((l, j) => <Fragment key={j}>{j > 0 && <br />}{inline(l)}</Fragment>)}</p>
+  })
+}
+
 /** Who wrote a message, as a chat avatar. */
 const AVATAR = { user: '🧑', ai: '🤖' }
 /** Each thread state, as a short line under the thread. */
 const LABEL: Record<ThreadState, string> = { open: 'waiting for Claude', working: 'Claude is on it', question: 'waiting for you', resolved: '✓ resolved' }
 
-/** Whether the selected box `target` has anything for its side panel: threads, a clicked debuff, or a comment being typed. */
-export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target === target) || !!x.detail || !!x.draft
+/** Whether the selected box `target` has anything for the side drawer: threads, the AI's note, a clicked debuff, or a comment being typed. */
+export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target === target) || x.notes.has(target) || !!x.detail || !!x.draft
 
 /**
- * The selected box's side panel: a clicked debuff's details, then its conversation with the AI like a chat (the
+ * The side drawer for the selected box: a clicked debuff's details, the AI's note on it, then its conversation with the AI like a chat (the
  * user right, the AI left, an avatar on the last message of a run), then the comment being typed. Typing continues
  * the current thread, or starts one if none is open.
  */
@@ -61,38 +76,68 @@ export function ThreadPanel({ target }: { target: string }) {
   const x = useContext(X)
   const ts = x.threads.filter(t => t.target === target)
   const live = ts.at(-1)?.state === 'resolved' ? undefined : ts.at(-1)
+  const note = x.notes.get(target)
   const send = (text: string) => (live ? post(`/api/threads/${live.id}`, { text }) : post('/api/threads', { target, text }))
   return (
     <div className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       {x.detail && <DebuffDetail id={x.detail.id} kind={x.detail.kind} />}
-      {ts.length > 0 && <div className="who">💬 {x.ix.items.get(target)?.name ?? target}</div>}
+      {(ts.length > 0 || note) && <div className="who">💬 {x.ix.items.get(target)?.name ?? target}</div>}
+      {note && <div className="msg ai note"><span className="avatar">📝</span><div className="bubble"><Rich text={note} /></div></div>}
       {ts.map(t => (
         <div key={t.id} className={'thread ' + t.state}>
           {t.messages.map((m, i) => (
             <div key={i} className={'msg ' + m.author}>
-              <span className="avatar">{t.messages[i + 1]?.author === m.author ? '' : AVATAR[m.author]}</span><p>{m.text}</p>
+              <span className="avatar">{t.messages[i + 1]?.author === m.author ? '' : AVATAR[m.author]}</span><div className="bubble"><Rich text={m.text} /></div>
             </div>
           ))}
-          <div className="state">{LABEL[t.state]}</div>
+          <div className="state">{LABEL[t.state]}
+            {t.state === 'question' && <button onClick={() => post(`/api/threads/${t.id}`, { text: '👍 Fine as is', resolve: true }).catch(alert)}>Dismiss</button>}
+          </div>
         </div>
       ))}
-      {x.draft && <Say text={x.draft.text} placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} />}
+      {/* Always there; typing anywhere with the box selected starts it (`draft`), remounting it with that text. */}
+      <Say key={x.draft ? 'draft' : 'idle'} text={x.draft?.text ?? ''} focus={!!x.draft} placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} />
     </div>
   )
 }
 
-/** The top bar's thread counts; clicking them shows the next thread that waits for someone. */
+/** How the top bar names each state, singular and plural. */
+const COUNT: Record<ThreadState, [string, string]> = { question: ['question for you', 'questions for you'], open: ['waiting for Claude', 'waiting for Claude'], working: ['in progress', 'in progress'], resolved: ['resolved', 'resolved'] }
+
+/** The unresolved threads, the ones waiting for the user first. */
+const unresolved = (threads: Thread[]) => threads.filter(t => t.state !== 'resolved').sort((a, b) => URGENCY.indexOf(a.state) - URGENCY.indexOf(b.state))
+
+/** The top bar's thread counts; clicking them opens the inbox in the drawer. */
 export function ThreadCounts() {
   const x = useContext(X)
-  const [next, setNext] = useState(0)
-  const live = x.threads.filter(t => t.state !== 'resolved').sort((a, b) => URGENCY.indexOf(a.state) - URGENCY.indexOf(b.state))
+  const live = unresolved(x.threads)
   if (!live.length) return null
   const counts = URGENCY.slice(0, 3).map(s => [s, live.filter(t => t.state === s).length] as const).filter(([, n]) => n)
-  const go = () => {
-    const t = live[next % live.length], up = x.ix.items.get(t.target)?.parent?.id ?? null
-    if (up !== x.scope) x.zoom(up) // show the thread's box among its siblings, with its panel open
+  return (
+    <button className="counts" title="Show all open threads" onClick={() => x.setInbox(!x.inbox)}>
+      {counts.map(([s, n]) => <span key={s} className={'talk ' + s}>{n} {COUNT[s][n === 1 ? 0 : 1]}</span>)}
+    </button>
+  )
+}
+
+/** Every unresolved thread: its box, state and last message. Clicking one shows its box among its siblings, with the thread open. */
+export function Inbox() {
+  const x = useContext(X)
+  const go = (t: Thread) => {
+    const up = x.ix.items.get(t.target)?.parent?.id ?? null
+    if (up !== x.scope) x.zoom(up)
     x.select(t.target, true)
-    setNext(next + 1)
+    x.setInbox(false)
   }
-  return <button className="counts" title="Show the next thread" onClick={go}>{counts.map(([s, n]) => <span key={s} className={'talk ' + s}>{n} {s}</span>)}</button>
+  return (
+    <div className="threads">
+      <div className="who">Open threads<button className="close" onClick={() => x.setInbox(false)}>✕</button></div>
+      {unresolved(x.threads).map(t => (
+        <button key={t.id} className={'inbox thread ' + t.state} onClick={() => go(t)}>
+          <b>{x.ix.items.get(t.target)?.name ?? t.target}</b><span className="state">{LABEL[t.state]}</span>
+          <p>{t.messages.at(-1)?.text.replace(/\*\*|`/g, '')}</p>
+        </button>
+      ))}
+    </div>
+  )
 }
