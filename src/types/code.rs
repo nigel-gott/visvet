@@ -1,5 +1,6 @@
 //! The code under review, rebuilt from git on every request: code units, their members, and the dependencies between them.
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use ts_rs::TS;
 
@@ -170,6 +171,8 @@ pub struct CodeUnit {
     pub members: Vec<Member>,
     /// Diff of the declaration (struct, enum, trait, class or interface item), or of the whole file for a file unit.
     pub diff: Vec<DiffLine>,
+    /// Markdown files only: the front matter's `key: value` pairs, e.g. `kind: issue`, which label the box.
+    pub front: BTreeMap<String, String>,
 }
 
 /// How `from` depends on `to`.
@@ -192,6 +195,8 @@ pub enum DependencyKind {
     Uses,
     /// A code generator writes `to` from type `from`, e.g. ts-rs writes a TypeScript copy of a Rust type.
     Generates,
+    /// Markdown file `from` names box or file `to`, in a `code span` or a link.
+    Links,
 }
 
 impl DependencyKind {
@@ -199,7 +204,7 @@ impl DependencyKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Has => "has", Self::Implements => "implements", Self::Imports => "imports",
-            Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses", Self::Generates => "generates",
+            Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses", Self::Generates => "generates", Self::Links => "links",
         }
     }
 }

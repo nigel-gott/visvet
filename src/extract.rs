@@ -89,7 +89,7 @@ fn outer(n: Node) -> Node {
 }
 
 /// The directory part of a repo-relative path ("" at the root).
-fn dir(path: &str) -> &str {
+pub fn dir(path: &str) -> &str {
     path.rsplit_once('/').map_or("", |(d, _)| d)
 }
 

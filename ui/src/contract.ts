@@ -30,7 +30,11 @@ coverage: Coverage | null, members: Array<Member>,
 /**
  * Diff of the declaration (struct, enum, trait, class or interface item), or of the whole file for a file unit.
  */
-diff: Array<DiffLine>, };
+diff: Array<DiffLine>, 
+/**
+ * Markdown files only: the front matter's `key: value` pairs, e.g. `kind: issue`, which label the box.
+ */
+front: { [key in string]: string }, };
 
 /**
  * How many of a function's or file's coverable lines the tests ran (`visvet coverage`).
@@ -45,7 +49,7 @@ export type Dependency = { from: BoxId, to: BoxId, kind: DependencyKind, };
 /**
  * How `from` depends on `to`.
  */
-export type DependencyKind = "has" | "implements" | "imports" | "calls" | "creates" | "uses" | "generates";
+export type DependencyKind = "has" | "implements" | "imports" | "calls" | "creates" | "uses" | "generates" | "links";
 
 /**
  * One line of a diff. `line` is its 1-based line number in the new file, or in the old file for a removed line.

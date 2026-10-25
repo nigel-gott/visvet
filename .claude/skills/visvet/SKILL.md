@@ -14,6 +14,9 @@ Box descriptions come from doc comments, so keep them current as part of every c
 ## Structure the code, not the map
 The map's top levels are the code's own folders and files. A Rust file `x.rs` holds the files in folder `x/`, as in Rust. When a box looks tall or tangled, the code is usually doing too many jobs in one place: split it into files or folders by job. Never hide or rearrange things on the map to make it look tidy.
 
+## Issues and other Markdown
+Markdown files are boxes too. Front matter like `kind: issue` or `kind: milestone` and `status: open` labels the box, and a folder takes its `README.md`'s. Every `path` or `file::box` named in backticks, or linked, gets a "links" arrow. Keep work to do in `issues/` (a folder per milestone, a file per issue), and set `status: done` when it's fixed.
+
 ## Annotate your change for review
 A note is a 📝 message from you in the box's thread: it joins the latest thread on the box, or starts one that needs no answer, and replaces your earlier note there. Keep few: only where the user should look, saying why it changed, what to check, or a risk. When code changes, rewrite or remove stale notes. Notes and replies render light markdown (paragraphs, `- ` lists, `**bold**`, backticks):
 ```bash

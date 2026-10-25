@@ -52,12 +52,14 @@ main { grid-area: 2 / 1; min-height: 0 }
 .react-flow__edge.creates path { stroke: var(--add); stroke-dasharray: 2 3 }
 .react-flow__edge.uses path { stroke: var(--k-type); stroke-dasharray: 1 3 }
 .react-flow__edge.generates path { stroke: var(--hl); stroke-dasharray: 8 3 2 3 }
+.react-flow__edge.links path { stroke: var(--ai); stroke-dasharray: 3 3 }
 .react-flow .legend { margin: 8px; padding: 2px 6px; border-radius: 4px; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px }
 .legend i { width: 18px; border-top: 2px solid var(--muted) }
 .legend .calls { border-color: var(--sel) }
 .legend .creates { border-top-style: dotted; border-color: var(--add) }
 .legend .uses { border-top-style: dotted; border-color: var(--k-type) }
 .legend .generates { border-top-style: dashed; border-color: var(--hl) }
+.legend .links { border-top-style: dotted; border-color: var(--ai) }
 .legend .implements { border-top-style: dashed }
 .legend .imports { opacity: .5; border-top-width: 1px }
 .card.ext { opacity: .6; border-style: dashed }
@@ -96,6 +98,11 @@ main { grid-area: 2 / 1; min-height: 0 }
 .k-fn, .k-method { --k: var(--k-fn) } .k-fn::before, .k-method::before { content: 'ƒ' }
 .k-field { --k: var(--k-field) } .k-field::before { content: '•' }
 .k-variant { --k: var(--k-enum) } .k-variant::before { content: '▹' }
+.k-issue { --k: var(--chg) } .k-issue::before { content: '◉' }
+.k-milestone { --k: var(--add) } .k-milestone::before { content: '⚑' }
+/* A Markdown file's front matter values, e.g. "open" for `status: open`. */
+.tag { flex: none; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 10px; line-height: 15px }
+.tag.done, .tag.closed { color: var(--add); border-color: var(--add) }
 .ok { color: var(--add) }
 .legend { margin: 0 0 8px; color: var(--muted); font-size: 11px }
 .doc, .ai { flex-basis: 100%; padding: 0 8px; font-size: 12px; line-height: 16px; overflow-wrap: anywhere }

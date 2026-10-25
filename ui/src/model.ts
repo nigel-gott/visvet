@@ -46,6 +46,8 @@ export type Item = {
   complex: number
   /** Lines the tests ran, of those they could: a file's or function's own, else added up from what is inside it. */
   cov?: Coverage
+  /** Front matter that labels the box, e.g. `kind: issue`: a Markdown file's own, or a folder's README.md's. */
+  front?: Record<string, string>
 }
 /** The item tree, every item by id, and the review order. */
 export type Index = ReturnType<typeof index>
@@ -99,7 +101,7 @@ export function index(model: Review) {
   const objs = model.units.toSorted((a, b) => a.file.localeCompare(b.file) || +(b.kind === 'file') - +(a.kind === 'file') || a.lines.first - b.lines.first)
   for (const o of objs) {
     const file = fileBox(o.file)
-    const fields = { status: o.status, doc: o.doc, diff: o.diff, o }
+    const fields = { status: o.status, doc: o.doc, diff: o.diff, o, front: o.front as Record<string, string> }
     const it = o.kind === 'file' ? Object.assign(file, fields) : add({ id: o.id, kind: o.kind, name: o.name, ...fields }, file)
     // A change marks the boxes it sits in as changed too, so a folder or file shows that something inside it changed.
     for (let p: Item | undefined = it; p && o.status !== 'same'; p = p.parent) {
@@ -108,6 +110,8 @@ export function index(model: Review) {
     }
     for (const m of o.members) add({ id: m.id, kind: m.kind, name: m.name, status: m.status, doc: m.doc, diff: m.diff, m, ctx: m.status === 'same' }, it)
   }
+  // A folder takes its README.md's front matter, so a folder of issues can say it is a milestone.
+  for (const it of items.values()) if (it.name === 'README.md' && it.parent?.kind === 'folder' && it.front?.kind) it.parent.front = it.front
   roots.forEach(r => measure(r))
   const all = roots.flatMap(subtree)
   return { items, roots, all, order: all.filter(it => !it.ctx) }

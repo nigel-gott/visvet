@@ -1,6 +1,6 @@
 //! Builds the `Review`: code units and members diffed against `base`, plus the dependencies between them.
 use crate::extract::extract;
-use crate::{codegen, git};
+use crate::{codegen, git, markdown};
 use crate::types::{BoxId, ChangeStatus, CodeUnit, Dependency, DependencyKind, DiffLine, DiffLineKind, GitRef, LineRange, Member, MemberId, MemberKind, Review, RepoPath, TraitRef, UnitId, UnitKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -27,7 +27,8 @@ pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
 /// A code unit as parsed, with the names it mentions before they are resolved into dependencies:
 /// type names it uses outside any member (a type alias, a tuple struct), type names per member as
 /// `(member id, kind, names)`, traits it implements, candidate files per import, and calls or
-/// constructions as `[from member id, qualifier, name]`, and the ids of the types a code generator writes from it.
+/// constructions as `[from member id, qualifier, name]`, the ids of the types a code generator writes from it, and
+/// for a Markdown file, the boxes and files it names.
 struct Parsed {
     unit: CodeUnit,
     types: Vec<String>,
@@ -36,6 +37,7 @@ struct Parsed {
     imports: Vec<Vec<String>>,
     calls: Vec<[String; 3]>,
     generates: Vec<String>,
+    links: Vec<String>,
 }
 
 /// A dependency arrow.
@@ -48,7 +50,7 @@ fn dep(from: &str, to: &str, kind: DependencyKind) -> Dependency {
 fn link(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUnit>, Vec<Dependency>) {
     let ix = Index::new(&all);
     let (mut edges, mut links, mut implements) = (vec![], BTreeSet::new(), vec![]);
-    let ids: HashSet<&str> = all.iter().map(|p| p.unit.id.as_str()).collect();
+    let ids: HashSet<&str> = all.iter().flat_map(|p| p.unit.members.iter().map(|m| m.id.as_str()).chain([p.unit.id.as_str()])).collect();
     for p in &all {
         let o = &p.unit;
         let files: BTreeSet<&String> = p.imports.iter().filter_map(|c| c.iter().find(|f| cur.contains(*f))).collect();
@@ -65,6 +67,7 @@ fn link(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUnit>, Vec<Dependen
                 edges.push(dep(member, to, arrow));
             }
         }
+        edges.extend(p.links.iter().filter(|to| ids.contains(to.as_str()) && *to != o.id.as_str()).collect::<BTreeSet<_>>().into_iter().map(|to| dep(o.id.as_str(), to, DependencyKind::Links)));
         edges.extend(p.generates.iter().filter(|to| ids.contains(to.as_str())).map(|to| dep(o.id.as_str(), to, DependencyKind::Generates)));
         implements.push(p.traits.iter().map(|name| TraitRef { name: name.clone(), unit: ix.ty(o, name).map(|id| UnitId(id.into())) }).collect());
         for [from, q, name] in &p.calls {
@@ -167,6 +170,7 @@ fn file_objects(file: &str, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parse
             ChangeStatus::Same if members.iter().any(|m| m.status != ChangeStatus::Same) => ChangeStatus::Changed,
             st => st,
         };
+        let md = x.kind == UnitKind::File && file.ends_with(".md");
         let unit = CodeUnit {
             id,
             name: x.name.clone(),
@@ -179,9 +183,11 @@ fn file_objects(file: &str, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parse
             coverage: None,
             members,
             diff: diff(n.map(|n| (&*n.text, n.line)), o.map(|o| (&*o.text, o.line))),
+            front: if md { markdown::front_matter(&x.text) } else { Default::default() },
         };
         let generates = codegen::targets(file, &x.text).into_iter().map(|f| format!("{f}::{}", x.name)).collect();
-        Parsed { unit, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates }
+        let links = if md { markdown::links(file, &x.text) } else { vec![] };
+        Parsed { unit, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates, links }
     }).collect()
 }
 

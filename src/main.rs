@@ -4,6 +4,7 @@ mod coverage;
 mod extract;
 mod git;
 mod graph;
+mod markdown;
 mod model;
 mod server;
 mod store;
