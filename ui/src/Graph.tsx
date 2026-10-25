@@ -3,7 +3,7 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { ReactFlow, BaseEdge, Handle, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type NodeProps, type XYPosition } from '@xyflow/react'
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
-import { flip, reportView, within, type DependencyKind, type Index, type Item, type Review } from './model'
+import { codeOf, flip, reportView, within, type DependencyKind, type Index, type Item, type Review } from './model'
 import { DiffView, Head, Notes, X, type Ctx } from './Views'
 import { ThreadChip } from './Threads'
 
@@ -103,7 +103,7 @@ function height(it: Item, x: Ctx, rows: Item[]) {
   const table = fieldTable(it, rows).length
   return 36 + wraps(it.m?.signature ?? it.name, HEAD_FONT, w) + (it.doc ? block(it.doc, w) : 0) + pillsHeight(pills(it, rows), w) +
     (table ? 18 * table + 6 : 0) +
-    rows.reduce((h, r) => h + 22 + wraps(r.m?.signature ?? r.name, ROW_FONT, w), 0) + (it.kind === 'folder' || it.o?.implements.length ? 22 : 0) +
+    rows.reduce((h, r) => h + 22 + wraps(r.m?.signature ?? r.name, ROW_FONT, w), 0) + (it.kind === 'folder' || codeOf(it.o)?.implements.length ? 22 : 0) +
     (showsCode(it, x) ? codeHeight(it) : 0)
 }
 
@@ -173,7 +173,7 @@ function Card({ data }: NodeProps<Node<CardData>>) {
           <span key={k.id} className={`pill ${k.status} ${x.sel === k.id ? 'sel' : ''}`} title={k.m!.signature} onClick={e => { e.stopPropagation(); click(k) }}>{k.name}</span>
         ))}</div>}
         {it.kind === 'folder' && <div className="meta">{stats(it)}</div>}
-        {!!it.o?.implements.length && <div className="meta">impl {it.o.implements.map(t => t.name).join(', ')}</div>}
+        {!!codeOf(it.o)?.implements.length && <div className="meta">impl {codeOf(it.o)!.implements.map(t => t.name).join(', ')}</div>}
         {rows.map(k => (
           <div key={k.id} className={x.sel === k.id ? 'mrow sel' : 'mrow'} title={k.m?.signature ?? k.name}
             onClick={e => { e.stopPropagation(); click(k) }}>
@@ -214,6 +214,8 @@ function face(t: Item) {
 
 /** The most outside boxes a zoomed view links to and still shows them exactly; beyond this it shows their files. */
 const PEERS = 12
+/** The most boxes inside a zoomed view with their own arrows to the same outside box; beyond this, one arrow. */
+const BUNDLE = 4
 
 /**
  * The boxes one map view shows, the edges (of the kinds `shows` lets through) lifted onto them, and each box's member
@@ -274,10 +276,17 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     return it.id
   }
   const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
-  const edges = Map.groupBy(exact.flatMap(e => {
+  const owned = exact.flatMap(e => {
     const [a, b] = [owner(e.a), owner(e.b)]
     return a === b ? [] : [{ ...e, a, b }]
-  }), key)
+  })
+  // When more than `BUNDLE` boxes inside have arrows to (or from) one outside box, those become one arrow from the
+  // zoomed box itself, with a count: e.g. every type in code.rs "generates" its copy in contract.ts. Selecting a box
+  // inside still shows its own exact arrows.
+  const inside = (id: string) => !!top && id !== top.id && !ext.has(id)
+  const fans = Map.groupBy(owned.filter(e => inside(e.a) !== inside(e.b)), e => (inside(e.a) ? '-> ' + e.b : '<- ' + e.a))
+  const bundled = new Set([...fans.values()].filter(es => new Set(es.map(e => (inside(e.a) ? e.a : e.b))).size > BUNDLE).flat())
+  const edges = Map.groupBy(owned.map(e => (!bundled.has(e) ? e : inside(e.a) ? { ...e, a: top!.id } : { ...e, b: top!.id })), key)
   /** The box inside top box `box` that holds `id` (or `box` itself). */
   const childOf = (id: string, box: string) => {
     let it = ix.items.get(id)!

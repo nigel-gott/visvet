@@ -1,5 +1,5 @@
 //! `visvet graph`: the review map as text, so the AI sees the coupling, cycles and complexity the user sees.
-use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, CodeUnit, ChangeStatus, MemberKind, UnitKind}};
+use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, MapBox, ChangeStatus, MemberKind, UnitKind}};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
@@ -31,7 +31,7 @@ struct Tally<'a> {
 /// files linked across top folders, zoom views, then the most complex and most connected functions. Removed code is left out.
 pub fn print(repo_root: &Path, base: &str) -> anyhow::Result<()> {
     let m = build_review(repo_root, base)?;
-    let objs: Vec<&CodeUnit> = m.units.iter().filter(|o| o.status != ChangeStatus::Removed).collect();
+    let objs: Vec<&MapBox> = m.boxes.iter().filter(|o| o.status != ChangeStatus::Removed).collect();
     let path = paths(&objs);
     let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), ..Default::default() };
     for e in m.dependencies.iter().filter(|e| path.contains_key(e.from.as_str())) {
@@ -47,15 +47,15 @@ fn top_folder(file: &str) -> &str {
 }
 
 /// The path and kind of every live object, member and file box.
-fn paths<'a>(objs: &[&'a CodeUnit]) -> Paths<'a> {
+fn paths<'a>(objs: &[&'a MapBox]) -> Paths<'a> {
     let mut path = HashMap::new();
     for o in objs {
         let f = vec![top_folder(o.file.as_str()), o.file.as_str()];
-        let p = if o.kind == UnitKind::File { f.clone() } else { [&f[..], &[o.id.as_str()]].concat() };
-        for x in o.members.iter().filter(|x| x.status != ChangeStatus::Removed) {
+        let p = if o.kind() == UnitKind::File { f.clone() } else { [&f[..], &[o.id.as_str()]].concat() };
+        for x in o.members().iter().filter(|x| x.status != ChangeStatus::Removed) {
             path.insert(x.id.as_str(), ([&p[..], &[x.id.as_str()]].concat(), x.kind.label()));
         }
-        path.insert(o.id.as_str(), (p, o.kind.label()));
+        path.insert(o.id.as_str(), (p, o.kind().label()));
         path.insert(o.file.as_str(), (f, "file"));
     }
     path
@@ -101,11 +101,11 @@ impl<'a> Tally<'a> {
 }
 
 /// Prints the sections from the tallies.
-fn report(objs: &[&CodeUnit], path: &Paths, t: &Tally) {
-    let fns: Vec<&Member> = objs.iter().flat_map(|o| &o.members).filter(|x| path.contains_key(x.id.as_str()) && matches!(x.kind, MemberKind::Fn | MemberKind::Method)).collect();
+fn report(objs: &[&MapBox], path: &Paths, t: &Tally) {
+    let fns: Vec<&Member> = objs.iter().flat_map(|o| o.members()).filter(|x| path.contains_key(x.id.as_str()) && matches!(x.kind, MemberKind::Fn | MemberKind::Method)).collect();
     let files: BTreeSet<&str> = objs.iter().map(|o| o.file.as_str()).collect();
     let tops = objs.iter().map(|o| top_folder(o.file.as_str())).collect::<BTreeSet<_>>().len();
-    let types = objs.iter().filter(|o| o.kind != UnitKind::File).count();
+    let types = objs.iter().filter(|o| o.kind() != UnitKind::File).count();
     println!("totals: {tops} top folders, {} files, {types} types, {} functions; links: {}", files.len(), fns.len(), list(&t.kinds));
     section("top-folder coupling (from -> to)", usize::MAX, t.pairs.iter().map(|((a, b), c)| (c.values().sum::<usize>(), format!("{a} -> {b}: {}", list(c)))));
     for (k, level) in [(1, "files"), (0, "top folders")] {

@@ -1,6 +1,5 @@
 //! The code under review, rebuilt from git on every request: code units, their members, and the dependencies between them.
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 use ts_rs::TS;
 
@@ -22,7 +21,7 @@ impl RepoPath {
     }
 }
 
-/// A code unit's id: its file path, then "::" and its name, e.g. "src/types/code.rs::CodeUnit";
+/// A box's id: its file path, then "::" and its name, e.g. "src/types/code.rs::MapBox";
 /// for a file unit, just the path.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
@@ -33,7 +32,7 @@ pub struct UnitId(pub String);
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct BoxId(pub String);
 
-/// A member's id: its unit's id, then "::" and its name, e.g. "src/types/code.rs::CodeUnit::lines".
+/// A member's id: its unit's id, then "::" and its name, e.g. "src/types/code.rs::MapBox::lines".
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct MemberId(pub String);
@@ -153,26 +152,79 @@ pub struct Member {
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct TraitRef { pub name: String, pub unit: Option<UnitId> }
 
-/// One box on the map: a type, an impl or a whole file (see `UnitKind`).
+/// One box on the map: a type, an impl or a whole file. Every box has these; what else it holds depends on what it
+/// is (`content`): code, a Markdown document, or any other file.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct CodeUnit {
+pub struct MapBox {
     pub id: UnitId,
     pub name: String,
-    pub kind: UnitKind,
     pub file: RepoPath,
     pub lines: LineRange,
     /// First paragraph of the doc comment, or of a file's leading comment, or "".
     pub doc: String,
     pub status: ChangeStatus,
-    pub implements: Vec<TraitRef>,
-    /// File units only, once `visvet coverage` has run.
-    pub coverage: Option<Coverage>,
-    pub members: Vec<Member>,
-    /// Diff of the declaration (struct, enum, trait, class or interface item), or of the whole file for a file unit.
+    /// Diff of the declaration (struct, enum, trait, class or interface item), or of the whole file for a file box.
     pub diff: Vec<DiffLine>,
-    /// Markdown files only: the front matter's `key: value` pairs, e.g. `kind: issue`, which label the box.
-    pub front: BTreeMap<String, String>,
+    pub content: BoxContent,
+}
+
+/// What a box holds besides what every box has, by what it is.
+#[derive(Serialize, Deserialize, Clone, Debug, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum BoxContent {
+    /// A type, an impl, or a source file holding its free functions.
+    Code {
+        kind: UnitKind,
+        members: Vec<Member>,
+        implements: Vec<TraitRef>,
+        /// Source files only, once `visvet coverage` has run.
+        coverage: Option<Coverage>,
+    },
+    /// A Markdown file, labelled by its front matter.
+    Doc { labels: DocLabels },
+    /// Any other file, e.g. TOML or a licence.
+    Plain,
+}
+
+/// What a Markdown file's front matter says about it, e.g. `kind: issue` and `status: open`. Other keys are ignored.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct DocLabels {
+    pub kind: Option<DocKind>,
+    pub status: Option<WorkStatus>,
+}
+
+/// What a Markdown file is, from `kind:` in its front matter.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+#[serde(rename_all = "lowercase")]
+pub enum DocKind {
+    /// A piece of work to do.
+    Issue,
+    /// A group of issues; a folder takes it from its README.md.
+    Milestone,
+}
+
+/// Where an issue or milestone stands, from `status:` in its front matter.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+#[serde(rename_all = "lowercase")]
+pub enum WorkStatus {
+    Open,
+    Done,
+}
+
+impl MapBox {
+    /// What the box is: a code box's own kind, else `File`.
+    pub fn kind(&self) -> UnitKind {
+        match self.content { BoxContent::Code { kind, .. } => kind, _ => UnitKind::File }
+    }
+    /// A code box's members, else none.
+    pub fn members(&self) -> &[Member] {
+        match &self.content { BoxContent::Code { members, .. } => members, _ => &[] }
+    }
 }
 
 /// How `from` depends on `to`.

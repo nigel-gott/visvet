@@ -1,7 +1,7 @@
 //! Dependencies between boxes: turns the names each box mentions (types, calls, imports, generated copies, Markdown
 //! links) into arrows to the boxes they mean, and fills in which traits each unit implements.
 use crate::compare::Parsed;
-use crate::types::{BoxId, ChangeStatus, CodeUnit, Dependency, DependencyKind, Member, MemberKind, RepoPath, TraitRef, UnitId, UnitKind};
+use crate::types::{BoxContent, BoxId, ChangeStatus, MapBox, Dependency, DependencyKind, Member, MemberKind, RepoPath, TraitRef, UnitId, UnitKind};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// A dependency arrow.
@@ -11,10 +11,10 @@ fn dep(from: &str, to: &str, kind: DependencyKind) -> Dependency {
 
 /// Resolves names into dependencies and each unit's `implements`, and sorts the units by place. Every unit is kept,
 /// changed or not, so the map shows the whole project. Removed things are never targets.
-pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUnit>, Vec<Dependency>) {
+pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<MapBox>, Vec<Dependency>) {
     let ix = Index::new(&all);
     let (mut edges, mut links, mut implements) = (vec![], BTreeSet::new(), vec![]);
-    let ids: HashSet<&str> = all.iter().flat_map(|p| p.unit.members.iter().map(|m| m.id.as_str()).chain([p.unit.id.as_str()])).collect();
+    let ids: HashSet<&str> = all.iter().flat_map(|p| p.unit.members().iter().map(|m| m.id.as_str()).chain([p.unit.id.as_str()])).collect();
     for p in &all {
         let o = &p.unit;
         let files: BTreeSet<&String> = p.imports.iter().filter_map(|c| c.iter().find(|f| cur.contains(*f))).collect();
@@ -40,23 +40,28 @@ pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUn
         }
     }
     edges.extend(links.into_iter().map(|(from, to, kind)| dep(from, to, kind)));
-    let mut units: Vec<CodeUnit> = all.into_iter().zip(implements).map(|(p, implements)| CodeUnit { implements, ..p.unit }).collect();
+    let mut units: Vec<MapBox> = all.into_iter().zip(implements).map(|(mut p, traits)| {
+        if let BoxContent::Code { implements, .. } = &mut p.unit.content {
+            *implements = traits;
+        }
+        p.unit
+    }).collect();
     units.sort_by(|a, b| (&a.file, a.lines.first).cmp(&(&b.file, b.lines.first)));
     (units, edges)
 }
 
 /// Dependency targets by name: types (not impls or files) and fns and methods, removed ones left out.
-struct Index<'a> { types: HashMap<&'a str, Vec<&'a CodeUnit>>, fns: HashMap<&'a str, Vec<(&'a CodeUnit, &'a Member)>> }
+struct Index<'a> { types: HashMap<&'a str, Vec<&'a MapBox>>, fns: HashMap<&'a str, Vec<(&'a MapBox, &'a Member)>> }
 
 impl<'a> Index<'a> {
     /// Indexes the live types and fns of `all`.
     fn new(all: &'a [Parsed]) -> Self {
         let mut ix = Index { types: HashMap::new(), fns: HashMap::new() };
         for o in all.iter().map(|p| &p.unit).filter(|o| o.status != ChangeStatus::Removed) {
-            if !matches!(o.kind, UnitKind::Impl | UnitKind::File) {
+            if !matches!(o.kind(), UnitKind::Impl | UnitKind::File) {
                 ix.types.entry(&o.name).or_default().push(o);
             }
-            for m in o.members.iter().filter(|m| matches!(m.kind, MemberKind::Fn | MemberKind::Method) && m.status != ChangeStatus::Removed) {
+            for m in o.members().iter().filter(|m| matches!(m.kind, MemberKind::Fn | MemberKind::Method) && m.status != ChangeStatus::Removed) {
                 ix.fns.entry(&m.name).or_default().push((o, m));
             }
         }
@@ -64,14 +69,14 @@ impl<'a> Index<'a> {
     }
 
     /// The id of the type `o` means by `name`, in `o`'s language.
-    fn ty(&self, o: &CodeUnit, name: &str) -> Option<&'a str> {
+    fn ty(&self, o: &MapBox, name: &str) -> Option<&'a str> {
         let c: Vec<_> = self.types.get(name).into_iter().flatten().filter(|c| same_lang(o, &c.file)).map(|c| (*c, c.id.as_str())).collect();
         pick(o, &c)
     }
 
     /// The id of the fn or method `o` calls as `q::name`: a free fn when `q` is "", else a method
     /// of unit `q` or a free fn of the file named `q`.
-    fn callee(&self, o: &CodeUnit, q: &str, name: &str) -> Option<&'a str> {
+    fn callee(&self, o: &MapBox, q: &str, name: &str) -> Option<&'a str> {
         let c: Vec<_> = self.fns.get(name).into_iter().flatten().filter(|(co, cm)| same_lang(o, &co.file) && match q {
             "" => cm.kind == MemberKind::Fn,
             q => co.name == q || cm.kind == MemberKind::Fn && co.file.as_str().trim_end_matches("/mod.rs").rsplit('/').next().unwrap().split('.').next() == Some(q),
@@ -81,12 +86,12 @@ impl<'a> Index<'a> {
 }
 
 /// Whether `file` is in the same language family as `o`'s file: Rust or not.
-fn same_lang(o: &CodeUnit, file: &RepoPath) -> bool {
+fn same_lang(o: &MapBox, file: &RepoPath) -> bool {
     file.is_rust() == o.file.is_rust()
 }
 
 /// The only target in the first non-empty tier of candidates: same unit, same file, anywhere.
-fn pick<'a>(o: &CodeUnit, c: &[(&CodeUnit, &'a str)]) -> Option<&'a str> {
+fn pick<'a>(o: &MapBox, c: &[(&MapBox, &'a str)]) -> Option<&'a str> {
     let tiers = [c.iter().filter(|(co, _)| co.id == o.id).collect::<Vec<_>>(), c.iter().filter(|(co, _)| co.file == o.file).collect(), c.iter().collect()];
     match tiers.into_iter().find(|t| !t.is_empty())?[..] {
         [&(_, to)] => Some(to),

@@ -1,12 +1,17 @@
-//! Markdown files on the map: front matter labels a file's box (e.g. `kind: issue`, `status: open`), and the code
+//! Markdown files on the map: front matter labels a file's box (`kind: issue`, `status: open`), and the code
 //! and files it names become "links" arrows. So any notes, issues or milestones kept as Markdown connect to the code.
 use crate::parse::{dir, join};
-use std::collections::BTreeMap;
+use crate::types::{DocKind, DocLabels, WorkStatus};
 
-/// The `key: value` lines between `---` lines at the top of a Markdown file, e.g. `kind` → `issue`.
-pub fn front_matter(src: &str) -> BTreeMap<String, String> {
-    let Some((head, _)) = src.strip_prefix("---\n").and_then(|s| s.split_once("\n---")) else { return BTreeMap::new() };
-    head.lines().filter_map(|l| l.split_once(':')).map(|(k, v)| (k.trim().into(), v.trim().trim_matches(['"', '\'']).into())).collect()
+/// The labels a Markdown file's front matter (the `key: value` lines between `---` lines at its top) gives it, e.g.
+/// `kind: issue` and `status: open`. Unknown keys and values are ignored.
+pub fn labels(src: &str) -> DocLabels {
+    let Some((head, _)) = src.strip_prefix("---\n").and_then(|s| s.split_once("\n---")) else { return DocLabels::default() };
+    let field = |key: &str| head.lines().find_map(|l| Some(l.strip_prefix(key)?.strip_prefix(':')?.trim().trim_matches(['"', '\''])));
+    DocLabels {
+        kind: match field("kind") { Some("issue") => Some(DocKind::Issue), Some("milestone") => Some(DocKind::Milestone), _ => None },
+        status: match field("status") { Some("open") => Some(WorkStatus::Open), Some("done" | "closed") => Some(WorkStatus::Done), _ => None },
+    }
 }
 
 /// What a Markdown file at `path` names, as repo paths or box ids that may not exist: each `code span`, e.g.
@@ -27,8 +32,8 @@ mod tests {
     #[test]
     fn front_matter_and_links() {
         let md = "---\nkind: issue\nstatus: open\n---\n# Split `ui/src/Graph.tsx::mapView`\nSee [the model](../src/model.rs#L3) and [docs](https://x.y).";
-        assert_eq!(front_matter(md).into_iter().collect::<Vec<_>>(), [("kind".into(), "issue".into()), ("status".into(), "open".into())]);
+        assert_eq!(labels(md), DocLabels { kind: Some(DocKind::Issue), status: Some(WorkStatus::Open) });
         assert_eq!(links("issues/a.md", md), ["ui/src/Graph.tsx::mapView", "src/model.rs"]);
-        assert!(front_matter("# No header").is_empty());
+        assert_eq!(labels("# No header"), DocLabels::default());
     }
 }

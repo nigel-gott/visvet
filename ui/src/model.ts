@@ -1,6 +1,6 @@
 // The API calls and the item tree every view renders. The data types are generated from src/types.rs
 // by ts-rs into contract.ts (run `cargo test` after changing them); nothing here mirrors them by hand.
-import type { ChangeStatus, CodeUnit, Coverage, DiffLine, Member, Review, View } from './contract'
+import type { ChangeStatus, Coverage, DiffLine, DocLabels, MapBox, Member, Review, View } from './contract'
 export type * from './contract'
 
 /** fetch that throws on a non-2xx status, with the response body as the message. */
@@ -37,7 +37,7 @@ export function reportView(v = view) {
 /** A reviewable folder, file, code unit or member. Edges are addressed as "<from> -> <to>" instead. */
 export type Item = {
   id: string; kind: string; name: string; doc: string; status: ChangeStatus; diff: DiffLine[]
-  depth: number; kids: Item[]; parent?: Item; o?: CodeUnit; m?: Member
+  depth: number; kids: Item[]; parent?: Item; o?: MapBox; m?: Member
   /** Holds only unchanged code: shown on the map like the rest, but left out of the review order. */
   ctx: boolean
   /** Current lines of code, each counted once. */
@@ -46,8 +46,8 @@ export type Item = {
   complex: number
   /** Lines the tests ran, of those they could: a file's or function's own, else added up from what is inside it. */
   cov?: Coverage
-  /** Front matter that labels the box, e.g. `kind: issue`: a Markdown file's own, or a folder's README.md's. */
-  front?: Record<string, string>
+  /** What a Markdown file says it is, e.g. an open issue; a folder takes its README.md's. */
+  labels?: DocLabels
 }
 /** The item tree, every item by id, and the review order. */
 export type Index = ReturnType<typeof index>
@@ -72,7 +72,7 @@ function measure(it: Item, file = ''): Set<string> {
   for (const l of it.diff) if (l.kind !== 'del') lines.add(`${file}:${l.line}`)
   it.loc = lines.size
   const inside = it.kids.flatMap(k => k.cov ?? [])
-  it.cov = it.o?.coverage ?? it.m?.coverage ?? (inside.length ? { covered: inside.reduce((n, c) => n + c.covered, 0), coverable: inside.reduce((n, c) => n + c.coverable, 0) } : undefined)
+  it.cov = codeOf(it.o)?.coverage ?? it.m?.coverage ?? (inside.length ? { covered: inside.reduce((n, c) => n + c.covered, 0), coverable: inside.reduce((n, c) => n + c.coverable, 0) } : undefined)
   it.complex = +((it.kind === 'fn' || it.kind === 'method') && it.m!.complexity > COMPLEX) + it.kids.reduce((n, k) => n + k.complex, 0)
   return lines
 }
@@ -81,6 +81,9 @@ function measure(it: Item, file = ''): Set<string> {
  * The code's own tree: folders hold files, files hold units, units hold members. A Rust file `x.rs` next to a folder
  * `x/` is the module holding that folder's files, so they nest inside it, as in Rust. Top files and folders are the roots.
  */
+/** A box's code part (kind, members, implemented traits, coverage), or nothing for a document or plain file. */
+export const codeOf = (o?: MapBox) => (o?.content.type === 'code' ? o.content : undefined)
+
 export function index(model: Review) {
   const items = new Map<string, Item>(), roots: Item[] = []
   const add = (it: Partial<Item> & Pick<Item, 'id' | 'kind' | 'name'>, parent?: Item) => {
@@ -89,7 +92,7 @@ export function index(model: Review) {
     ;(parent?.kids ?? roots).push(item)
     return item
   }
-  const files = new Set(model.units.map(o => o.file))
+  const files = new Set(model.boxes.map(o => o.file))
   const base = (path: string) => path.slice(path.lastIndexOf('/') + 1)
   /** The box the file or folder at `path` sits in: its folder, or the Rust module file of that folder. */
   const parentOf = (path: string): Item | undefined => {
@@ -98,20 +101,21 @@ export function index(model: Review) {
     return files.has(dir + '.rs') ? fileBox(dir + '.rs') : items.get(dir + '/') ?? add({ id: dir + '/', kind: 'folder', name: base(dir) + '/' }, parentOf(dir))
   }
   const fileBox = (path: string): Item => items.get(path) ?? add({ id: path, kind: 'file', name: base(path) }, parentOf(path))
-  const objs = model.units.toSorted((a, b) => a.file.localeCompare(b.file) || +(b.kind === 'file') - +(a.kind === 'file') || a.lines.first - b.lines.first)
+  const kindOf = (o: MapBox) => codeOf(o)?.kind ?? 'file'
+  const objs = model.boxes.toSorted((a, b) => a.file.localeCompare(b.file) || +(kindOf(b) === 'file') - +(kindOf(a) === 'file') || a.lines.first - b.lines.first)
   for (const o of objs) {
     const file = fileBox(o.file)
-    const fields = { status: o.status, doc: o.doc, diff: o.diff, o, front: o.front as Record<string, string> }
-    const it = o.kind === 'file' ? Object.assign(file, fields) : add({ id: o.id, kind: o.kind, name: o.name, ...fields }, file)
+    const fields = { status: o.status, doc: o.doc, diff: o.diff, o, labels: o.content.type === 'doc' ? o.content.labels : undefined }
+    const it = kindOf(o) === 'file' ? Object.assign(file, fields) : add({ id: o.id, kind: kindOf(o), name: o.name, ...fields }, file)
     // A change marks the boxes it sits in as changed too, so a folder or file shows that something inside it changed.
     for (let p: Item | undefined = it; p && o.status !== 'same'; p = p.parent) {
       p.ctx = false
       if (p.status === 'same') p.status = 'changed'
     }
-    for (const m of o.members) add({ id: m.id, kind: m.kind, name: m.name, status: m.status, doc: m.doc, diff: m.diff, m, ctx: m.status === 'same' }, it)
+    for (const m of codeOf(o)?.members ?? []) add({ id: m.id, kind: m.kind, name: m.name, status: m.status, doc: m.doc, diff: m.diff, m, ctx: m.status === 'same' }, it)
   }
-  // A folder takes its README.md's front matter, so a folder of issues can say it is a milestone.
-  for (const it of items.values()) if (it.name === 'README.md' && it.parent?.kind === 'folder' && it.front?.kind) it.parent.front = it.front
+  // A folder takes its README.md's labels, so a folder of issues can say it is a milestone.
+  for (const it of items.values()) if (it.name === 'README.md' && it.parent?.kind === 'folder' && it.labels?.kind) it.parent.labels = it.labels
   roots.forEach(r => measure(r))
   const all = roots.flatMap(subtree)
   return { items, roots, all, order: all.filter(it => !it.ctx) }

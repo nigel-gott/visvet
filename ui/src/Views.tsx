@@ -41,22 +41,19 @@ export const X = createContext<Ctx>(null!)
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
-/** Front matter keys that aren't shown as tags: the kind is the badge, the description is the box's doc. */
-const UNTAGGED = ['kind', 'description', 'title', 'name']
-
 /**
  * An item's status mark, kind badge (a coloured symbol, plus the kind's name for anything but a member), name, and
- * front matter tags. A Markdown file's `kind:`, e.g. issue or milestone, replaces its kind.
+ * for an issue or milestone, its status. A Markdown file's labelled kind, issue or milestone, replaces "file".
  */
 export function Head({ it }: { it: Item }) {
   const x = useContext(X)
-  const kind = it.front?.kind ?? it.kind
+  const kind = it.labels?.kind ?? it.kind
   return (
     <>
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
       <span className={'badge k-' + kind} title={kind}>{!it.m && kind}</span>
       <span className={'name ' + it.status}>{it.m?.signature ?? it.name}</span>
-      {Object.entries(it.front ?? {}).filter(([k]) => !UNTAGGED.includes(k)).map(([k, v]) => <span key={k} className={'tag ' + v} title={k}>{v}</span>)}
+      {it.labels?.status && <span className={'tag ' + it.labels.status} title="status">{it.labels.status}</span>}
       <Debuffs it={it} />
     </>
   )

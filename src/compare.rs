@@ -2,7 +2,7 @@
 //! so every box knows whether it was added, changed, removed or is the same.
 use crate::parse::{Mem, Obj, parse};
 use crate::{codegen, markdown};
-use crate::types::{ChangeStatus, CodeUnit, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, UnitId, UnitKind};
+use crate::types::{BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, UnitId, UnitKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::HashMap;
 
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 /// constructions as `[from member id, qualifier, name]`, the ids of the types a code generator writes from it, and
 /// for a Markdown file, the boxes and files it names.
 pub struct Parsed {
-    pub unit: CodeUnit,
+    pub unit: MapBox,
     pub types: Vec<String>,
     pub member_types: Vec<(String, MemberKind, Vec<String>)>,
     pub traits: Vec<String>,
@@ -62,19 +62,24 @@ fn compare_unit(file: &RepoPath, n: Option<&Obj>, o: Option<&Obj>, broken: bool,
         st => st,
     };
     let md = x.kind == UnitKind::File && file.as_str().ends_with(".md");
-    let unit = CodeUnit {
+    // A file box is code only for a language visvet parses; a type or impl always is.
+    let code = x.kind != UnitKind::File || matches!(file.as_str().rsplit('.').next(), Some("rs" | "ts" | "tsx"));
+    let content = if code {
+        BoxContent::Code { kind: x.kind, members, implements: vec![], coverage: None }
+    } else if md {
+        BoxContent::Doc { labels: markdown::labels(&x.text) }
+    } else {
+        BoxContent::Plain
+    };
+    let unit = MapBox {
         id,
         name: x.name.clone(),
-        kind: x.kind,
         file: file.clone(),
         lines: lines(x.line, &x.text),
         doc: x.doc.clone(),
         status,
-        implements: vec![],
-        coverage: None,
-        members,
         diff: diff(n.map(|n| (&*n.text, n.line)), o.map(|o| (&*o.text, o.line))),
-        front: if md { markdown::front_matter(&x.text) } else { Default::default() },
+        content,
     };
     let generates = codegen::targets(file.as_str(), &x.text).into_iter().map(|f| format!("{f}::{}", x.name)).collect();
     let links = if md { markdown::links(file.as_str(), &x.text) } else { vec![] };
@@ -149,27 +154,32 @@ pub(crate) mod tests {
         let objs = cmp("a.rs", Some(new.as_bytes()), Some(old.as_bytes()));
         let (f, s, same) = (&objs[0].unit, &objs[1].unit, &objs[2].unit);
         let fd: Vec<_> = f.diff.iter().filter(|d| d.kind != DiffLineKind::Context).map(|d| (d.kind, d.line)).collect();
-        assert_eq!((f.id.as_str(), f.kind, f.status, f.lines.first, fd), ("a.rs", UnitKind::File, Changed, 1, vec![(L::Added, 2), (L::Removed, 5), (L::Added, 6), (L::Removed, 7), (L::Added, 8)]));
+        assert_eq!((f.id.as_str(), f.kind(), f.status, f.lines.first, fd), ("a.rs", UnitKind::File, Changed, 1, vec![(L::Added, 2), (L::Removed, 5), (L::Added, 6), (L::Removed, 7), (L::Added, 8)]));
         assert_eq!((s.id.as_str(), s.status, same.status), ("a.rs::S", Changed, Same));
-        let st: Vec<_> = s.members.iter().map(|m| (m.id.as_str(), m.status)).collect();
+        let st: Vec<_> = s.members().iter().map(|m| (m.id.as_str(), m.status)).collect();
         assert_eq!(st, [("a.rs::S::a", Same), ("a.rs::S::keep", Same), ("a.rs::S::edit", Changed), ("a.rs::S::added", Added), ("a.rs::S::gone", Removed)]);
-        let d: Vec<_> = s.members[2].diff.iter().map(|d| (d.kind, d.text.as_str(), d.line)).collect();
+        let d: Vec<_> = s.members()[2].diff.iter().map(|d| (d.kind, d.text.as_str(), d.line)).collect();
         assert_eq!(d, [(L::Context, "    fn edit(&self) {", 5), (L::Removed, "        1;", 5), (L::Added, "        x?;", 6), (L::Context, "    }", 7)]);
         assert_eq!((same.diff[0].kind, same.diff[0].line), (L::Context, 10));
-        assert_eq!(s.members[4].diff[0].kind, DiffLineKind::Removed);
+        assert_eq!(s.members()[4].diff[0].kind, DiffLineKind::Removed);
         // Complexity comes from the new version; closures count toward their fn.
         let rs = "fn f() { if let Some(_) = a && b || c { x?; } for _ in x {} while a {} loop {} match a { 1 => {} _ => {} } let g = || if a {}; }";
         let ts = "function f() { if (a && b || c) {} for (;;) {} for (x of a) {} while (a) {} do {} while (a); try {} catch {} switch (a) { case 1: default: } return a ?? (b ? 1 : 2) }";
-        let cx = |f: &str, s: &str| cmp(f, Some(s.as_bytes()), None)[0].unit.members[0].complexity;
-        assert_eq!((s.members[0].complexity, s.members[2].complexity, cx("d.rs", rs), cx("d.ts", ts)), (1, 1, 9, 12));
+        let cx = |f: &str, s: &str| cmp(f, Some(s.as_bytes()), None)[0].unit.members()[0].complexity;
+        assert_eq!((s.members()[0].complexity, s.members()[2].complexity, cx("d.rs", rs), cx("d.ts", ts)), (1, 1, 9, 12));
         let added = cmp("b.rs", Some(b"fn f() {}"), None);
-        assert_eq!((added[0].unit.id.as_str(), added[0].unit.status, added[0].unit.members[0].id.as_str()), ("b.rs", Added, "b.rs::f"));
+        assert_eq!((added[0].unit.id.as_str(), added[0].unit.status, added[0].unit.members()[0].id.as_str()), ("b.rs", Added, "b.rs::f"));
         let bin = cmp("a.png", Some(&[0xff, 1]), Some(&[0xff]));
         assert_eq!((bin.len(), bin[0].unit.status, bin[0].unit.diff.len()), (1, Changed, 0));
         let toml = &cmp("x.toml", Some(b"a = 1\nb = 2"), Some(b"a = 1"))[0].unit;
         let d: Vec<_> = toml.diff.iter().map(|d| (d.kind, d.line)).collect();
-        assert_eq!((toml.status, toml.members.len(), d), (Changed, 0, vec![(L::Context, 1), (L::Added, 2)]));
+        assert_eq!((toml.status, toml.members().len(), d), (Changed, 0, vec![(L::Context, 1), (L::Added, 2)]));
         assert_eq!(cmp("x.md", Some(b"same"), Some(b"same"))[0].unit.status, Same); // unchanged files stay on the map
+        // What a box holds depends on what it is: code, a Markdown document, or any other file.
+        assert!(matches!(&toml.content, BoxContent::Plain));
+        let issue = &cmp("i.md", Some(b"---\nkind: issue\n---\n# Fix"), None)[0].unit;
+        assert!(matches!(&issue.content, BoxContent::Doc { labels } if labels.kind == Some(crate::types::DocKind::Issue)));
+        assert!(matches!(&s.content, BoxContent::Code { kind: UnitKind::Struct, .. }));
         assert_eq!(cmp("c.rs", Some(b"#[derive(Debug)]\nstruct C;"), Some(b"struct C;"))[1].unit.status, Changed);
     }
 }

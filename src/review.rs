@@ -19,7 +19,7 @@ pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
         let prev = if !old.contains(f) { None } else if same { new.clone() } else { git::show(repo_root, base, f) };
         all.extend(compare_file(&RepoPath(f.into()), new.as_deref(), prev.as_deref()));
     }
-    let (units, dependencies) = find_dependencies(all, &cur);
-    Ok(Review { compared_against: GitRef(base.into()), units, dependencies, ..Default::default() })
+    let (boxes, dependencies) = find_dependencies(all, &cur);
+    Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, ..Default::default() })
 }
 

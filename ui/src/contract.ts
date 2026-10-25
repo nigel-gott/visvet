@@ -6,6 +6,15 @@
 export type Author = "user" | "ai";
 
 /**
+ * What a box holds besides what every box has, by what it is.
+ */
+export type BoxContent = { "type": "code", kind: UnitKind, members: Array<Member>, implements: Array<TraitRef>, 
+/**
+ * Source files only, once `visvet coverage` has run.
+ */
+coverage: Coverage | null, } | { "type": "doc", labels: DocLabels, } | { "type": "plain" };
+
+/**
  * The id of a box an arrow starts or ends at: a code unit's or a member's id.
  */
 export type BoxId = string;
@@ -14,27 +23,6 @@ export type BoxId = string;
  * How a unit, member or file differs from the version it is compared against.
  */
 export type ChangeStatus = "same" | "added" | "removed" | "changed";
-
-/**
- * One box on the map: a type, an impl or a whole file (see `UnitKind`).
- */
-export type CodeUnit = { id: UnitId, name: string, kind: UnitKind, file: RepoPath, lines: LineRange, 
-/**
- * First paragraph of the doc comment, or of a file's leading comment, or "".
- */
-doc: string, status: ChangeStatus, implements: Array<TraitRef>, 
-/**
- * File units only, once `visvet coverage` has run.
- */
-coverage: Coverage | null, members: Array<Member>, 
-/**
- * Diff of the declaration (struct, enum, trait, class or interface item), or of the whole file for a file unit.
- */
-diff: Array<DiffLine>, 
-/**
- * Markdown files only: the front matter's `key: value` pairs, e.g. `kind: issue`, which label the box.
- */
-front: { [key in string]: string }, };
 
 /**
  * How many of a function's or file's coverable lines the tests ran (`visvet coverage`).
@@ -62,6 +50,16 @@ export type DiffLine = { kind: DiffLineKind, text: string, line: number, };
 export type DiffLineKind = "ctx" | "add" | "del";
 
 /**
+ * What a Markdown file is, from `kind:` in its front matter.
+ */
+export type DocKind = "issue" | "milestone";
+
+/**
+ * What a Markdown file's front matter says about it, e.g. `kind: issue` and `status: open`. Other keys are ignored.
+ */
+export type DocLabels = { kind: DocKind | null, status: WorkStatus | null, };
+
+/**
  * A git commit, branch or tag name, e.g. "HEAD", "main" or "a1b2c3d".
  */
 export type GitRef = string;
@@ -70,6 +68,20 @@ export type GitRef = string;
  * The first and last line of something in its file, 1-based, including its doc comment.
  */
 export type LineRange = { first: number, last: number, };
+
+/**
+ * One box on the map: a type, an impl or a whole file. Every box has these; what else it holds depends on what it
+ * is (`content`): code, a Markdown document, or any other file.
+ */
+export type MapBox = { id: UnitId, name: string, file: RepoPath, lines: LineRange, 
+/**
+ * First paragraph of the doc comment, or of a file's leading comment, or "".
+ */
+doc: string, status: ChangeStatus, 
+/**
+ * Diff of the declaration (struct, enum, trait, class or interface item), or of the whole file for a file box.
+ */
+diff: Array<DiffLine>, content: BoxContent, };
 
 /**
  * Anything on the map the user can select or zoom into: a box id (see `BoxId`), a folder ending in "/"
@@ -104,7 +116,7 @@ coverage: Coverage | null,
 diff: Array<DiffLine>, };
 
 /**
- * A member's id: its unit's id, then "::" and its name, e.g. "src/types/code.rs::CodeUnit::lines".
+ * A member's id: its unit's id, then "::" and its name, e.g. "src/types/code.rs::MapBox::lines".
  */
 export type MemberId = string;
 
@@ -127,14 +139,14 @@ export type RepoPath = string;
 
 /**
  * One review, as the UI shows it. GET /api/model returns it.
- * It has two halves: `units` and `dependencies` describe the code and are rebuilt from git on every
+ * It has two halves: `boxes` and `dependencies` describe the code and are rebuilt from git on every
  * request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
  */
 export type Review = { 
 /**
  * What the working tree is compared against, to highlight what changed (`visvet serve --base`, `HEAD` by default).
  */
-compared_against: GitRef, units: Array<CodeUnit>, dependencies: Array<Dependency>, annotations: ReviewAnnotations, };
+compared_against: GitRef, boxes: Array<MapBox>, dependencies: Array<Dependency>, annotations: ReviewAnnotations, };
 
 /**
  * The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`.
@@ -185,7 +197,7 @@ export type ThreadState = "open" | "working" | "question" | "resolved";
 export type TraitRef = { name: string, unit: UnitId | null, };
 
 /**
- * A code unit's id: its file path, then "::" and its name, e.g. "src/types/code.rs::CodeUnit";
+ * A box's id: its file path, then "::" and its name, e.g. "src/types/code.rs::MapBox";
  * for a file unit, just the path.
  */
 export type UnitId = string;
@@ -219,3 +231,8 @@ highlight: Array<MapId>,
  * The boxes on screen.
  */
 visible: Array<MapId>, };
+
+/**
+ * Where an issue or milestone stands, from `status:` in its front matter.
+ */
+export type WorkStatus = "open" | "done";

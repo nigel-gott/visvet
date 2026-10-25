@@ -1,5 +1,5 @@
 //! Test coverage from `visvet coverage`: which lines the tests ran, saved by `cargo llvm-cov` in `.visvet/coverage.lcov`.
-use crate::types::{Coverage, LineRange, MemberKind, Review, UnitKind};
+use crate::types::{BoxContent, Coverage, LineRange, MemberKind, Review, UnitKind};
 use crate::visvet_dir::VisvetDir;
 use std::collections::HashMap;
 use std::path::Path;
@@ -15,15 +15,16 @@ pub fn run(repo_root: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Sets the coverage of every file unit and function in `review`, if `visvet coverage` has run.
+/// Sets the coverage of every source file and function in `review`, if `visvet coverage` has run.
 pub fn add(repo_root: &Path, review: &mut Review) {
     let all = load(repo_root);
-    for u in &mut review.units {
-        if u.kind == UnitKind::File {
-            u.coverage = of(&all, u.file.as_str(), u.lines);
+    for b in &mut review.boxes {
+        let BoxContent::Code { kind, members, coverage, .. } = &mut b.content else { continue };
+        if *kind == UnitKind::File {
+            *coverage = of(&all, b.file.as_str(), b.lines);
         }
-        for m in u.members.iter_mut().filter(|m| matches!(m.kind, MemberKind::Fn | MemberKind::Method)) {
-            m.coverage = of(&all, u.file.as_str(), m.lines);
+        for m in members.iter_mut().filter(|m| matches!(m.kind, MemberKind::Fn | MemberKind::Method)) {
+            m.coverage = of(&all, b.file.as_str(), m.lines);
         }
     }
 }
