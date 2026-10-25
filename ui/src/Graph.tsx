@@ -155,7 +155,7 @@ function Card({ data }: NodeProps<Node<CardData>>) {
   return (
     <>
       <Handle type="target" position={Position.Left} />
-      <div className={`card ${it.o?.neighbor_only ? 'ctx' : ''} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''}`}
+      <div className={`card ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />
@@ -215,13 +215,12 @@ function face(t: Item) {
  * listing their members as rows. Zoomed: one level only, the box and its direct children (a type's public members),
  * each drawn compact. A link leaving the zoomed box ends at a dimmed box next to it (or next to one of its parents).
  */
-export function mapView(ix: Index, links: Review['dependencies'], top: Item | undefined, level: number, showContext: boolean,
+export function mapView(ix: Index, links: Review['dependencies'], top: Item | undefined, level: number,
   shows: (kind: string) => boolean, expanded: Set<string>, innerArrows: boolean) {
   const inner = !top ? ix.all.filter(it => it.depth <= level && !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
-  const shown = inner.filter(it => showContext || !it.ctx)
-  const ids = new Set(shown.map(it => it.id))
+  const ids = new Set(inner.map(it => it.id))
   const lift = (id: string) => {
     let it = ix.items.get(id)
     while (it && !ids.has(it.id)) it = up(it)
@@ -233,7 +232,7 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
   const peer = (id: string) => {
     let it = ix.items.get(id)
     while (it?.parent && !around.has(it.parent.id)) it = it.parent
-    return it && (showContext || !it.ctx) ? it : undefined
+    return it
   }
   const ext = new Map<string, Item>()
   const exact = links.filter(e => shows(e.kind)).flatMap(e => {
@@ -290,10 +289,10 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     }
   }
   /** A box's rows: everything directly inside it when expanded (More); else its members, only unzoomed and never for context objects. */
-  const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top || it.o?.neighbor_only ? [] : it.kids.filter(k => k.m)
+  const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top ? [] : it.kids.filter(k => k.m)
   /** Whether a box can expand: it holds something to list, or code to show. */
   const expands = (it: Item) => !ext.has(it.id) && (it.kids.length > 0 || it.diff.length > 0)
-  return { boxes: [...shown, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, up }
+  return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, up }
 }
 type View = ReturnType<typeof mapView>
 
@@ -428,15 +427,14 @@ function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl:
     }))
 }
 
-/** Map options: the level chips when unzoomed, Reset once boxes were dragged, and the context and inner-arrow toggles. */
-function MapPanel({ top, moved, reset, showContext, setShowContext, innerArrows, setInnerArrows }: { top?: Item; moved: boolean; reset: () => void;
-  showContext: boolean; setShowContext: (on: boolean) => void; innerArrows: boolean; setInnerArrows: (on: boolean) => void }) {
+/** Map options: the level chips when unzoomed, Reset once boxes were dragged, and the inner-arrow toggle. */
+function MapPanel({ top, moved, reset, innerArrows, setInnerArrows }: { top?: Item; moved: boolean; reset: () => void;
+  innerArrows: boolean; setInnerArrows: (on: boolean) => void }) {
   const x = useContext(X)
   return (
     <Panel position="top-right" className="chips">
       {!top && LEVELS.map((l, i) => <button key={l} className={i === x.level ? 'on' : ''} onClick={() => x.setLevel(i)}>{l}</button>)}
       {moved && <button onClick={reset}>Reset</button>}
-      <label><input type="checkbox" checked={showContext} onChange={e => setShowContext(e.target.checked)} /> context</label>
       <label><input type="checkbox" checked={innerArrows} onChange={e => setInnerArrows(e.target.checked)} /> inner arrows</label>
     </Panel>
   )
@@ -457,7 +455,6 @@ function Kinds({ shows, flip }: { shows: (kind: string) => boolean; flip: (kind:
 export default function Graph({ visible, pop }: { visible: boolean; pop: number }) {
   const x = useContext(X)
   const box = useRef<HTMLDivElement>(null)
-  const [showContext, setShowContext] = useState(true)
   // Off: arrows connect only the top boxes in the view, one per pair; the selected box's own arrows replace them.
   const [innerArrows, setInnerArrows] = useState(false)
   // Arrow kinds the user switched on or off; "has" starts off in a folder zoom, where it buries the interface.
@@ -465,7 +462,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const top = x.scope ? x.ix.items.get(x.scope) : undefined
   const shows = (k: string) => kinds[k] ?? !(k === 'has' && top?.kind === 'folder')
   const view = top ? top.id : String(x.level)
-  const v = mapView(x.ix, x.model.dependencies, top, x.level, showContext, shows, x.expanded, innerArrows)
+  const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded, innerArrows)
   const graph = useLayout(view, v, it => height(it, x, v.rowsOf(it)), it => width(it, v.rowsOf(it), x))
   useFit(box, graph, view, visible, pop)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
@@ -524,7 +521,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
       // otherwise land in the next view's history entry. Leaving a view saves its viewport anyway (`push`).
       onMoveEnd={(e, vp) => { if (e) history.replaceState({ ...history.state, vp }, ''); reportView() }}
     >
-      <MapPanel top={top} moved={Object.keys(pos.moved).length > 0} reset={pos.reset} showContext={showContext} setShowContext={setShowContext} innerArrows={innerArrows} setInnerArrows={setInnerArrows} />
+      <MapPanel top={top} moved={Object.keys(pos.moved).length > 0} reset={pos.reset} innerArrows={innerArrows} setInnerArrows={setInnerArrows} />
       <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} />
     </ReactFlow>
   )

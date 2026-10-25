@@ -38,7 +38,7 @@ export function reportView(v = view) {
 export type Item = {
   id: string; kind: string; name: string; doc: string; status: ChangeStatus; diff: DiffLine[]
   depth: number; kids: Item[]; parent?: Item; o?: CodeUnit; m?: Member
-  /** Holds only unchanged code (context objects, unchanged members): shown on the map, left out of the review. */
+  /** Holds only unchanged code: shown on the map like the rest, but left out of the review order. */
   ctx: boolean
   /** Current lines of code, each counted once. */
   loc: number
@@ -101,8 +101,12 @@ export function index(model: Review) {
     const file = fileBox(o.file)
     const fields = { status: o.status, doc: o.doc, diff: o.diff, o }
     const it = o.kind === 'file' ? Object.assign(file, fields) : add({ id: o.id, kind: o.kind, name: o.name, ...fields }, file)
-    for (let p: Item | undefined = it; p && !o.neighbor_only; p = p.parent) p.ctx = false
-    for (const m of o.members) add({ id: m.id, kind: m.kind, name: m.name, status: m.status, doc: m.doc, diff: m.diff, m, ctx: o.neighbor_only || m.status === 'same' }, it)
+    // A change marks the boxes it sits in as changed too, so a folder or file shows that something inside it changed.
+    for (let p: Item | undefined = it; p && o.status !== 'same'; p = p.parent) {
+      p.ctx = false
+      if (p.status === 'same') p.status = 'changed'
+    }
+    for (const m of o.members) add({ id: m.id, kind: m.kind, name: m.name, status: m.status, doc: m.doc, diff: m.diff, m, ctx: m.status === 'same' }, it)
   }
   roots.forEach(r => measure(r))
   const all = roots.flatMap(subtree)

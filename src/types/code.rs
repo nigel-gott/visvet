@@ -164,8 +164,6 @@ pub struct CodeUnit {
     /// First paragraph of the doc comment, or of a file's leading comment, or "".
     pub doc: String,
     pub status: ChangeStatus,
-    /// True when the unit is unchanged and on the map only because a changed unit depends on it, or it on a changed unit.
-    pub neighbor_only: bool,
     pub implements: Vec<TraitRef>,
     /// File units only, once `visvet coverage` has run.
     pub coverage: Option<Coverage>,

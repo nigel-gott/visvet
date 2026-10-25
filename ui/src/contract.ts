@@ -22,11 +22,7 @@ export type CodeUnit = { id: UnitId, name: string, kind: UnitKind, file: RepoPat
 /**
  * First paragraph of the doc comment, or of a file's leading comment, or "".
  */
-doc: string, status: ChangeStatus, 
-/**
- * True when the unit is unchanged and on the map only because a changed unit depends on it, or it on a changed unit.
- */
-neighbor_only: boolean, implements: Array<TraitRef>, 
+doc: string, status: ChangeStatus, implements: Array<TraitRef>, 
 /**
  * File units only, once `visvet coverage` has run.
  */

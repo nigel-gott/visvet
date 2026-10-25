@@ -42,8 +42,8 @@ fn dep(from: &str, to: &str, kind: DependencyKind) -> Dependency {
     Dependency { from: BoxId(from.into()), to: BoxId(to.into()), kind }
 }
 
-/// Resolves names into dependencies and each unit's `implements`, then keeps changed units plus unchanged
-/// neighbors one hop away (only "has" and "implements" arrows pull them in). Removed things are never targets.
+/// Resolves names into dependencies and each unit's `implements`, and sorts the units by place. Every unit is kept,
+/// changed or not, so the map shows the whole project. Removed things are never targets.
 fn link(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUnit>, Vec<Dependency>) {
     let ix = Index::new(&all);
     let (mut edges, mut links, mut implements) = (vec![], BTreeSet::new(), vec![]);
@@ -72,28 +72,9 @@ fn link(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<CodeUnit>, Vec<Dependen
         }
     }
     edges.extend(links.into_iter().map(|(from, to, kind)| dep(from, to, kind)));
-    let units = all.into_iter().zip(implements).map(|(p, implements)| CodeUnit { implements, ..p.unit }).collect();
-    let units = with_neighbors(units, &mut edges);
-    (units, edges)
-}
-
-/// Keeps changed units plus unchanged ones a "has" or "implements" arrow away, sorted by place, and the arrows between kept ones.
-fn with_neighbors(all: Vec<CodeUnit>, edges: &mut Vec<Dependency>) -> Vec<CodeUnit> {
-    let changed: HashSet<String> = all.iter().filter(|o| o.status != ChangeStatus::Same).map(|o| o.id.0.clone()).collect();
-    // A "has" arrow can start at a field; it counts for the field's unit.
-    let unit_of: HashMap<String, String> = all.iter().flat_map(|o| o.members.iter().map(|m| (m.id.0.clone(), o.id.0.clone()))).collect();
-    let unit = |id: &BoxId| unit_of.get(id.as_str()).cloned().unwrap_or_else(|| id.0.clone());
-    let near: HashSet<String> = edges.iter().filter(|e| matches!(e.kind, DependencyKind::Has | DependencyKind::Implements))
-        .flat_map(|e| [(unit(&e.from), unit(&e.to)), (unit(&e.to), unit(&e.from))])
-        .filter(|(a, _)| changed.contains(a)).map(|(_, b)| b).collect();
-    let mut units: Vec<CodeUnit> = all.into_iter().map(|mut o| {
-        o.neighbor_only = !changed.contains(&o.id.0);
-        o
-    }).filter(|o| !o.neighbor_only || near.contains(&o.id.0)).collect();
+    let mut units: Vec<CodeUnit> = all.into_iter().zip(implements).map(|(p, implements)| CodeUnit { implements, ..p.unit }).collect();
     units.sort_by(|a, b| (&a.file, a.lines.first).cmp(&(&b.file, b.lines.first)));
-    let kept: HashSet<&str> = units.iter().flat_map(|o| o.members.iter().map(|m| m.id.as_str()).chain([o.id.as_str()])).collect();
-    edges.retain(|e| kept.contains(e.from.as_str()) && kept.contains(e.to.as_str()));
-    units
+    (units, edges)
 }
 
 /// Dependency targets by name: types (not impls or files) and fns and methods, removed ones left out.
@@ -152,11 +133,8 @@ fn lines(first: u32, text: &str) -> LineRange {
 
 /// Objects of one file with their type refs, file uses and calls, matched by name between versions.
 /// Text is UTF-8 with "\r\n" read as "\n" (else empty); the file object's status uses raw bytes.
-/// Unchanged non-source files yield nothing; a new version with a syntax error removes nothing.
+/// A new version with a syntax error removes nothing.
 fn file_objects(file: &str, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parsed> {
-    if new == old && !matches!(file.rsplit('.').next(), Some("rs" | "ts" | "tsx")) {
-        return vec![];
-    }
     let ex = |b: Option<&[u8]>| b.map_or(vec![], |b| extract(file, &std::str::from_utf8(b).unwrap_or("").replace("\r\n", "\n")));
     let (nx, ox) = (ex(new), (new != old).then(|| ex(old)));
     let (ox, broken) = (ox.as_ref().unwrap_or(&nx), nx.first().is_some_and(|f| f.broken));
@@ -196,7 +174,6 @@ fn file_objects(file: &str, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parse
             lines: lines(x.line, &x.text),
             doc: x.doc.clone(),
             status: st,
-            neighbor_only: false,
             implements: vec![],
             coverage: None,
             members,
@@ -273,18 +250,19 @@ mod tests {
         let toml = &file_objects("x.toml", Some(b"a = 1\nb = 2"), Some(b"a = 1"))[0].unit;
         let d: Vec<_> = toml.diff.iter().map(|d| (d.kind, d.line)).collect();
         assert_eq!((toml.status, toml.members.len(), d), (Changed, 0, vec![(L::Context, 1), (L::Added, 2)]));
-        assert!(file_objects("x.md", Some(b"same"), Some(b"same")).is_empty());
+        assert_eq!(file_objects("x.md", Some(b"same"), Some(b"same"))[0].unit.status, Same); // unchanged files stay on the map
         assert_eq!(file_objects("c.rs", Some(b"#[derive(Debug)]\nstruct C;"), Some(b"struct C;"))[1].unit.status, Changed);
     }
 
     #[test]
-    fn edges_and_context() {
+    fn edges_and_every_unit() {
         let mut all = file_objects("a.rs", Some(b"struct A { b: B, c: C }\nimpl T for A {}"), Some(b"struct A { b: B }"));
         all.extend(file_objects("b.rs", Some(b"struct B;\ntrait T {}\nstruct Far { a: A }\nstruct C;"), Some(b"struct B;\ntrait T {}\nstruct Far { a: A }")));
         all.extend(file_objects("c.rs", Some(b"struct C;\nstruct Lone;"), Some(b"struct C;\nstruct Lone;")));
         let (objs, edges) = link(all, &HashSet::new());
-        let o: Vec<_> = objs.iter().map(|o| (o.id.as_str(), o.neighbor_only)).collect();
-        assert_eq!(o, [("a.rs", false), ("a.rs::A", false), ("b.rs", false), ("b.rs::B", true), ("b.rs::T", true), ("b.rs::Far", true), ("b.rs::C", false)]);
+        // Every unit is kept, changed or not, so the map always shows the whole project.
+        let o: Vec<_> = objs.iter().map(|o| o.id.as_str()).collect();
+        assert_eq!(o, ["a.rs", "a.rs::A", "b.rs", "b.rs::B", "b.rs::T", "b.rs::Far", "b.rs::C", "c.rs", "c.rs::C", "c.rs::Lone"]);
         let e: Vec<_> = edges.iter().map(|e| (e.from.as_str(), e.to.as_str(), e.kind.label())).collect();
         assert_eq!(e, [("a.rs::A", "b.rs::T", "implements"), ("a.rs::A::b", "b.rs::B", "has"), ("b.rs::Far::a", "a.rs::A", "has")]);
     }
