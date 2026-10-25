@@ -167,7 +167,7 @@ function Card({ data }: NodeProps<Node<CardData>>) {
           {data.expands && <button className="grow" onClick={e => { e.stopPropagation(); x.expand(it.id) }}>{x.expanded.has(it.id) ? 'Less' : 'More'}</button>}
         </div>
         <Notes it={it} />
-        {fieldTable(it, rows).length > 0 && <table className="fields"><tbody>{fieldTable(it, rows).map(f => (
+        {it.id !== x.scope && fieldTable(it, rows).length > 0 && <table className="fields"><tbody>{fieldTable(it, rows).map(f => (
           <tr key={f.id} className={x.sel === f.id ? 'sel' : ''} onClick={e => { e.stopPropagation(); click(f) }}><td>{f.name}</td><td>{typeOf(f)}</td></tr>
         ))}</tbody></table>}
         {pills(it, rows).length > 0 && <div className="pills">{pills(it, rows).map(k => (
@@ -186,8 +186,8 @@ function Card({ data }: NodeProps<Node<CardData>>) {
           <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={it.diff} /></div>}
       </div>
       <Handle type="source" position={Position.Right} />
-      {/* The selected box, or one of its rows, pills or field rows: its side panel (see `ThreadPanel`), when it has one. */}
-      <NodeToolbar isVisible={!!x.sel && hasPanel(x, x.sel) && [it, ...rows, ...pills(it, rows), ...fieldTable(it, rows)].some(k => k.id === x.sel)} position={room().right ? Position.Right : Position.Left} align={room().below ? 'start' : 'end'}>
+      {/* The side panel (see `ThreadPanel`) of the selected box, or of the row, pill or field row it lists, unless that has its own box. */}
+      <NodeToolbar isVisible={!!x.sel && hasPanel(x, x.sel) && (x.sel === it.id || (!getInternalNode(x.sel) && [...rows, ...pills(it, rows), ...fieldTable(it, rows)].some(k => k.id === x.sel)))} position={room().right ? Position.Right : Position.Left} align={room().below ? 'start' : 'end'}>
         <ThreadPanel target={x.sel!} />
       </NodeToolbar>
     </>
