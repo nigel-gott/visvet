@@ -12,8 +12,9 @@ visvet is a multi-lens, visual way to review code changes at a higher level than
 ## Run it
 ```bash
 cd ui && npm run build && cd .. && cargo install --path . --locked
-caffeinate -is visvet serve --no-open --port 7880
+caffeinate -is visvet serve --no-open --port 7880 --base 4b825dc642cb6eb9a060e54bf8d69288fbee4904
 ```
+- `--base` is git's empty tree, so the whole project shows as the change under review, even though it is committed.
 - Run the server in the background. Restart it after every change: `pkill -f "visvet serve --no-open --port 7880"`.
 - A restart doesn't reload the page's JavaScript. Don't reload the user's tab yourself while they might be typing a comment: tell them to, and test in a separate tab.
 - Keep visvet open in the desktop app's browser pane at http://127.0.0.1:7880.
