@@ -1,4 +1,5 @@
 //! HTTP API, change and show events and the embedded UI, answering only to known host names.
+use crate::visvet_dir::HandOff;
 use crate::watch::{self, RepoEvent};
 use crate::{coverage, model::build_review, store, types::{Author, MapId, Review, ThreadId, ThreadState, View}};
 use axum::{
@@ -124,7 +125,7 @@ async fn reply(State(app): State<App>, UrlPath(id): UrlPath<ThreadId>, Json(r): 
 
 /// Saves what the user is looking at, for `visvet view`.
 async fn set_view(State(app): State<App>, Json(v): Json<View>) -> Res<()> {
-    store::put(&app.repo_root, "view.json", &v).map_err(err)
+    store::put(&app.repo_root, HandOff::View, &v).map_err(err)
 }
 
 /// Serves a UI file, falling back to index.html so client routes load the app.

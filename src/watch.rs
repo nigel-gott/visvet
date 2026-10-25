@@ -1,5 +1,6 @@
 //! Watching the repository for changes that alter the review: code, commits and checkouts, comment threads, test
 //! coverage, and `visvet show` requests. It knows nothing about how the changes are passed on (today, the HTTP server).
+use crate::visvet_dir::{self, HandOff, VisvetDir};
 use notify::{RecursiveMode, Watcher};
 use std::{path::{Path, PathBuf}, sync::mpsc, time::Duration};
 
@@ -19,7 +20,7 @@ pub fn watch(repo_root: PathBuf, on: impl Fn(RepoEvent) + Send + 'static) -> not
     let (raw_tx, raw_rx) = mpsc::channel();
     let mut watcher = notify::recommended_watcher(raw_tx)?;
     watcher.watch(&repo_root, RecursiveMode::Recursive)?;
-    let show = repo_root.join(".visvet/show.json");
+    let show = VisvetDir::of(&repo_root).hand_off(HandOff::Show);
     std::thread::spawn(move || {
         while let Ok(first) = raw_rx.recv() {
             let mut burst = vec![first];
@@ -42,8 +43,8 @@ pub fn watch(repo_root: PathBuf, on: impl Fn(RepoEvent) + Send + 'static) -> not
 /// Inside `.visvet`, only the comment threads and test coverage count, not the view and show hand-offs.
 fn relevant(repo_root: &Path, path: &Path) -> bool {
     let rel = path.strip_prefix(repo_root).unwrap_or(path);
-    if let Ok(own) = rel.strip_prefix(".visvet") {
-        return own.starts_with("threads") || own == Path::new("coverage.lcov");
+    if visvet_dir::holds(rel) {
+        return visvet_dir::affects_review(rel);
     }
     if let Ok(git) = rel.strip_prefix(".git") {
         return ["HEAD", "packed-refs", "refs"].iter().any(|p| git.starts_with(p));

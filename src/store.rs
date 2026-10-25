@@ -3,17 +3,18 @@
 //! Also the local hand-off files between the UI and the AI, kept out of git: `view.json` (what the user sees) and
 //! `show.json` (where the AI sends them).
 use crate::git;
+use crate::visvet_dir::{HandOff, VisvetDir};
 use crate::types::{Author, MapId, MessageKind, ReviewAnnotations, Thread, ThreadId, ThreadMessage, ThreadState};
 use anyhow::{Context, Result, anyhow};
 use serde::{Serialize, de::DeserializeOwned};
 use std::hash::{BuildHasher, RandomState};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{fs, io::ErrorKind, path::{Path, PathBuf}};
+use std::{fs, io::ErrorKind, path::Path};
 
 /// Reads every thread from `.visvet/threads/`, oldest first; a missing folder means none.
 pub fn load(repo_root: &Path) -> Result<ReviewAnnotations> {
     let mut threads = vec![];
-    let folders = match fs::read_dir(threads_dir(repo_root)) {
+    let folders = match fs::read_dir(VisvetDir::of(repo_root).threads()) {
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(ReviewAnnotations::default()),
         r => r?,
     };
@@ -41,7 +42,7 @@ pub fn load(repo_root: &Path) -> Result<ReviewAnnotations> {
 
 /// Writes every message of `s` that is new or changed, and deletes the files of messages and threads it no longer has.
 fn save(repo_root: &Path, s: &ReviewAnnotations) -> Result<()> {
-    let root = threads_dir(repo_root);
+    let root = VisvetDir::of(repo_root).threads();
     for t in &s.threads {
         let folder = root.join(&t.id.0);
         fs::create_dir_all(&folder)?;
@@ -107,43 +108,26 @@ fn unword<T: DeserializeOwned>(w: &str) -> Result<T> {
     Ok(serde_json::from_value(serde_json::Value::String(w.into()))?)
 }
 
-/// Reads `.visvet/<name>` as JSON, or none if it doesn't exist.
-pub fn get<T: DeserializeOwned>(repo_root: &Path, name: &str) -> Result<Option<T>> {
-    match fs::read(repo_root.join(".visvet").join(name)) {
+/// Reads hand-off `h` as JSON, or none if it doesn't exist.
+pub fn get<T: DeserializeOwned>(repo_root: &Path, h: HandOff) -> Result<Option<T>> {
+    match fs::read(VisvetDir::of(repo_root).hand_off(h)) {
         Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.into()),
     }
 }
 
-/// Writes `value` to `.visvet/<name>` as one-line JSON, through a temporary file so readers never see half of it.
-pub fn put(repo_root: &Path, name: &str, value: &impl Serialize) -> Result<()> {
-    let tmp = dir(repo_root)?.join(format!("{name}.tmp"));
+/// Writes `value` to hand-off `h` as one-line JSON, through a temporary file so readers never see half of it.
+pub fn put(repo_root: &Path, h: HandOff, value: &impl Serialize) -> Result<()> {
+    let dir = VisvetDir::of(repo_root);
+    let (file, tmp) = (dir.hand_off(h), dir.create()?.join("hand-off.tmp"));
     fs::write(&tmp, serde_json::to_vec(value)?)?;
-    Ok(fs::rename(tmp, repo_root.join(".visvet").join(name))?)
-}
-
-/// What `.visvet/.gitignore` says: everything here is local except the threads.
-const IGNORE: &str = "*\n!.gitignore\n!threads/\n!threads/**\n";
-
-/// `.visvet/`, created on first use with a .gitignore that keeps all but the threads out of git.
-fn dir(repo_root: &Path) -> Result<PathBuf> {
-    let dir = repo_root.join(".visvet");
-    fs::create_dir_all(dir.join("threads"))?;
-    if fs::read_to_string(dir.join(".gitignore")).ok().as_deref() != Some(IGNORE) {
-        fs::write(dir.join(".gitignore"), IGNORE)?;
-    }
-    Ok(dir)
-}
-
-/// `.visvet/threads/`, one folder per thread.
-fn threads_dir(repo_root: &Path) -> PathBuf {
-    repo_root.join(".visvet").join("threads")
+    Ok(fs::rename(tmp, file)?)
 }
 
 /// Apply `f` to the threads under an exclusive lock on `.visvet/`, then save them.
 fn update<R>(repo_root: &Path, f: impl FnOnce(&mut ReviewAnnotations) -> Result<R>) -> Result<R> {
-    let lock = fs::File::open(dir(repo_root)?)?;
+    let lock = fs::File::open(VisvetDir::of(repo_root).create()?)?;
     lock.lock()?;
     let mut state = load(repo_root)?;
     let r = f(&mut state)?;
@@ -216,6 +200,7 @@ pub fn reply(repo_root: &Path, id: ThreadId, author: Author, text: String, state
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     /// An empty folder to stand in for a repository.
     fn repo(name: &str) -> PathBuf {
@@ -241,7 +226,7 @@ mod tests {
         let t = &load(&r).unwrap().threads[0];
         assert_eq!((t.state, t.messages.len(), t.target.as_str()), (ThreadState::Resolved, 5, "src/a.rs"));
         assert_eq!(t.messages[3].text, "renamed; tests too?\n\n- yes\n---\nno"); // text survives the file round trip
-        assert_eq!(fs::read_dir(r.join(".visvet/threads").join(&t.id.0)).unwrap().count(), 5); // one file per message
+        assert_eq!(fs::read_dir(VisvetDir::of(&r).threads().join(&t.id.0)).unwrap().count(), 5); // one file per message
         fs::remove_dir_all(r).unwrap();
     }
 

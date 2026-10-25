@@ -10,10 +10,12 @@ mod server;
 mod store;
 mod threads;
 mod types;
+mod visvet_dir;
 mod watch;
 
 use clap::{Args, Parser, Subcommand};
 use std::path::{Path, PathBuf};
+use visvet_dir::{HandOff, VisvetDir};
 use types::{Author, MapId, Show, ThreadId, ThreadState, View};
 
 /// Review AI coding changes one level above the code.
@@ -115,17 +117,17 @@ async fn main() -> anyhow::Result<()> {
             store::reply(&repo_root, id, Author::Ai, text.join(" "), state)
         }
         Cmd::Wait => threads::wait(&repo_root),
-        Cmd::Show { symbol, highlight } => store::put(&repo_root, "show.json", &Show { target: MapId(symbol), highlight: highlight.into_iter().map(MapId).collect() }),
+        Cmd::Show { symbol, highlight } => store::put(&repo_root, HandOff::Show, &Show { target: MapId(symbol), highlight: highlight.into_iter().map(MapId).collect() }),
     }
 }
 
 /// Prints what the user is looking at, and how long ago it last changed.
 fn view(repo_root: &Path) -> anyhow::Result<()> {
-    let Some(v) = store::get::<View>(repo_root, "view.json")? else {
+    let Some(v) = store::get::<View>(repo_root, HandOff::View)? else {
         println!("visvet view: unknown, the UI has not been opened");
         return Ok(());
     };
-    let age = std::fs::metadata(repo_root.join(".visvet/view.json"))?.modified()?.elapsed().unwrap_or_default().as_secs();
+    let age = std::fs::metadata(VisvetDir::of(repo_root).hand_off(HandOff::View))?.modified()?.elapsed().unwrap_or_default().as_secs();
     let scope = v.scope.map_or(format!("whole map, {} levels deep", v.level + 1), |s| format!("zoomed into {s}"));
     println!("visvet view ({age}s ago): {scope}");
     let lines = [("selected", v.selected.into_iter().collect()), ("highlighted", v.highlight), ("on screen", v.visible)];

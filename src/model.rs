@@ -1,6 +1,6 @@
 //! Builds the `Review`: code units and members diffed against `base`, plus the dependencies between them.
 use crate::extract::extract;
-use crate::{codegen, git, markdown};
+use crate::{codegen, git, markdown, visvet_dir};
 use crate::types::{BoxId, ChangeStatus, CodeUnit, Dependency, DependencyKind, DiffLine, DiffLineKind, GitRef, LineRange, Member, MemberId, MemberKind, Review, RepoPath, TraitRef, UnitId, UnitKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -13,8 +13,8 @@ pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
     let old: HashSet<String> = git::base_files(repo_root, base)?.into_iter().collect();
     let diffs: Option<HashSet<String>> = git::changed(repo_root, base).map(HashSet::from_iter);
     let mut all = vec![];
-    // The comment threads in `.visvet/` are review state shown in the drawer, not code for the map.
-    for f in cur.union(&old).filter(|f| !f.starts_with(".visvet/")).collect::<BTreeSet<_>>() {
+    // visvet's own folder holds review state (threads in the drawer), not code for the map.
+    for f in cur.union(&old).filter(|f| !visvet_dir::holds(Path::new(f))).collect::<BTreeSet<_>>() {
         let new = cur.contains(f).then(|| std::fs::read(repo_root.join(f)).ok()).flatten();
         let same = diffs.as_ref().is_some_and(|d| !d.contains(f));
         let prev = if !old.contains(f) { None } else if same { new.clone() } else { git::show(repo_root, base, f) };

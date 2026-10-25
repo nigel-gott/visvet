@@ -1,5 +1,5 @@
 //! Comment threads for the AI: listing what waits for it, the stop hook that keeps it working, and waiting while idle.
-use crate::store;
+use crate::{store, visvet_dir};
 use crate::types::{Author, Thread, ThreadState};
 use std::path::Path;
 use std::time::Duration;
@@ -18,7 +18,7 @@ fn describe(threads: &[Thread]) -> String {
         out += &format!("{} {:?} on {}\n", t.id, t.state, t.target);
         let new = t.messages.iter().rposition(|m| m.author == Author::Ai).map_or(0, |i| i + 1);
         if new > 0 {
-            out += &format!("   ({new} earlier messages in .visvet/threads/{}/)\n", t.id.0);
+            out += &format!("   ({new} earlier messages in {}/threads/{}/)\n", visvet_dir::NAME, t.id.0);
         }
         for m in &t.messages[new..] {
             out += &format!("   {}: {}\n", if m.author == Author::Ai { "you" } else { &m.name }, m.text.replace('\n', "\n      "));
