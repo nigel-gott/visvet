@@ -100,7 +100,8 @@ signature: string,
  */
 doc: string, lines: LineRange, status: ChangeStatus, 
 /**
- * Rough cyclomatic complexity, 1 + decision points, for fns and methods; 1 for other members.
+ * How hard a function is to follow: 1 + its branches, loops, `&&`/`||` and catches, with each match or switch
+ * counted once (not per arm). 1 for other members.
  */
 complexity: number, 
 /**

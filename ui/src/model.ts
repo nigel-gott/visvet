@@ -59,7 +59,7 @@ export const within = (it: Item | undefined, id: string): boolean => !!it && (it
 /** A copy of `set` with `id` added, or removed if it was there. */
 export const flip = (set: Set<string>, id: string) => { const n = new Set(set); if (!n.delete(id)) n.add(id); return n }
 
-/** Complexity (1 + decision points, from the extractor) above which a function is hard to follow. */
+/** Complexity (from the extractor: 1 + branches, loops and the like, each match counted once) above which a function is hard to follow. */
 export const COMPLEX = 15
 
 /** Sets `loc`, `complex` and `cov` bottom-up and returns the item's current lines as "file:line" keys. */

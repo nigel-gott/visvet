@@ -124,7 +124,8 @@ pub struct Member {
     pub doc: String,
     pub lines: LineRange,
     pub status: ChangeStatus,
-    /// Rough cyclomatic complexity, 1 + decision points, for fns and methods; 1 for other members.
+    /// How hard a function is to follow: 1 + its branches, loops, `&&`/`||` and catches, with each match or switch
+    /// counted once (not per arm). 1 for other members.
     pub complexity: u32,
     /// Functions only, once `visvet coverage` has run.
     pub coverage: Option<Coverage>,

@@ -139,11 +139,12 @@ fn clean(text: &str) -> String {
     words.join(" ").chars().take(300).collect()
 }
 
-/// Whether `n` adds a path through its function: a branch, loop, match arm, case, catch, `?`, or `&&`/`||`/`??`.
+/// Whether `n` adds a decision a reader must follow: a branch, loop, catch, `&&`/`||`/`??`, or a whole match or switch.
+/// A match counts once, not per arm, so a flat dispatch over many cases stays simple; `?` only passes errors up.
 fn decision(n: Node) -> bool {
     let op = matches!(n.kind(), "&&" | "||" | "??") && n.parent().is_some_and(|p| matches!(p.kind(), "binary_expression" | "let_chain"));
-    op || matches!(n.kind(), "if_expression" | "for_expression" | "while_expression" | "loop_expression" | "match_arm" | "try_expression"
-        | "if_statement" | "for_statement" | "for_in_statement" | "while_statement" | "do_statement" | "switch_case" | "catch_clause" | "ternary_expression")
+    op || matches!(n.kind(), "if_expression" | "for_expression" | "while_expression" | "loop_expression" | "match_expression"
+        | "if_statement" | "for_statement" | "for_in_statement" | "while_statement" | "do_statement" | "switch_statement" | "catch_clause" | "ternary_expression")
 }
 
 /// The object kind of a type-declaring node kind, if it is one.

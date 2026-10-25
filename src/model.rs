@@ -261,7 +261,7 @@ mod tests {
         let rs = "fn f() { if let Some(_) = a && b || c { x?; } for _ in x {} while a {} loop {} match a { 1 => {} _ => {} } let g = || if a {}; }";
         let ts = "function f() { if (a && b || c) {} for (;;) {} for (x of a) {} while (a) {} do {} while (a); try {} catch {} switch (a) { case 1: default: } return a ?? (b ? 1 : 2) }";
         let cx = |f: &str, s: &str| file_objects(f, Some(s.as_bytes()), None)[0].unit.members[0].complexity;
-        assert_eq!((s.members[0].complexity, s.members[2].complexity, cx("d.rs", rs), cx("d.ts", ts)), (1, 2, 11, 12));
+        assert_eq!((s.members[0].complexity, s.members[2].complexity, cx("d.rs", rs), cx("d.ts", ts)), (1, 1, 9, 12));
         let added = file_objects("b.rs", Some(b"fn f() {}"), None);
         assert_eq!((added[0].unit.id.as_str(), added[0].unit.status, added[0].unit.members[0].id.as_str()), ("b.rs", Added, "b.rs::f"));
         let bin = file_objects("a.png", Some(&[0xff, 1]), Some(&[0xff]));
