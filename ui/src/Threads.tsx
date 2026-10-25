@@ -149,13 +149,14 @@ export function ThreadCounts() {
   )
 }
 
-/** Every unresolved thread: its box, state and last message. Clicking one shows its box among its siblings, with the thread open. */
+/** Every unresolved thread: its box, state and last message. Clicking one shows its box among its siblings, with the whole thread open in the drawer. */
 export function Inbox() {
   const x = useContext(X)
   const go = (t: Thread) => {
     const up = x.ix.items.get(t.target)?.parent?.id ?? null
     if (up !== x.scope) x.zoom(up)
     x.select(t.target, true)
+    x.setFull(t.target)
     x.setInbox(false)
   }
   return (
