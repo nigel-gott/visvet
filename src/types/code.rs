@@ -1,11 +1,25 @@
 //! The code under review, rebuilt from git on every request: code units, their members, and the dependencies between them.
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use ts_rs::TS;
 
-/// A file's path from the repository root, e.g. "src/types/code.rs".
+/// A file's path from the repository root, e.g. "src/types/code.rs". A real path (`PathBuf`, Rust's path type), but
+/// not a place on this computer: the file may exist only in git (deleted, or its older version), so visvet never
+/// opens it directly, only through the repository's folder or git.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct FilePath(pub String);
+pub struct RepoPath(pub PathBuf);
+
+impl RepoPath {
+    /// The path as text. Every `RepoPath` is built from git's text output, so it is always valid text.
+    pub fn as_str(&self) -> &str {
+        self.0.to_str().expect("repo paths come from git's text output")
+    }
+    /// Whether this is a Rust source file.
+    pub fn is_rust(&self) -> bool {
+        self.0.extension().is_some_and(|e| e == "rs")
+    }
+}
 
 /// A code unit's id: its file path, then "::" and its name, e.g. "src/types/code.rs::CodeUnit";
 /// for a file unit, just the path.
@@ -23,7 +37,7 @@ pub struct BoxId(pub String);
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct MemberId(pub String);
 
-string_methods!(FilePath, UnitId, BoxId, MemberId);
+string_methods!(UnitId, BoxId, MemberId);
 
 /// How a unit, member or file differs from the version it is compared against.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
@@ -145,7 +159,7 @@ pub struct CodeUnit {
     pub id: UnitId,
     pub name: String,
     pub kind: UnitKind,
-    pub file: FilePath,
+    pub file: RepoPath,
     pub lines: LineRange,
     /// First paragraph of the doc comment, or of a file's leading comment, or "".
     pub doc: String,

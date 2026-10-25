@@ -1,7 +1,7 @@
 //! Builds the `Review`: code units and members diffed against `base`, plus the dependencies between them.
 use crate::extract::extract;
 use crate::git;
-use crate::types::{BoxId, ChangeStatus, CodeUnit, Dependency, DependencyKind, DiffLine, DiffLineKind, FilePath, GitRef, LineRange, Member, MemberId, MemberKind, Review, TraitRef, UnitId, UnitKind};
+use crate::types::{BoxId, ChangeStatus, CodeUnit, Dependency, DependencyKind, DiffLine, DiffLineKind, GitRef, LineRange, Member, MemberId, MemberKind, Review, RepoPath, TraitRef, UnitId, UnitKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
@@ -129,8 +129,8 @@ impl<'a> Index<'a> {
 }
 
 /// Whether `file` is in the same language family as `o`'s file: Rust or not.
-fn same_lang(o: &CodeUnit, file: &FilePath) -> bool {
-    file.as_str().ends_with(".rs") == o.file.as_str().ends_with(".rs")
+fn same_lang(o: &CodeUnit, file: &RepoPath) -> bool {
+    file.is_rust() == o.file.is_rust()
 }
 
 /// The only target in the first non-empty tier of candidates: same unit, same file, anywhere.
@@ -189,7 +189,7 @@ fn file_objects(file: &str, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parse
             id,
             name: x.name.clone(),
             kind: x.kind,
-            file: FilePath(file.into()),
+            file: RepoPath(file.into()),
             lines: lines(x.line, &x.text),
             doc: x.doc.clone(),
             status: st,

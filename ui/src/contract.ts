@@ -23,7 +23,7 @@ export type ChangeStatus = "same" | "added" | "removed" | "changed";
 /**
  * One box on the map: a type, an impl or a whole file (see `UnitKind`).
  */
-export type CodeUnit = { id: UnitId, name: string, kind: UnitKind, file: FilePath, lines: LineRange, 
+export type CodeUnit = { id: UnitId, name: string, kind: UnitKind, file: RepoPath, lines: LineRange, 
 /**
  * First paragraph of the doc comment, or of a file's leading comment, or "".
  */
@@ -65,11 +65,6 @@ export type DiffLine = { kind: DiffLineKind, text: string, line: number, };
  * Whether a diff line is unchanged, new or gone. JSON keeps the short names "ctx", "add" and "del".
  */
 export type DiffLineKind = "ctx" | "add" | "del";
-
-/**
- * A file's path from the repository root, e.g. "src/types/code.rs".
- */
-export type FilePath = string;
 
 /**
  * A git commit, branch or tag name, e.g. "HEAD", "main" or "a1b2c3d".
@@ -122,6 +117,13 @@ export type MemberId = string;
  * What a member of a code unit is.
  */
 export type MemberKind = "field" | "method" | "variant" | "fn";
+
+/**
+ * A file's path from the repository root, e.g. "src/types/code.rs". A real path (`PathBuf`, Rust's path type), but
+ * not a place on this computer: the file may exist only in git (deleted, or its older version), so visvet never
+ * opens it directly, only through the repository's folder or git.
+ */
+export type RepoPath = string;
 
 /**
  * One review, as the UI shows it. GET /api/model returns it.
