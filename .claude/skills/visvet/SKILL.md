@@ -3,7 +3,7 @@ name: visvet
 description: Review loop with the user through visvet. Use when the user says "visvet", talks about what they see in it, or after finishing a change they will review in visvet.
 ---
 
-The user reviews your changes in visvet instead of reading raw code. visvet shows the change as boxes: folders contain files, and files contain code units (types such as structs and classes) with their members. Each box has a description, your review notes and the code diff. The user doesn't comment in visvet: they move around it and type their review to you in this chat.
+The user reviews your changes in visvet instead of reading raw code. visvet shows the change as boxes: folders contain files, and files contain code units (types such as structs and classes) with their members. Each box has a description, your review notes and the code diff. The user leaves comment threads on boxes, which you answer with `visvet reply`.
 
 ## Describe the code, in the code
 Box descriptions come from doc comments, so keep them current as part of every change:
@@ -15,7 +15,7 @@ Box descriptions come from doc comments, so keep them current as part of every c
 The map's top levels are the code's own folders and files. A Rust file `x.rs` holds the files in folder `x/`, as in Rust. When a box looks tall or tangled, the code is usually doing too many jobs in one place: split it into files or folders by job. Never hide or rearrange things on the map to make it look tidy.
 
 ## Annotate your change for review
-Attach a review note to each box or edge the user should look at: why it changed, what to check, or a risk:
+A note shows as a 📝 message from you in the box's side drawer. Keep few: only where the user should look, saying why it changed, what to check, or a risk. When code changes, rewrite or remove stale notes. Notes and replies render light markdown (paragraphs, `- ` lists, `**bold**`, backticks):
 ```bash
 visvet explain "src/model.rs::build_review" "Diffs every file against base so removed units still show"
 visvet explain "src/" "New: doc comments become box descriptions"
