@@ -131,12 +131,14 @@ export function Outline() {
 /** An item's or edge end's display name. */
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 
-/** The diff; runs of more than 8 unchanged lines fold into one row until clicked. */
+/** The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. */
 export function DiffView({ diff }: { diff: DiffLine[] }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
+  // Long unchanged runs fold only around a change; unchanged code shows whole.
+  const changed = diff.some(l => l.kind !== 'ctx')
   const runs: { start: number; lines: DiffLine[] }[] = []
   diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
-  const rows = runs.flatMap(({ start, lines }) => lines.length > 8 && !unfolded.has(start)
+  const rows = runs.flatMap(({ start, lines }) => changed && lines.length > 8 && !unfolded.has(start)
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
     : lines.map((l, k) => <div key={start + k} className={'ln ' + l.kind}><span className="no">{l.line}</span>{l.text}</div>))
   return <div className="diff">{rows}</div>
