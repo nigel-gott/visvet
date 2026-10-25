@@ -350,6 +350,8 @@ impl<'a> Ex<'a> {
     fn add_member(&mut self, oi: usize, kind: MemberKind, n: Node, name: &str, body: Option<Node>) {
         let end = body.map_or(n.end_byte(), |b| b.start_byte());
         let sig = self.src[n.start_byte()..end].split_whitespace().collect::<Vec<_>>().join(" ");
+        // A struct-like enum variant's signature stops at its name, e.g. "Threads", not its whole field list; More shows the fields.
+        let sig = if kind == MemberKind::Variant { sig.split(" {").next().unwrap_or(&sig).to_string() } else { sig };
         let sig = sig.trim_end_matches([',', ';']).trim_end().into();
         let ((start, line, doc), mut calls) = (self.head(n), vec![]);
         let complexity = 1 + body.map_or(0, |b| self.calls(oi, b, &mut calls));

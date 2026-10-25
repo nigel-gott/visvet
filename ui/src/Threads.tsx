@@ -30,7 +30,8 @@ export function ThreadChip({ it }: { it: Item }) {
 function Say({ text: start, focus, placeholder, send, done }: { text: string; focus: boolean; placeholder: string; send: (text: string) => Promise<unknown>; done: () => void }) {
   const [text, setText] = useState(start)
   const ref = useRef<HTMLTextAreaElement>(null)
-  useEffect(() => { if (focus) ref.current?.focus({ preventScroll: true }) }, [])
+  // Focus with the caret after the typed text, so typing carries on after the first character.
+  useEffect(() => { const el = ref.current; if (focus && el) { el.focus({ preventScroll: true }); el.setSelectionRange(start.length, start.length) } }, [])
   // Grow to fit the text (CSS caps it), so a long comment wraps instead of running off the side.
   useEffect(() => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }, [text])
   const submit = () => text.trim() && send(text.trim()).then(() => { setText(''); done() }, alert)
