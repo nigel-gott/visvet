@@ -116,7 +116,7 @@ coverage: Coverage | null,
 diff: Array<DiffLine>, };
 
 /**
- * A member's id: its unit's id, then "::" and its name, e.g. "src/types/code.rs::MapBox::lines".
+ * A member's id: its unit's id, then "::" and its name, e.g. "src/types/boxes.rs::MapBox::lines".
  */
 export type MemberId = string;
 
@@ -131,7 +131,7 @@ export type MemberKind = "field" | "method" | "variant" | "fn";
 export type MessageKind = "reply" | "note";
 
 /**
- * A file's path from the repository repo_root, e.g. "src/types/code.rs". A real path (`PathBuf`, Rust's path type), but
+ * A file's path from the repository root, e.g. "src/types/boxes.rs". A real path (`PathBuf`, Rust's path type), but
  * not a place on this computer: the file may exist only in git (deleted, or its older version), so visvet never
  * opens it directly, only through the repository's folder or git.
  */
@@ -197,7 +197,7 @@ export type ThreadState = "open" | "working" | "question" | "resolved";
 export type TraitRef = { name: string, unit: UnitId | null, };
 
 /**
- * A box's id: its file path, then "::" and its name, e.g. "src/types/code.rs::MapBox";
+ * A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox";
  * for a file unit, just the path.
  */
 export type UnitId = string;

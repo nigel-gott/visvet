@@ -237,7 +237,7 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     return it
   }
   /**
-   * Outside the zoomed box, a link ends at the file it leads to, e.g. src/types/code.rs, shown inside its folders or
+   * Outside the zoomed box, a link ends at the file it leads to, e.g. src/types/boxes.rs, shown inside its folders or
    * module files down to the zoomed box's depth, so you see where it goes without zooming out.
    */
   const peer = (id: string) => {

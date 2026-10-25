@@ -18,10 +18,18 @@ macro_rules! string_methods {
 }
 
 mod annotations;
-mod code;
+mod boxes;
+mod changes;
+mod dependencies;
+mod docs;
 mod handoff;
+mod ids;
 mod review;
 pub use annotations::*;
-pub use code::*;
+pub use boxes::*;
+pub use changes::*;
+pub use dependencies::*;
+pub use docs::*;
 pub use handoff::*;
+pub use ids::*;
 pub use review::*;
