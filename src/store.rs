@@ -1,6 +1,6 @@
 //! Review state in `<repo_root>/.visvet/state.json`: the AI's notes and comment threads.
 //! Also the hand-off files between the UI and the AI: `view.json` (what the user sees) and `show.json` (where the AI sends them).
-use crate::types::{AiNote, Author, MapId, ReviewAnnotations, Thread, ThreadId, ThreadMessage, ThreadState};
+use crate::types::{Author, MapId, MessageKind, ReviewAnnotations, Thread, ThreadId, ThreadMessage, ThreadState};
 use anyhow::anyhow;
 use anyhow::Result;
 use serde::{Serialize, de::DeserializeOwned};
@@ -47,11 +47,24 @@ fn update<R>(repo_root: &Path, f: impl FnOnce(&mut ReviewAnnotations) -> Result<
     Ok(r)
 }
 
-/// Sets the AI's note on a box, folder or arrow, replacing any earlier one.
-pub fn add_note(repo_root: &Path, target: MapId, why: String) -> Result<()> {
+/// The id for a new thread: one more than the highest so far, so ids are never reused.
+fn next_id(s: &ReviewAnnotations) -> ThreadId {
+    ThreadId(s.threads.iter().map(|t| t.id.0).max().unwrap_or(0) + 1)
+}
+
+/// Saves the AI's note on box `target` as a note message in its latest thread, or in a new thread that needs no
+/// answer (resolved). It replaces the box's earlier note, so each box has one current note.
+pub fn add_note(repo_root: &Path, target: MapId, text: String) -> Result<()> {
     update(repo_root, |s| {
-        s.notes.retain(|n| n.target != target);
-        s.notes.push(AiNote { target, why });
+        for t in s.threads.iter_mut().filter(|t| t.target == target) {
+            t.messages.retain(|m| m.kind != MessageKind::Note);
+        }
+        s.threads.retain(|t| !t.messages.is_empty());
+        let note = ThreadMessage { author: Author::Ai, text, kind: MessageKind::Note };
+        match s.threads.iter_mut().rfind(|t| t.target == target) {
+            Some(t) => t.messages.push(note),
+            None => s.threads.push(Thread { id: next_id(s), target, state: ThreadState::Resolved, messages: vec![note] }),
+        }
         Ok(())
     })
 }
@@ -59,8 +72,8 @@ pub fn add_note(repo_root: &Path, target: MapId, why: String) -> Result<()> {
 /// Starts a comment thread from the user on `target`, waiting for the AI.
 pub fn new_thread(repo_root: &Path, target: MapId, text: String) -> Result<()> {
     update(repo_root, |s| {
-        let id = ThreadId(s.threads.iter().map(|t| t.id.0).max().unwrap_or(0) + 1);
-        s.threads.push(Thread { id, target, state: ThreadState::Open, messages: vec![ThreadMessage { author: Author::User, text }] });
+        let id = next_id(s);
+        s.threads.push(Thread { id, target, state: ThreadState::Open, messages: vec![ThreadMessage { author: Author::User, text, kind: MessageKind::Reply }] });
         Ok(())
     })
 }
@@ -69,7 +82,7 @@ pub fn new_thread(repo_root: &Path, target: MapId, text: String) -> Result<()> {
 pub fn reply(repo_root: &Path, id: ThreadId, author: Author, text: String, state: ThreadState) -> Result<()> {
     update(repo_root, |s| {
         let t = s.threads.iter_mut().find(|t| t.id == id).ok_or_else(|| anyhow!("no thread {id}"))?;
-        t.messages.push(ThreadMessage { author, text });
+        t.messages.push(ThreadMessage { author, text, kind: MessageKind::Reply });
         // A user's message hands the thread back to the AI, unless it resolves it.
         t.state = if author == Author::User && state != ThreadState::Resolved { ThreadState::Open } else { state };
         Ok(())
@@ -94,6 +107,22 @@ mod tests {
         reply(&repo_root, ThreadId(1), Author::Ai, "renamed; tests too?".into(), ThreadState::Question).unwrap();
         reply(&repo_root, ThreadId(1), Author::User, "fine as is".into(), ThreadState::Resolved).unwrap(); // the user dismisses it
         assert_eq!((state(&repo_root), load(&repo_root).unwrap().threads[0].messages.len()), (ThreadState::Resolved, 5));
+        fs::remove_dir_all(repo_root).unwrap();
+    }
+
+    #[test]
+    fn a_note_joins_the_box_thread_and_replaces_the_last_one() {
+        let repo_root = std::env::temp_dir().join(format!("visvet-notes-{}", std::process::id()));
+        fs::create_dir_all(&repo_root).unwrap();
+        let (a, b) = (MapId("src/a.rs".into()), MapId("src/b.rs".into()));
+        add_note(&repo_root, a.clone(), "first".into()).unwrap();
+        add_note(&repo_root, a.clone(), "second".into()).unwrap(); // replaces "first"
+        new_thread(&repo_root, b.clone(), "why?".into()).unwrap();
+        add_note(&repo_root, b, "because".into()).unwrap(); // joins the user's thread
+        let s = load(&repo_root).unwrap();
+        let texts: Vec<Vec<&str>> = s.threads.iter().map(|t| t.messages.iter().map(|m| m.text.as_str()).collect()).collect();
+        assert_eq!(texts, [vec!["second"], vec!["why?", "because"]]);
+        assert_eq!((s.threads[0].state, s.threads[1].state), (ThreadState::Resolved, ThreadState::Open));
         fs::remove_dir_all(repo_root).unwrap();
     }
 }

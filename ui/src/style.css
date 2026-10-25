@@ -189,7 +189,6 @@ main { grid-area: 2 / 1; min-height: 0 }
 .bubble code { padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, currentColor 12%, transparent); font: 0.92em var(--mono) }
 .msg.user .bubble { background: var(--sel); color: #fff }
 .msg.ai .bubble { background: var(--panel); border: 1px solid var(--line); color: var(--fg) }
-.msg.note { margin-bottom: 12px }
 .msg.note .bubble { border-style: dashed }
 /* The comment field and its send button; in the drawer it stays at the bottom while the thread scrolls. */
 .compose { display: flex; gap: 8px; align-items: flex-end }

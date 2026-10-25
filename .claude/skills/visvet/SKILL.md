@@ -15,7 +15,7 @@ Box descriptions come from doc comments, so keep them current as part of every c
 The map's top levels are the code's own folders and files. A Rust file `x.rs` holds the files in folder `x/`, as in Rust. When a box looks tall or tangled, the code is usually doing too many jobs in one place: split it into files or folders by job. Never hide or rearrange things on the map to make it look tidy.
 
 ## Annotate your change for review
-A note shows as a 📝 message from you in the box's side drawer. Keep few: only where the user should look, saying why it changed, what to check, or a risk. When code changes, rewrite or remove stale notes. Notes and replies render light markdown (paragraphs, `- ` lists, `**bold**`, backticks):
+A note is a 📝 message from you in the box's thread: it joins the latest thread on the box, or starts one that needs no answer, and replaces your earlier note there. Keep few: only where the user should look, saying why it changed, what to check, or a risk. When code changes, rewrite or remove stale notes. Notes and replies render light markdown (paragraphs, `- ` lists, `**bold**`, backticks):
 ```bash
 visvet explain "src/model.rs::build_review" "Diffs every file against base so removed units still show"
 visvet explain "src/" "New: doc comments become box descriptions"

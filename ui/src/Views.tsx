@@ -6,7 +6,7 @@ import { post, subtree, within, type DiffLine, type Index, type Item, type Chang
 
 /** What every view reads: the model, the item index, the selection, navigation and review state. */
 export type Ctx = {
-  model: Review; ix: Index; notes: Map<string, string>; sel: string | null
+  model: Review; ix: Index; sel: string | null
   /** The comment threads between the user and the AI. */
   threads: Thread[]
   /** Boxes and arrows highlighted by `visvet show`; cleared by the next selection or Back. */
@@ -55,7 +55,7 @@ export function Head({ it }: { it: Item }) {
 }
 
 
-/** An item's doc line. The AI's note on it shows in the side drawer, with its threads. */
+/** An item's doc line. The AI's note on it is a message in its thread, in the side drawer. */
 export function Notes({ it }: { it: Item }) {
   return it.doc && <div className="doc">{it.doc}</div>
 }
@@ -77,7 +77,7 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
 
 const FILTERS: [string, (it: Item, x: Ctx) => boolean][] = [
   ['All', () => true],
-  ['Has AI notes', (it, x) => x.notes.has(it.id)],
+  ['Has threads', (it, x) => x.threads.some(t => t.target === it.id)],
 ]
 
 /** The review outline: search, filters and the folder → file → unit → member tree. */
@@ -186,7 +186,6 @@ export function Detail({ id }: { id: string }) {
       <div className="body">
         {crumbs.length > 0 && <nav className="crumbs">{crumbs.map(c => <a key={c.id} onClick={() => x.focus(c.id)}>{c.name}</a>)}</nav>}
         {it?.doc && <p className="desc">{it.doc}</p>}
-        {x.notes.has(id) && <p className="why">AI: {x.notes.get(id)}</p>}
         <Related id={id} it={it} />
         {it && it.kind !== 'folder' && (diff.length === 0 ? <p>no text content</p> : <DiffView diff={diff} />)}
       </div>

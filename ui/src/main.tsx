@@ -183,7 +183,6 @@ function App() {
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
-    notes: new Map(model.annotations.notes.map(n => [n.target, n.why])),
     threads: model.annotations.threads,
     detail: detail?.id === sel ? detail : null, showDetail: (id, kind) => showDetail(kind ? { id, kind } : null),
     draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox, full: full === sel, setFull,
