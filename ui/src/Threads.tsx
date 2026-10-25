@@ -25,7 +25,7 @@ export function ThreadChip({ it }: { it: Item }) {
 
 /**
  * A comment field starting with `text`, focused if `focus`, that wraps and grows with what is typed. Enter sends it
- * (Shift+Enter adds a line); Escape leaves it; Escape or sending calls `done`.
+ * (Shift+Enter adds a line), as does its send button; sending clears it. Escape leaves it; Escape or sending calls `done`.
  */
 function Say({ text: start, focus, placeholder, send, done }: { text: string; focus: boolean; placeholder: string; send: (text: string) => Promise<unknown>; done: () => void }) {
   const [text, setText] = useState(start)
@@ -33,15 +33,16 @@ function Say({ text: start, focus, placeholder, send, done }: { text: string; fo
   useEffect(() => { if (focus) ref.current?.focus({ preventScroll: true }) }, [])
   // Grow to fit the text (CSS caps it), so a long comment wraps instead of running off the side.
   useEffect(() => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }, [text])
+  const submit = () => text.trim() && send(text.trim()).then(() => { setText(''); done() }, alert)
   return (
-    <textarea ref={ref} rows={1} className="say nodrag nopan" placeholder={placeholder} value={text} onChange={e => setText(e.target.value)}
-      onKeyDown={e => {
-        if (e.key === 'Escape') { e.currentTarget.blur(); done() }
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault()
-          if (text.trim()) send(text.trim()).then(done, alert)
-        }
-      }} />
+    <div className="compose">
+      <textarea ref={ref} rows={1} className="say nodrag nopan" placeholder={placeholder} value={text} onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { e.currentTarget.blur(); done() }
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
+        }} />
+      <button className="send" title="Send (Enter)" disabled={!text.trim()} onClick={submit}>➤</button>
+    </div>
   )
 }
 
