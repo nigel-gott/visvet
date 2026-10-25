@@ -238,14 +238,18 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
   }
   const ext = new Map<string, Item>()
   /** Whether `id` is the selected box or inside it: its arrows end at the exact box outside, e.g. a function, not its file. */
-  const picked = (id: string) => !!sel && (id === sel || id.startsWith(sel.endsWith('/') ? sel : sel + '::'))
+  // Only a function, a type or a file with nothing inside (e.g. an issue): selecting a folder or a whole file, as Up
+  // does with the box it leaves, would make every arrow inside it exact.
+  const chosen = sel ? ix.items.get(sel) : undefined
+  const fine = !!chosen && chosen !== top && (!chosen.kids.length || (!!chosen.o && chosen.kind !== 'file'))
+  const picked = (id: string) => fine && (id === sel || id.startsWith(sel + '::'))
   const outside = (id: string, fine: boolean) => (fine ? ix.items.get(id) : peer(id))
   const exact = links.filter(e => shows(e.kind)).flatMap(e => {
     let a = lift(e.from), b = lift(e.to)
     if (!a && !b) return [] // wholly outside the zoomed box
-    const fine = picked(e.from) || picked(e.to)
-    a ??= outside(e.from, fine)
-    b ??= outside(e.to, fine)
+    const near = picked(e.from) || picked(e.to)
+    a ??= outside(e.from, near)
+    b ??= outside(e.to, near)
     // Skip edges between a box and a box inside it: they'd loop onto the outer box.
     if (!a || !b || within(a, b.id) || within(b, a.id)) return []
     // An outside end always gets its box, plus its parent boxes down to the zoomed box's depth (it can sit higher up).
