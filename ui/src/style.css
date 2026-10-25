@@ -160,6 +160,10 @@ main { grid-area: 2 / 1; min-height: 0 }
 .fields td:first-child { width: 40%; color: var(--k-field) }
 .fields td:last-child { color: var(--muted) }
 .fields tr.sel td { background: var(--sel-bg) }
+/* A field or enum value's change: green when added, amber when changed, struck through in red when removed. */
+.fields tr.added td:first-child, .pill.added { color: var(--add) }
+.fields tr.changed td:first-child, .pill.changed { color: var(--chg) }
+.fields tr.removed td, .pill.removed { color: var(--del); text-decoration: line-through }
 /* The selected box's exact field-level arrows, drawn on top of the arrows merged onto its type. */
 .react-flow__edge.exact path { stroke: var(--sel); stroke-width: 2.5 }
 /* Debuffs: badges shown only when a box is out of the norm. Red: complex functions. Amber: long. Blue: low test coverage. */

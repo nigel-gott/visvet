@@ -164,10 +164,10 @@ function Card({ data }: NodeProps<Node<CardData>>) {
         </div>
         <Notes it={it} />
         {it.id !== x.scope && fieldTable(it, rows).length > 0 && <table className="fields"><tbody>{fieldTable(it, rows).map(f => (
-          <tr key={f.id} className={x.sel === f.id ? 'sel' : ''} onClick={e => { e.stopPropagation(); click(f) }}><td>{f.name}</td><td>{typeOf(f)}</td></tr>
+          <tr key={f.id} className={`${f.status} ${x.sel === f.id ? 'sel' : ''}`} onClick={e => { e.stopPropagation(); click(f) }}><td>{f.name}</td><td>{typeOf(f)}</td></tr>
         ))}</tbody></table>}
         {pills(it, rows).length > 0 && <div className="pills">{pills(it, rows).map(k => (
-          <span key={k.id} className={x.sel === k.id ? 'pill sel' : 'pill'} title={k.m!.signature} onClick={e => { e.stopPropagation(); click(k) }}>{k.name}</span>
+          <span key={k.id} className={`pill ${k.status} ${x.sel === k.id ? 'sel' : ''}`} title={k.m!.signature} onClick={e => { e.stopPropagation(); click(k) }}>{k.name}</span>
         ))}</div>}
         {it.kind === 'folder' && <div className="meta">{stats(it)}</div>}
         {!!it.o?.implements.length && <div className="meta">impl {it.o.implements.map(t => t.name).join(', ')}</div>}
