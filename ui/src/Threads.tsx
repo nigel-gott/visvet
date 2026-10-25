@@ -131,7 +131,7 @@ export function ThreadPanel({ target }: { target: string }) {
         <div key={t.id} className={'thread ' + t.state}>
           {t.messages.map((m, i) => (
             <div key={i} className={`msg ${m.author} ${m.kind}`}>
-              <span className="avatar">{t.messages[i + 1] && avatar(t.messages[i + 1]) === avatar(m) ? '' : avatar(m)}</span><div className="bubble"><Rich text={m.text} /></div>
+              <span className="avatar" title={m.name}>{t.messages[i + 1] && avatar(t.messages[i + 1]) === avatar(m) ? '' : avatar(m)}</span><div className="bubble"><Rich text={m.text} /></div>
             </div>
           ))}
           {!onlyNotes(t) && <div className="state">{LABEL[t.state]}

@@ -35,7 +35,7 @@ The server prints its address and opens it in your browser. It has no login. It 
 | `visvet explain <symbol> "<note>"` | Add a review note to a box or edge |
 | `visvet graph` | Print coupling, cycles, complexity and zoom tangles: the map as text |
 
-Box descriptions come from doc comments in the code. Review state is kept in `.visvet/`, which is gitignored.
+Box descriptions come from doc comments in the code. Comment threads are kept in `.visvet/threads/`, one Markdown file per message, and are committed with the code: pushing and pulling shares them, so several people can review in the same threads. Everything else in `.visvet/` is local and ignored by git.
 
 ## License
 

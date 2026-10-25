@@ -16,7 +16,7 @@ fn describe(threads: &[Thread]) -> String {
     for t in threads {
         out += &format!("{} {:?} on {}\n", t.id, t.state, t.target);
         for m in &t.messages {
-            out += &format!("   {}: {}\n", if m.author == Author::User { "user" } else { "you" }, m.text.replace('\n', "\n      "));
+            out += &format!("   {}: {}\n", if m.author == Author::Ai { "you" } else { &m.name }, m.text.replace('\n', "\n      "));
         }
     }
     out + "Answer each: visvet reply <id> \"<what you did>\" --resolve, or --ask to ask the user something; without a flag it marks the thread working."

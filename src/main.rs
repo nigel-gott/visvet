@@ -69,7 +69,7 @@ enum Cmd {
     },
     /// Answer a comment thread; it stays working unless --resolve or --ask
     Reply {
-        #[arg(value_parser = |s: &str| s.parse().map(ThreadId))]
+        #[arg(value_parser = |s: &str| Ok::<_, String>(ThreadId(s.trim_start_matches('#').into())))]
         id: ThreadId,
         #[arg(required = true)]
         text: Vec<String>,

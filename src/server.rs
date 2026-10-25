@@ -112,11 +112,11 @@ fn watch(repo_root: PathBuf, tx: broadcast::Sender<Push>) -> notify::Result<noti
 }
 
 /// Inside `.git`, only HEAD and ref moves count, so commits and checkouts refresh.
-/// Inside `.visvet`, only the review state and test coverage count, not the view and show hand-offs.
+/// Inside `.visvet`, only the comment threads and test coverage count, not the view and show hand-offs.
 fn relevant(repo_root: &Path, path: &Path) -> bool {
     let rel = path.strip_prefix(repo_root).unwrap_or(path);
     if let Ok(own) = rel.strip_prefix(".visvet") {
-        return own == Path::new("state.json") || own == Path::new("coverage.lcov");
+        return own.starts_with("threads") || own == Path::new("coverage.lcov");
     }
     if let Ok(git) = rel.strip_prefix(".git") {
         return ["HEAD", "packed-refs", "refs"].iter().any(|p| git.starts_with(p));

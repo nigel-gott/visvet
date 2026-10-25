@@ -1,9 +1,9 @@
-//! The review work saved in `.visvet/state.json`: the comment threads between the user and the AI, which also hold the AI's notes.
+//! The review work saved in `.visvet/threads/`: the comment threads between people and the AI, which also hold the AI's notes.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use super::MapId;
 
-/// Who wrote a message in a comment thread.
+/// Whether a person or the AI wrote a message in a comment thread.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 #[serde(rename_all = "lowercase")]
@@ -36,20 +36,27 @@ pub enum MessageKind {
     Note,
 }
 
-/// One message in a comment thread.
+/// One message in a comment thread, saved as one file so two people replying at once never clash in git.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct ThreadMessage {
     pub author: Author,
+    /// Who wrote it: a person's git `user.name`, or "Claude".
+    pub name: String,
     pub text: String,
-    #[serde(default)]
     pub kind: MessageKind,
+    /// The thread's state once this message was added; the last message's is the thread's.
+    pub state: ThreadState,
+    /// When it was written, in milliseconds since 1970; messages are in this order.
+    #[ts(type = "number")]
+    pub at: u64,
 }
 
-/// A thread's number, e.g. 3 for "#3": counts up from 1 and is never reused.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, TS)]
+/// A thread's id, e.g. "k3f9a2" for "#k3f9a2": random, so people starting threads on different machines never pick
+/// the same one. It is also the name of the thread's folder.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct ThreadId(pub u32);
+pub struct ThreadId(pub String);
 
 impl std::fmt::Display for ThreadId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { write!(f, "#{}", self.0) }
@@ -60,11 +67,9 @@ impl std::fmt::Display for ThreadId {
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct Thread { pub id: ThreadId, pub target: MapId, pub state: ThreadState, pub messages: Vec<ThreadMessage> }
 
-/// The review work that can't be rebuilt from code, kept in `.visvet/state.json`: the comment threads.
-/// Missing fields load as empty, and unknown ones are ignored, so old files still load.
+/// The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-#[serde(default)]
 pub struct ReviewAnnotations {
     pub threads: Vec<Thread>,
 }
