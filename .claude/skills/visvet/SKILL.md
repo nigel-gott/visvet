@@ -20,9 +20,9 @@ Markdown files are boxes too. Front matter like `kind: issue` or `kind: mileston
 ## Annotate your change for review
 A note is a 📝 message from you in the box's thread: it joins the latest thread on the box, or starts one that needs no answer, and replaces your earlier note there. Keep few: only where the user should look, saying why it changed, what to check, or a risk. When code changes, rewrite or remove stale notes. Notes and replies render light markdown (paragraphs, `- ` lists, `**bold**`, backticks):
 ```bash
-visvet explain "src/model.rs::build_review" "Diffs every file against base so removed units still show"
+visvet explain "src/review.rs::build_review" "Diffs every file against base so removed units still show"
 visvet explain "src/" "New: doc comments become box descriptions"
-visvet explain "src/server.rs -> src/model.rs" "Server rebuilds the model on every request"
+visvet explain "src/server.rs -> src/review.rs" "Server rebuilds the review on every request"
 ```
 Symbol forms:
 - `<file>`: a file

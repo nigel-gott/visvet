@@ -1,5 +1,5 @@
 //! `visvet graph`: the review map as text, so the AI sees the coupling, cycles and complexity the user sees.
-use crate::{model::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, CodeUnit, ChangeStatus, MemberKind, UnitKind}};
+use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, CodeUnit, ChangeStatus, MemberKind, UnitKind}};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 

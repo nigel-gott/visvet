@@ -1,7 +1,7 @@
 //! HTTP API, change and show events and the embedded UI, answering only to known host names.
 use crate::visvet_dir::HandOff;
 use crate::watch::{self, RepoEvent};
-use crate::{coverage, model::build_review, store, types::{Author, MapId, Review, ThreadId, ThreadState, View}};
+use crate::{coverage, review::build_review, store, types::{Author, MapId, Review, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
     extract::{Path as UrlPath, Request, State},

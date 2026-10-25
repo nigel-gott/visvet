@@ -1,4 +1,5 @@
-//! Tree-sitter extraction of type-like objects and their members from one file.
+//! Parsing one version of one file with tree-sitter: its type-like objects and their members, with the names they
+//! mention, not yet linked to anything.
 use std::collections::{BTreeSet, HashSet};
 use crate::types::{MemberKind, UnitKind};
 use tree_sitter::{Node, Parser};
@@ -47,7 +48,7 @@ struct Ex<'a> {
 
 /// A "file" object (whole text, free fns as members, imports) followed by the file's types.
 /// Only .rs/.ts/.tsx files are parsed.
-pub fn extract(path: &str, src: &str) -> Vec<Obj> {
+pub fn parse(path: &str, src: &str) -> Vec<Obj> {
     let file = Obj { name: path.into(), kind: UnitKind::File, line: 1, text: src.into(), doc: head_doc(path, src), ..Default::default() };
     let mut x = Ex { src, path, objs: vec![file] };
     let lang = match path.rsplit('.').next() {
@@ -451,7 +452,7 @@ mod tests {
     #[test]
     fn rust_struct_impl_merge() {
         let src = "//! File doc.\n//!\n//! More.\nimpl Foo {\n    /// Makes one.\n    pub fn new(\n        x: u8,\n    ) -> Self { todo!() }\n    pub fn a(&self) -> u8 { 1 }\n}\nimpl fmt::Display for Foo<T> { fn fmt(&self) {} }\n/// The foo.\n/// Really.\n///\n/// Details.\n#[derive(\n    Debug,\n)]\npub struct Foo { pub a: Vec<Bar>, b: u8 }\nenum E { A(Baz), B }\nimpl Ext for Other {}\n// plain\nfn free() {}\n#[cfg(test)]\nmod tests { struct Hidden; }\n";
-        let objs = extract("a.rs", src);
+        let objs = parse("a.rs", src);
         let foo = get(&objs, "Foo");
         assert_eq!((foo.kind, foo.line, &foo.impls, &foo.refs), (UnitKind::Struct, 12, &set(&["Display"]), &set(&[])));
         assert_eq!(foo.members[3].types, set(&["Bar", "Vec"]));
@@ -472,7 +473,7 @@ mod tests {
     #[test]
     fn ts_class_interface() {
         let src = "/** The C class.\n * More.\n *\n * Details. */\nexport class C extends Base<T> implements I {\n  x: Foo; // trailing\n  // Runs it.\n  run(a: { b: number }): void {}\n  get v() { return 1 }\n  set v(x) {}\n}\ninterface I extends J { p: Bar; m(): void; }\nexport const f = (a: number) => { return a };\nfunction g() {}\ntype U = Foo | Baz;\nenum E { A, B = 2 }\ntype P<K> = { a: K; m(): Foo }\nconst U = () => 1;\n";
-        let objs = extract("a.tsx", src);
+        let objs = parse("a.tsx", src);
         let c = get(&objs, "C");
         assert_eq!((c.kind, c.line, &c.impls, &c.refs), (UnitKind::Class, 1, &set(&["Base", "I"]), &set(&[])));
         assert_eq!(c.members[0].types, set(&["Foo"]));
@@ -483,7 +484,7 @@ mod tests {
         assert_eq!(docs, ("The C class. More.", "The C class. More.", "", "Runs it."));
         for (p, s, d) in [("x.md", "---\ndescription: \"Hi there\"\n---\n# T", "Hi there"), ("y.md", "# Title\n\nProse.", "Title"),
             ("x.sh", "#!/bin/sh\n# Deploys.\n\n# other", "Deploys."), ("i.html", "<!-- Entry\n page. -->\n<html>", "Entry page.")] {
-            assert_eq!(extract(p, s)[0].doc, d);
+            assert_eq!(parse(p, s)[0].doc, d);
         }
         let i = get(&objs, "I");
         assert_eq!((i.kind, &i.impls, &i.members[0].types), (UnitKind::Interface, &set(&["J"]), &set(&["Bar"])));

@@ -1,6 +1,6 @@
 //! Markdown files on the map: front matter labels a file's box (e.g. `kind: issue`, `status: open`), and the code
 //! and files it names become "links" arrows. So any notes, issues or milestones kept as Markdown connect to the code.
-use crate::extract::{dir, join};
+use crate::parse::{dir, join};
 use std::collections::BTreeMap;
 
 /// The `key: value` lines between `---` lines at the top of a Markdown file, e.g. `kind` → `issue`.
@@ -10,7 +10,7 @@ pub fn front_matter(src: &str) -> BTreeMap<String, String> {
 }
 
 /// What a Markdown file at `path` names, as repo paths or box ids that may not exist: each `code span`, e.g.
-/// `src/model.rs::link`, and each relative link target, e.g. `[model](../src/model.rs)`, taken from the file's folder.
+/// `src/review.rs::build_review`, and each relative link target, e.g. `[review](../src/review.rs)`, taken from the file's folder.
 pub fn links(path: &str, src: &str) -> Vec<String> {
     let spans = src.split('`').skip(1).step_by(2).map(|s| s.trim().to_string());
     let targets = src.split("](").skip(1).filter_map(|s| s.split(')').next())
