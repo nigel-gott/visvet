@@ -115,8 +115,8 @@ export function ThreadPanel({ target }: { target: string }) {
   useEffect(() => { ref.current?.parentElement?.scrollTo({ top: 1e9 }) }, [target, said])
   return (
     <div ref={ref} className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+      <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" title="Close" onClick={() => { x.setFull(null); x.showDetail(target, null) }}>✕</button></div>
       {x.detail && <DebuffDetail id={x.detail.id} kind={x.detail.kind} />}
-      {(ts.length > 0 || note) && <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" onClick={() => x.setFull(null)}>✕</button></div>}
       {note && <div className="msg ai note"><span className="avatar">📝</span><div className="bubble"><Rich text={note} /></div></div>}
       {ts.map(t => (
         <div key={t.id} className={'thread ' + t.state}>
