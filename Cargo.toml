@@ -3,6 +3,9 @@
 name = "visvet"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A multi-lens, visual way to review code changes at a higher level than the diff"
+repository = "https://github.com/nigel-gott/visvet"
 # File::lock, which guards .visvet/state.json, is stable from 1.89.
 rust-version = "1.89"
 

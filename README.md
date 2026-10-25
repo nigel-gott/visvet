@@ -36,3 +36,7 @@ The server prints its address and opens it in your browser. It has no login. It 
 | `visvet graph` | Print coupling, cycles, complexity and zoom tangles: the map as text |
 
 Box descriptions come from doc comments in the code. Review state is kept in `.visvet/`, which is gitignored.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT), at your option.
