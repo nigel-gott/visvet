@@ -213,10 +213,11 @@ function face(t: Item) {
  * The boxes one map view shows, the edges (of the kinds `shows` lets through) lifted onto them, and each box's member
  * rows; a box in `expanded` also lists members not shown as boxes. Unzoomed: every box down to `level`, objects
  * listing their members as rows. Zoomed: one level only, the box and its direct children (a type's public members),
- * each drawn compact. A link leaving the zoomed box ends at a dimmed box next to it (or next to one of its parents).
+ * each drawn compact. A link leaving the zoomed box ends at the file it leads to (beside the zoomed box), or for the
+ * selected box, at the exact box it leads to, e.g. a function inside that file.
  */
 export function mapView(ix: Index, links: Review['dependencies'], top: Item | undefined, level: number,
-  shows: (kind: string) => boolean, expanded: Set<string>, innerArrows: boolean) {
+  shows: (kind: string) => boolean, expanded: Set<string>, sel: string | null) {
   const inner = !top ? ix.all.filter(it => it.depth <= level && !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
@@ -236,11 +237,15 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     return it
   }
   const ext = new Map<string, Item>()
+  /** Whether `id` is the selected box or inside it: its arrows end at the exact box outside, e.g. a function, not its file. */
+  const picked = (id: string) => !!sel && (id === sel || id.startsWith(sel.endsWith('/') ? sel : sel + '::'))
+  const outside = (id: string, fine: boolean) => (fine ? ix.items.get(id) : peer(id))
   const exact = links.filter(e => shows(e.kind)).flatMap(e => {
     let a = lift(e.from), b = lift(e.to)
     if (!a && !b) return [] // wholly outside the zoomed box
-    a ??= peer(e.from)
-    b ??= peer(e.to)
+    const fine = picked(e.from) || picked(e.to)
+    a ??= outside(e.from, fine)
+    b ??= outside(e.to, fine)
     // Skip edges between a box and a box inside it: they'd loop onto the outer box.
     if (!a || !b || within(a, b.id) || within(b, a.id)) return []
     // An outside end always gets its box, plus its parent boxes down to the zoomed box's depth (it can sit higher up).
@@ -248,13 +253,13 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     return [{ ...e, a: a.id, b: b.id }]
   })
   /**
-   * Unless `innerArrows`, a box hands its arrows to its outermost box in this view (a child of the zoomed box, or an
+   * A box hands its arrows to its outermost box in this view (a child of the zoomed box, or an
    * outside peer's outermost shown box), so arrows connect only the top boxes; the selected box's own are drawn instead.
    */
   const owner = (id: string) => {
     let it = ix.items.get(id)
     if (!it) return id // e.g. a selected arrow
-    while (!innerArrows && it.parent && it.parent !== top && (ids.has(it.parent.id) || ext.has(it.parent.id))) it = it.parent
+    while (it.parent && it.parent !== top && (ids.has(it.parent.id) || ext.has(it.parent.id))) it = it.parent
     return it.id
   }
   const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
@@ -425,8 +430,9 @@ function useMoved(view: string, sig: string) {
 function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl: Set<string>, sel: string | null) {
   const placed = new Set(graph.laid.map(n => n.id))
   const touches = (id: string) => !!sel && (id === sel || id.startsWith(sel.endsWith('/') ? sel : sel + '::'))
-  const isTop = !!sel && v.owner(sel) === sel
-  const own = [...v.detail].filter(([, d]) => isTop ? d.tops.has(sel!) : d.exact && (touches(d.es[0].a) || touches(d.es[0].b)))
+  // A selected box with boxes inside it shows its children's arrows; one without (a leaf here) shows its exact arrows.
+  const holds = !!sel && v.owner(sel) === sel && v.boxes.some(b => b.parent?.id === sel)
+  const own = [...v.detail].filter(([, d]) => holds ? d.tops.has(sel!) : d.exact && (touches(d.es[0].a) || touches(d.es[0].b)))
   const replaced = new Set(own.map(([, d]) => d.replaces))
   return [...[...v.edges].filter(([id]) => !replaced.has(id)).map(e => [e, false] as const), ...own.map(([id, d]) => [[id, d.es] as const, true] as const)]
     .filter(([[, [e]]]) => placed.has(e.a) && placed.has(e.b)).map(([[id, es], exact]) => ({
@@ -439,15 +445,13 @@ function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl:
     }))
 }
 
-/** Map options: the level chips when unzoomed, Reset once boxes were dragged, and the inner-arrow toggle. */
-function MapPanel({ top, moved, reset, innerArrows, setInnerArrows }: { top?: Item; moved: boolean; reset: () => void;
-  innerArrows: boolean; setInnerArrows: (on: boolean) => void }) {
+/** Map options: the level chips when unzoomed, and Reset once boxes were dragged. */
+function MapPanel({ top, moved, reset }: { top?: Item; moved: boolean; reset: () => void }) {
   const x = useContext(X)
   return (
     <Panel position="top-right" className="chips">
       {!top && LEVELS.map((l, i) => <button key={l} className={i === x.level ? 'on' : ''} onClick={() => x.setLevel(i)}>{l}</button>)}
       {moved && <button onClick={reset}>Reset</button>}
-      <label><input type="checkbox" checked={innerArrows} onChange={e => setInnerArrows(e.target.checked)} /> inner arrows</label>
     </Panel>
   )
 }
@@ -467,14 +471,12 @@ function Kinds({ shows, flip }: { shows: (kind: string) => boolean; flip: (kind:
 export default function Graph({ visible, pop }: { visible: boolean; pop: number }) {
   const x = useContext(X)
   const box = useRef<HTMLDivElement>(null)
-  // Off: arrows connect only the top boxes in the view, one per pair; the selected box's own arrows replace them.
-  const [innerArrows, setInnerArrows] = useState(false)
   // Arrow kinds the user switched on or off; "has" starts off in a folder zoom, where it buries the interface.
   const [kinds, setKinds] = useState<Record<string, boolean>>({})
   const top = x.scope ? x.ix.items.get(x.scope) : undefined
   const shows = (k: string) => kinds[k] ?? !(k === 'has' && top?.kind === 'folder')
   const view = top ? top.id : String(x.level)
-  const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded, innerArrows)
+  const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded, x.sel)
   const graph = useLayout(view, v, it => height(it, x, v.rowsOf(it)), it => width(it, v.rowsOf(it), x))
   useFit(box, graph, view, visible, pop)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
@@ -533,7 +535,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
       // otherwise land in the next view's history entry. Leaving a view saves its viewport anyway (`push`).
       onMoveEnd={(e, vp) => { if (e) history.replaceState({ ...history.state, vp }, ''); reportView() }}
     >
-      <MapPanel top={top} moved={Object.keys(pos.moved).length > 0} reset={pos.reset} innerArrows={innerArrows} setInnerArrows={setInnerArrows} />
+      <MapPanel top={top} moved={Object.keys(pos.moved).length > 0} reset={pos.reset} />
       <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} />
     </ReactFlow>
   )
