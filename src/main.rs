@@ -1,23 +1,16 @@
 //! The visvet CLI: serves the review UI, and gives agents the explain, graph, view, show, coverage and comment-thread commands.
-mod codegen;
-mod compare;
-mod coverage;
-mod dependencies;
 mod git;
 mod graph;
-mod markdown;
-mod parse;
 mod review;
 mod server;
-mod store;
-mod threads;
+mod state;
 mod types;
-mod visvet_dir;
-mod watch;
 
 use clap::{Args, Parser, Subcommand};
 use std::path::{Path, PathBuf};
-use visvet_dir::{HandOff, VisvetDir};
+use review::coverage;
+use state::visvet_dir::{HandOff, VisvetDir};
+use state::{store, threads};
 use types::{Author, MapId, Show, ThreadId, ThreadState, View};
 
 /// Review AI coding changes one level above the code.

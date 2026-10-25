@@ -1,7 +1,7 @@
 //! Comparing a file's two versions: parses both, pairs old and new types and members by name, and diffs each pair,
 //! so every box knows whether it was added, changed, removed or is the same.
-use crate::parse::{Mem, Obj, parse};
-use crate::{codegen, markdown};
+use crate::review::parse::{Mem, Obj, parse};
+use super::{codegen, markdown};
 use crate::types::{BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, UnitId, UnitKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::HashMap;

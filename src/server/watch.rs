@@ -1,6 +1,6 @@
 //! Watching the repository for changes that alter the review: code, commits and checkouts, comment threads, test
 //! coverage, and `visvet show` requests. It knows nothing about how the changes are passed on (today, the HTTP server).
-use crate::visvet_dir::{self, HandOff, VisvetDir};
+use crate::state::visvet_dir::{self, HandOff, VisvetDir};
 use notify::{RecursiveMode, Watcher};
 use std::{path::{Path, PathBuf}, sync::mpsc, time::Duration};
 

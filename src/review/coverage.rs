@@ -1,6 +1,6 @@
 //! Test coverage from `visvet coverage`: which lines the tests ran, saved by `cargo llvm-cov` in `.visvet/coverage.lcov`.
 use crate::types::{BoxContent, Coverage, LineRange, MemberKind, Review, UnitKind};
-use crate::visvet_dir::VisvetDir;
+use crate::state::visvet_dir::VisvetDir;
 use std::collections::HashMap;
 use std::path::Path;
 

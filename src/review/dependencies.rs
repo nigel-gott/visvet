@@ -1,6 +1,6 @@
 //! Dependencies between boxes: turns the names each box mentions (types, calls, imports, generated copies, Markdown
 //! links) into arrows to the boxes they mean, and fills in which traits each unit implements.
-use crate::compare::Parsed;
+use crate::review::compare::Parsed;
 use crate::types::{BoxContent, BoxId, ChangeStatus, MapBox, Dependency, DependencyKind, Member, MemberKind, RepoPath, TraitRef, UnitId, UnitKind};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -102,7 +102,7 @@ fn pick<'a>(o: &MapBox, c: &[(&MapBox, &'a str)]) -> Option<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compare::tests::cmp;
+    use crate::review::compare::tests::cmp;
 
     #[test]
     fn edges_and_every_unit() {

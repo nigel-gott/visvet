@@ -3,7 +3,7 @@
 //! Also the local hand-off files between the UI and the AI, kept out of git: `view.json` (what the user sees) and
 //! `show.json` (where the AI sends them).
 use crate::git;
-use crate::visvet_dir::{HandOff, VisvetDir};
+use crate::state::visvet_dir::{HandOff, VisvetDir};
 use crate::types::{Author, MapId, MessageKind, ReviewAnnotations, Thread, ThreadId, ThreadMessage, ThreadState};
 use anyhow::{Context, Result, anyhow};
 use serde::{Serialize, de::DeserializeOwned};

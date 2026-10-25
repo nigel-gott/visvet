@@ -1,6 +1,6 @@
 //! Markdown files on the map: front matter labels a file's box (`kind: issue`, `status: open`), and the code
 //! and files it names become "links" arrows. So any notes, issues or milestones kept as Markdown connect to the code.
-use crate::parse::{dir, join};
+use crate::review::parse::{dir, join};
 use crate::types::{DocKind, DocLabels, WorkStatus};
 
 /// The labels a Markdown file's front matter (the `key: value` lines between `---` lines at its top) gives it, e.g.

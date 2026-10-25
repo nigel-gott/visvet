@@ -1,6 +1,6 @@
 //! Code generators: "generates" arrows from a type to the code a library writes from it, which parsing alone
 //! can't see. To support another generator, write a detector like `ts_rs` and add it to `DETECTORS`.
-use crate::parse::join;
+use crate::review::parse::join;
 
 /// Given a type's file and its source text (attributes included), the repo file a code generator writes a type of
 /// the same name into, if it does.

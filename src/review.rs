@@ -1,6 +1,15 @@
 //! Building the `Review`: reads every file from the working tree and from git at `base`, compares each file's two
-//! versions, then finds the dependencies between all the boxes.
-use crate::{compare::compare_file, dependencies::find_dependencies, git, visvet_dir};
+//! versions, then finds the dependencies between all the boxes. Each step is a module below.
+pub mod codegen;
+pub mod compare;
+pub mod coverage;
+pub mod dependencies;
+pub mod markdown;
+pub mod parse;
+
+use crate::{git, state::visvet_dir};
+use compare::compare_file;
+use dependencies::find_dependencies;
 use crate::types::{GitRef, RepoPath, Review};
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
