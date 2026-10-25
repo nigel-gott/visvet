@@ -10,12 +10,17 @@ fn waiting(repo_root: &Path, all: bool) -> anyhow::Result<Vec<Thread>> {
     Ok(store::load(repo_root)?.threads.into_iter().filter(|t| states.contains(&t.state)).collect())
 }
 
-/// The threads as text, each message on its own line, then how to answer.
+/// The threads as text, then how to answer. Only messages since the AI last wrote are shown, to keep the AI's context
+/// small; the rest are counted, with where to read them.
 fn describe(threads: &[Thread]) -> String {
     let mut out = String::new();
     for t in threads {
         out += &format!("{} {:?} on {}\n", t.id, t.state, t.target);
-        for m in &t.messages {
+        let new = t.messages.iter().rposition(|m| m.author == Author::Ai).map_or(0, |i| i + 1);
+        if new > 0 {
+            out += &format!("   ({new} earlier messages in .visvet/threads/{}/)\n", t.id.0);
+        }
+        for m in &t.messages[new..] {
             out += &format!("   {}: {}\n", if m.author == Author::Ai { "you" } else { &m.name }, m.text.replace('\n', "\n      "));
         }
     }
@@ -52,5 +57,21 @@ pub fn wait(repo_root: &Path) -> anyhow::Result<()> {
             return Ok(());
         }
         std::thread::sleep(Duration::from_secs(2));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{MapId, MessageKind, ThreadId, ThreadMessage};
+
+    #[test]
+    fn describe_shows_only_messages_since_the_ai_wrote() {
+        let m = |author, text: &str| ThreadMessage { author, name: "Ann".into(), text: text.into(), kind: MessageKind::Reply, state: ThreadState::Open, at: 0 };
+        let t = Thread { id: ThreadId("k3f9a2".into()), target: MapId("src/a.rs".into()), state: ThreadState::Open,
+            messages: vec![m(Author::User, "why?"), m(Author::Ai, "because"), m(Author::User, "ok, rename it")] };
+        let text = describe(&[t]);
+        assert!(text.contains("(2 earlier messages in .visvet/threads/k3f9a2/)") && text.contains("Ann: ok, rename it"));
+        assert!(!text.contains("because"));
     }
 }

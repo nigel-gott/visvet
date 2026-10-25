@@ -56,7 +56,7 @@ The user keeps visvet open beside this session.
 ## Answer the user's comment threads
 The user comments on boxes in visvet instead of in chat, so they don't interrupt your work. Each thread is open (waiting for you), working, question (waiting for them) or resolved.
 - When you finish a task, a stop hook hands you every open thread and keeps you going. For each: do what it asks or answer it, then `visvet reply <id> "<what you did>" --resolve`. If you need their input, `visvet reply <id> "<your question>" --ask`. A reply without a flag marks it working.
-- `visvet threads --all` lists every unresolved thread; the prompt hook also shows them with each chat message.
+- `visvet threads --all` lists every unresolved thread. The prompt hook shows only threads waiting for you, with only the messages since you last wrote; read `.visvet/threads/<id>/` for the rest when you need it.
 - When you're idle with nothing open, run `visvet wait` in the background (run_in_background). It exits when the user leaves a comment, which wakes you to answer it.
 - Keep replies short and easy to scan: one idea per line, a blank line between points, no walls of text. Pass line breaks in the text, e.g. `visvet reply 3 $'Renamed it.\n\nAlso updated the 3 callers.' --resolve`.
 
