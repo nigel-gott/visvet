@@ -13,6 +13,9 @@ const LEVELS = ['Top level', '2 levels', '3 levels']
 const LAYOUT = {
   'elk.algorithm': 'layered', 'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'elk.edgeRouting': 'ORTHOGONAL',
   'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX', 'elk.layered.thoroughness': '20',
+  // Boxes in a column keep the order they are given (their source order, see `elkGraph`), so selecting a box, which
+  // adds arrows, never reshuffles the rest.
+  'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
   'elk.json.edgeCoords': 'ROOT',
   'elk.spacing.nodeNode': '30', 'elk.layered.spacing.nodeNodeBetweenLayers': '60', 'elk.spacing.edgeNode': '16', 'elk.spacing.edgeEdge': '8',
 }
@@ -315,8 +318,10 @@ const flipped = (v: View) => new Set([...v.edges, ...v.detail].filter(([, d]) =>
 
 /** ELK's input: a node per box, nested in its parent's node, and an edge per lifted link. */
 function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number): ElkNode {
-  const nodes = new Map(v.boxes.map(it => [it.id, {
-    id: it.id, width: wide(it), height: size(it), children: [] as ElkNode[],
+  // Each box starts at its place in source order, far enough apart that box heights can't change it; the interactive
+  // crossing step keeps that order down each column.
+  const nodes = new Map(v.boxes.map((it, i) => [it.id, {
+    id: it.id, width: wide(it), height: size(it), x: 0, y: i * 10_000, children: [] as ElkNode[],
     layoutOptions: {
       ...LAYOUT, 'elk.padding': `[top=${size(it) + 12},left=12,bottom=12,right=12]`,
     },
