@@ -39,7 +39,7 @@ const CHROME = 170
  * A box's width: enough to show its name (or signature) and its member rows' signatures in full, from 320px up
  * to 640px. Anything longer wraps onto more lines (see `wraps`) instead of being cut off.
  */
-const width = (it: Item, rows: Item[], x: Ctx) => showsCode(it, x) ? CODE_WIDTH : Math.min(640, Math.max(320, CHROME + measure(it.m?.signature ?? it.name, HEAD_FONT),
+const width = (it: Item, rows: Item[], x: Ctx) => showsCode(it, x) ? codeWidth(it) : Math.min(640, Math.max(320, CHROME + measure(it.m?.signature ?? it.name, HEAD_FONT),
   ...rows.map(r => CHROME + measure(r.m?.signature ?? r.name, ROW_FONT))))
 /** Extra height for a name that wraps in a box `w` wide: 18px per line after the first. */
 const wraps = (text: string, font: string, w: number) => 18 * (Math.ceil(measure(text, font) / (w - CHROME)) - 1)
@@ -58,11 +58,14 @@ function block(text: string, w: number) {
 }
 /** Whether a box shows its code: only when expanded and it holds nothing else (a function or method); otherwise More lists what is inside it. */
 const showsCode = (it: Item, x: Ctx) => x.expanded.has(it.id) && it.diff.length > 0 && !it.kids.length
-/** An expanded function's code shows up to 140 characters per line, then wraps; its box is that wide, plus line numbers. */
+/** An expanded box's code wraps lines longer than 140 characters. */
 const CODE_COLS = 140
-const CODE_WIDTH = measure('m'.repeat(CODE_COLS), '12px ui-monospace, SFMono-Regular, Menlo, monospace') + 64
+/** How many characters wide an expanded box's code is: its longest line, up to CODE_COLS. */
+const cols = (it: Item) => Math.min(CODE_COLS, Math.max(...it.diff.map(l => l.text.length)))
+/** An expanded box is as wide as its code (plus line numbers), but never narrower than a box. */
+const codeWidth = (it: Item) => Math.max(320, measure('m'.repeat(cols(it)), '12px ui-monospace, SFMono-Regular, Menlo, monospace') + 64)
 /** The height of an expanded box's code: up to 30 rows of 16px (a wrapped line takes several), scrolling beyond that. */
-const codeHeight = (it: Item) => Math.min(it.diff.reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / CODE_COLS)), 0), 30) * 16 + 8
+const codeHeight = (it: Item) => Math.min(it.diff.reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / cols(it))), 0), 30) * 16 + 8
 /** An enum's values, shown as pills when its box lists no member rows and it has fewer than 20. */
 const pills = (it: Item, rows: Item[]) => {
   const values = it.kind === 'enum' && !rows.length ? it.kids.filter(k => k.kind === 'variant') : []
