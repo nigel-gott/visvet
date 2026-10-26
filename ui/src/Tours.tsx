@@ -15,7 +15,7 @@ const BUBBLE_WIDTH = 440, BUBBLE_MOST_HEIGHT = 380
 export type StepBubbleBox = { target: string; width: number; height: number }
 
 /** The step bubble's fixed parts (step number, title, Back and Next, padding), in pixels, besides its text. */
-const BUBBLE_FRAME_HEIGHT = 180
+const BUBBLE_FRAME_HEIGHT = 150
 /** About how many characters of a step's text fit on a line of its bubble, and how tall a line is, in pixels. */
 const BUBBLE_LINE_CHARS = 46, BUBBLE_LINE_HEIGHT = 22
 
@@ -113,7 +113,7 @@ export function TourBar() {
 
 /**
  * The current step, in a bubble laid out beside its box, pointing at it: the step's title and text, notes whose code
- * can't be found any more, and Back and Next with a dot per step. With `floating`, for a step whose box is gone, it
+ * can't be found any more, and Back and Next. With `floating`, for a step whose box is gone, it
  * floats over the map instead.
  */
 export function StepBubble({ floating = false }: { floating?: boolean }) {
@@ -135,9 +135,6 @@ export function StepBubble({ floating = false }: { floating?: boolean }) {
       </div>
       <div className="bubble-nav">
         <button disabled={number === 0} onClick={() => go(number - 1)}>‹ Back</button>
-        <span className="dots">{tour.steps.map((_, index) => (
-          <button key={index} className={index === number ? 'dot here' : 'dot'} title={tour.steps[index].title} onClick={() => go(index)} />
-        ))}</span>
         <button className="primary" onClick={() => go(number + 1)}>{last ? 'Finish ✓' : 'Next ›'}</button>
       </div>
     </div>

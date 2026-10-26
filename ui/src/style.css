@@ -294,9 +294,6 @@ main { grid-area: 2 / 1; min-height: 0 }
 .bubble-nav > button { padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font-size: 13px; cursor: pointer }
 .bubble-nav > button:disabled { opacity: .35; cursor: default }
 .bubble-nav > button.primary { border-color: var(--ai); background: var(--ai); color: #fff; font-weight: 600 }
-.dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px }
-.dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; background: var(--line); cursor: pointer }
-.dot.here { background: var(--ai); transform: scale(1.4) }
 /* A tour note on code: its lines get a band in the highlight colour, and the note sits right under them. */
 .ln.noted { background: color-mix(in srgb, var(--ai) 22%, transparent); box-shadow: inset 4px 0 var(--ai) }
 .code-bubble { position: relative; margin: 6px 12px 10px calc(8px + 5ch); padding: 8px 12px; border: 2px solid var(--ai); border-radius: 10px;

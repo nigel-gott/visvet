@@ -115,7 +115,7 @@ JSX is HTML written inside JavaScript: `{…}` holds a JavaScript expression, li
 How far through the tour you are, as a plain HTML progress bar.
 
 ## The step's bubble
-`ui/src/Tours.tsx::StepBubble` is the speech bubble above the step's box: its title, text, and Back, a dot per step, and Next.
+`ui/src/Tours.tsx::StepBubble` is the speech bubble above the step's box: its title, text, and Back and Next. The step number at its top says how far through the tour you are.
 route: Same file: the bubble you're reading now.
 
 ### `const lost = step.code_notes.filter(note => !note.span && !note.on_box)`
