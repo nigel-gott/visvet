@@ -1,11 +1,12 @@
 // App shell: loads the model on server events, follows `visvet show`, reports the view for `visvet view`,
 // and keeps the selection and map state in browser history.
 
-import { Fragment, useContext, useEffect, useMemo, useState } from 'react'
+import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
+import type { StepView } from './contract'
 import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph from './Graph'
 import { X, type Ctx } from './context'
@@ -182,6 +183,10 @@ function useTypeToComment(sel: string | null, setDraft: Ctx['setDraft']) {
   }, [sel])
 }
 
+/** How long a move between far-apart tour steps rests on the view holding both, in ms: the camera's glide (GLIDE in
+ * Graph.tsx, 900ms) and a moment to look. */
+const TRAVEL_PAUSE = 1500
+
 /** The box to zoom into to show `it`: itself when it holds boxes, else the box it sits in. */
 const zoomFor = (it: Item) => (it.kids.length ? it : it.parent)?.id ?? null
 
@@ -234,23 +239,47 @@ function App() {
   const [inbox, setInbox] = useState(false)
   const [full, setFull] = useState<string | null>(null)
   const [tour, setTour] = useState<TourPlace | null>(null)
+  /** The pending second half of a move between tour steps far apart, so a quick Next cancels it. */
+  const travel = useRef<number | undefined>(undefined)
   useTypeToComment(sel, setDraft)
   useShow(show, ix, nav.show)
   const focus = useFocus(ix, select)
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
-  const zoomTo = (id: string) => {
-    nav.show(id, id, [id])
-    // Opened, so its diff shows; in the view being opened, since a new view starts with nothing open.
-    setWide({ view: id, ids: new Set([id]) })
+  /**
+   * Shows box `id` as a tour step chooses: in `context`, zoomed into the box around it with every box there open;
+   * `zoomed`, zoomed into the box itself with its code open. Either way it is outlined.
+   */
+  const showBox = (id: string, view: StepView) => {
+    const around = ix.items.get(id)?.parent
+    const to = zoomedFor(id, view)
+    const open = view === 'zoomed' ? [id] : [id, ...(around?.kids ?? []).map(kid => kid.id)]
+    nav.show(id, to, [id])
+    // Opened in the view being opened, since a new view starts with nothing open.
+    setWide({ view: to ?? String(level), ids: new Set(open) })
+  }
+  /** The box a step's view zooms into: the step's box itself when zoomed, else the box around it (null: the whole map). */
+  const zoomedFor = (id: string, view: StepView) => (view === 'zoomed' ? id : ix.items.get(id)?.parent?.id ?? null)
+  /** The innermost box holding both boxes `a` and `b`, or null for the whole map. */
+  const holdingBoth = (a: string | null, b: string | null) => {
+    const outwards = (id: string | null) => { const ids = []; for (let it = id ? ix.items.get(id) : undefined; it; it = it.parent) ids.push(it.id); return ids }
+    const aroundA = new Set(outwards(a))
+    return outwards(b).find(id => aroundA.has(id)) ?? null
   }
   const showStep = (place: TourPlace | null) => {
     setTour(place)
-    const target = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
-    if (target) zoomTo(target)
+    clearTimeout(travel.current)
+    const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
+    if (!step) return
+    const to = zoomedFor(step.target, step.view), between = holdingBoth(scope, to)
+    const elsewhere = between !== scope && between !== to
+    if (!elsewhere) return showBox(step.target, step.view)
+    // To another part of the map: zoom out to where both places show, pause, then zoom into the step, so the move is seen.
+    go({ scope: between, map })
+    travel.current = setTimeout(() => showBox(step.target, step.view), TRAVEL_PAUSE)
   }
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
-    zoomTo, tour, showStep,
+    tour, showStep, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,

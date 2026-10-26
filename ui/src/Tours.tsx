@@ -111,8 +111,8 @@ export function CodeBubble({ note }: { note: CodeNote }) {
   return <div className="code-bubble"><Rich text={note.note} /></div>
 }
 
-/** The step's box to zoom into, when it still exists. */
+/** The step to show on the map, when its box still exists. */
 export const stepTarget = (tour: Tour | undefined, step: number) => {
   const target = tour?.steps[step]
-  return target?.target_found ? target.target : undefined
+  return target?.target_found ? target : undefined
 }

@@ -14,10 +14,10 @@ export type Ctx = {
   /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
   select: (id: string, replace?: boolean) => void
   focus: (id: string, replace?: boolean) => void
-  /** Zooms into box `id`, outlines it and opens it, so its diff shows. */
-  zoomTo: (id: string) => void
   /** The tour playing and its step, if one is. */
   tour: TourPlace | null
+  /** The box the playing tour's current step shows, if a tour is playing. */
+  stepBox?: string
   /** Shows a tour's step, zooming into its box; null leaves the tour. */
   showStep: (place: TourPlace | null) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */

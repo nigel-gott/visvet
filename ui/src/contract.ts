@@ -202,6 +202,11 @@ export type ReviewAnnotations = { threads: Array<Thread>, };
 export type Show = { target: MapId, highlight: Array<MapId>, };
 
 /**
+ * How a step shows its box, chosen by its author with a `view:` line: `view: context` (the default) or `view: zoomed`.
+ */
+export type StepView = "context" | "zoomed";
+
+/**
  * A place in a file: its 1-based line, and the characters before it on that line.
  */
 export type TextPosition = { line: number, column: number, };
@@ -270,7 +275,11 @@ target: MapId,
  */
 target_found: boolean, 
 /**
- * The step's Markdown text, without its notes on code.
+ * How the map shows the step's box, from a `view:` line in its text.
+ */
+view: StepView, 
+/**
+ * The step's Markdown text, without its notes on code or its `view:` line.
  */
 text: string, code_notes: Array<CodeNote>, };
 

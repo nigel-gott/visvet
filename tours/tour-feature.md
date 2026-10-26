@@ -7,6 +7,8 @@ description: A review of the tours work by touring it: syntax colours, tour file
 ## Tour files
 This step shows the tour you're taking, `tours/tour-feature.md`: a tour is a Markdown file in the `tours` folder. Plain Markdown means a tour is reviewed like any other file, and each box it names gets a "links" arrow on the map.
 
+Each step shows its box among its neighbours, every box around it open, unless the step says `view: zoomed` on a line of its own.
+
 ### `kind: tour`
 The front matter says this file is a tour. `description:` says what it is for.
 
@@ -134,15 +136,20 @@ After each line, the notes whose code ends on it. `!` tells TypeScript "this can
 
 ## Room for the bubble
 `ui/src/Graph.tsx::useFit` moves the camera to each step's box, keeping a fixed room above it for the bubble.
+view: zoomed
 
 ### `const top = 48 + (bubbleAbove ? STEP_BUBBLE_ROOM : 0)`
 The bubble isn't drawn yet when the camera moves, so its height can't be measured. Instead it has a fixed most height (longer text scrolls inside it), and the camera always leaves that much room.
 
 ## Where the tour's state lives
 `ui/src/main.tsx::App` holds which tour plays and its step, and passes them down in the context `x`, React's `provide`/`inject`.
+view: zoomed
 
 ### `const [tour, setTour] = useState<TourPlace | null>(null)`
 `useState` returns the value and a function to change it; calling `setTour` re-renders. `<TourPlace | null>` is TypeScript: it holds a place in a tour, or nothing.
 
-### `if (target) zoomTo(target)`
-Each step zooms into its box and opens its code. A step whose box is gone has nothing to zoom to; `LostStep` floats its bubble over the map instead.
+### `if (!elsewhere) return showBox(step.target, step.view)`
+Each step shows its box the way the step chose: among its neighbours, or zoomed in. When the next step is in another part of the map, the camera first zooms out to the box holding both places, rests there for a moment, then zooms into the new step, so you see where it is compared to the last one.
+
+### `travel.current = setTimeout(() => showBox(step.target, step.view), TRAVEL_PAUSE)`
+`useRef` keeps a value between renders without re-rendering, like a plain variable in Vue's `setup()`. It holds the pending second half of the move, so pressing Next again quickly cancels it.

@@ -26,9 +26,23 @@ pub struct TourStep {
     pub target: MapId,
     /// False when no box has that id any more, e.g. after a rename: the step is stale.
     pub target_found: bool,
-    /// The step's Markdown text, without its notes on code.
+    /// How the map shows the step's box, from a `view:` line in its text.
+    pub view: StepView,
+    /// The step's Markdown text, without its notes on code or its `view:` line.
     pub text: String,
     pub code_notes: Vec<CodeNote>,
+}
+
+/// How a step shows its box, chosen by its author with a `view:` line: `view: context` (the default) or `view: zoomed`.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+#[serde(rename_all = "lowercase")]
+pub enum StepView {
+    /// Among its neighbours: zoomed into the box around it, with every box there open.
+    #[default]
+    Context,
+    /// On its own: zoomed into the box itself, with its code open.
+    Zoomed,
 }
 
 /// A note on an exact piece of a step's code, or on another box: a `### ` heading holding that code or box id in

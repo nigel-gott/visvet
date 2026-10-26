@@ -3,11 +3,11 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type XYPosition } from '@xyflow/react'
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
-import { reportView, type DependencyKind, type Item } from './model'
+import { reportView, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
 import { STEP_BUBBLE_ROOM, useTourStep } from './Tours'
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
-import { height, width } from './size'
+import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
 
 const elk = new ELK()
@@ -125,18 +125,21 @@ function absolute(laid: Laid[], id: string) {
  * opens with the box it zooms into (or out of) exactly where that box was on screen, then glides to the fit or the
  * restored viewport, so zooming in, Up, Back and Forward are each one continuous move.
  */
-function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: string, visible: boolean, pop: number, centre?: string, bubbleAbove = false) {
+function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, view: string, visible: boolean, pop: number, centre?: string, bubbleAbove = false) {
   const { setViewport, getViewport, getInternalNode } = useReactFlow()
   const fitted = useRef(''), centred = useRef('')
   // While the old view is still on screen, note where the box being zoomed into (or out of) is.
   const was = useRef(view)
   useLayoutEffect(() => {
-    const ids = [view, was.current]
+    const leaving = was.current
     was.current = view
     if (anchor.box) return // a double click already chose the clicked box
-    const n = ids.map(id => getInternalNode(id)).find(n => n)
-    const vp = getViewport()
-    if (n) anchor.box = placeOf(n.id, n, vp)
+    // Zooming in to a box drawn too deep to see here (e.g. a file, from the whole map) starts from the box around it.
+    let inside = ix.items.get(view), drawn = inside && getInternalNode(inside.id)
+    while (inside && !drawn) { inside = inside.parent; drawn = inside && getInternalNode(inside.id) }
+    const vp = getViewport(), left = getInternalNode(leaving)
+    if (drawn) anchor.box = placeOf(view, drawn, vp)
+    else if (left) anchor.box = placeOf(leaving, left, vp)
   }, [view])
   useEffect(() => {
     const r = box.current?.getBoundingClientRect()
@@ -237,11 +240,13 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const shows = (k: string) => kinds[k] ?? !(k === 'has' && top?.kind === 'folder')
   const view = top ? top.id : String(x.level)
   const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded)
-  const graph = useLayout(view, v, it => height(it, x, v.rowsOf(it)), it => width(it, v.rowsOf(it), x))
+  // A box showing its code doesn't also list what's inside it as rows.
+  const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
+  const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x))
   const centre = [...x.hl][0]
   const playing = useTourStep()
   const stepTarget = playing?.step.target
-  useFit(box, graph, view, visible, pop, centre, centre !== undefined && centre === stepTarget)
+  useFit(box, x.ix, graph, view, visible, pop, centre, centre !== undefined && centre === stepTarget)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
@@ -261,7 +266,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const boxNotes = (playing?.step.code_notes ?? []).filter(note => note.on_box && note.on_box !== playing!.step.target)
   const nodes = graph.laid.filter(n => byId.has(n.id)).map(n => {
     const it = byId.get(n.id)!
-    const rows = v.rowsOf(it), position = clamp(n, pos.moved[n.id] ?? n.position)
+    const rows = rowsOf(it), position = clamp(n, pos.moved[n.id] ?? n.position)
     const notesHere = boxNotes.filter(note => drawnBoxOf(note.on_box!) === n.id)
     const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code)].join('|')
     const old = made.current.boxes.get(n.id)
