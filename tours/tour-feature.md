@@ -82,3 +82,36 @@ A diff mixes two versions of the code. The loop colours each version whole: firs
 
 ### `useEffect(() => void loading.then(setHighlighter), [])`
 `useState` is React's `ref()`, and `useEffect` with an empty list `[]` runs once after the component first shows, like Vue's `onMounted`. When Shiki has loaded, `setHighlighter` stores it and React re-renders every box with colours.
+
+## Picking and stepping through a tour
+`ui/src/Tours.tsx::TourBar` sits in the top bar: a list of tours, then while one plays, ‹ › through its steps and ✕ to leave.
+
+### `if (!x.model.tours.length) return null`
+A React component is a function that returns what to show. Returning `null` shows nothing, like `v-if="false"` on the whole template.
+
+### `<select className="tour-pick" value="" onChange={e => start(e.target.value)}`
+JSX is HTML written inside JavaScript. Attributes in `{…}` are JavaScript expressions, like Vue's `:value` and `@change`. React writes `className` because `class` is a JavaScript keyword.
+
+### `{x.model.tours.map(tour => <option key={tour.file} value={tour.file}>{tour.title}</option>)}`
+A list is rendered with a plain `.map`, where Vue would use `v-for`. `key` plays the same part as Vue's `:key`.
+
+## The step beside the map
+`ui/src/Tours.tsx::TourPanel` shows the current step: its title, its text, and its notes on code. A note whose code is gone says so in red.
+
+### `{!step.target_found && <p className="stale">`
+`a && b` shows `b` only when `a` is true: React's `v-if`.
+
+## Where the tour's state lives
+`ui/src/main.tsx::App` holds which tour plays and its step, and passes them down in the context `x`, React's `provide`/`inject`.
+
+### `const [tour, setTour] = useState<TourPlace | null>(null)`
+`useState` returns the value and a function to change it; calling `setTour` re-renders. `<TourPlace | null>` is TypeScript: it may hold a place or nothing.
+
+### `if (target) zoomTo(target)`
+Each step reuses the change stepper's `zoomTo`: zoom into the step's box and open its code. A stale step changes nothing on the map; its panel says what's missing.
+
+## Keeping the step in view
+`ui/src/Graph.tsx::useFit` centres the step's box in the part of the map the tour panel doesn't cover.
+
+### `const covered = document.querySelector('aside.tour')?.clientWidth ?? 0`
+`?.` stops at a missing panel instead of throwing, and `??` gives 0 then: "the panel's width, or 0 when no tour plays".

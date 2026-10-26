@@ -2,6 +2,7 @@
 
 import { createContext } from 'react'
 import type { Index, Review, Thread } from './model'
+import type { TourPlace } from './Tours'
 
 /** What every view reads: the model, the item index, the selection, navigation and review state. */
 export type Ctx = {
@@ -15,6 +16,10 @@ export type Ctx = {
   focus: (id: string, replace?: boolean) => void
   /** Zooms into box `id`, outlines it and opens it, so its diff shows. */
   zoomTo: (id: string) => void
+  /** The tour playing and its step, if one is. */
+  tour: TourPlace | null
+  /** Shows a tour's step, zooming into its box; null leaves the tour. */
+  showStep: (place: TourPlace | null) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
   scope: string | null
   zoom: (id: string | null) => void

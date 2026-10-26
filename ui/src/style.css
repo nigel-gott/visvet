@@ -261,3 +261,13 @@ main { grid-area: 2 / 1; min-height: 0 }
 .thread .state button { padding: 3px 10px; border: 1px solid var(--line); border-radius: 12px; background: none; color: var(--muted); font: 500 11px system-ui, sans-serif; letter-spacing: 0; text-transform: none; cursor: pointer }
 .thread .state button:hover { border-color: var(--add); color: var(--add) }
 .inbox p { grid-column: 1 / -1; margin: 0; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
+/* The tour player: its picker and steps in the top bar, and the current step in a panel over the map's left edge. */
+.tour-pick { height: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 12px }
+.changes button:disabled { opacity: .35; cursor: default }
+aside.tour { grid-area: 2 / 1; justify-self: start; z-index: 5; width: min(420px, 36vw); min-height: 0; padding: 14px 18px; overflow: auto;
+  border-right: 1px solid var(--line); background: var(--bg); box-shadow: 6px 0 20px rgb(0 0 0 / .15); font-size: 14px; line-height: 1.5 }
+.tour-title { margin: 0; color: var(--muted); font-size: 12px }
+aside.tour h3 { margin: 4px 0 8px }
+.code-note { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line) }
+.code-note > code { font-weight: 600 }
+.stale { color: var(--del) }

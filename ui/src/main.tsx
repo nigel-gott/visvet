@@ -11,6 +11,7 @@ import Graph from './Graph'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
+import { stepTarget, TourBar, TourPanel, type TourPlace } from './Tours'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -147,6 +148,7 @@ function Header({ error }: { error?: string }) {
         {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
       </nav>
       <ChangeSteps />
+      <TourBar />
       <ThreadCounts />
       <span className="vs">vs <code>{x.model.compared_against}</code></span>
       {error && <span className="err">Refresh failed: {error}</span>}
@@ -239,17 +241,24 @@ function App() {
   const [draft, setDraft] = useState<{ target: string; text: string } | null>(null)
   const [inbox, setInbox] = useState(false)
   const [full, setFull] = useState<string | null>(null)
+  const [tour, setTour] = useState<TourPlace | null>(null)
   useTypeToComment(sel, setDraft)
   useShow(show, ix, nav.show)
   const focus = useFocus(ix, select)
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
+  const zoomTo = (id: string) => {
+    nav.show(id, id, [id])
+    // Opened, so its diff shows; in the view being opened, since a new view starts with nothing open.
+    setWide({ view: id, ids: new Set([id]) })
+  }
+  const showStep = (place: TourPlace | null) => {
+    setTour(place)
+    const target = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
+    if (target) zoomTo(target)
+  }
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
-    zoomTo: id => {
-      nav.show(id, id, [id])
-      // Opened, so its diff shows; in the view being opened, since a new view starts with nothing open.
-      setWide({ view: id, ids: new Set([id]) })
-    },
+    zoomTo, tour, showStep,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,
@@ -261,6 +270,7 @@ function App() {
       <div className="app">
         <Header error={error} />
         <main><Graph visible pop={pop} /></main>
+        <TourPanel />
         <Drawer />
       </div>
     </X.Provider>

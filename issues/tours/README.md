@@ -9,7 +9,7 @@ Built in this order, each reviewed before the next:
 
 1. [Syntax highlighting](../done/tours/syntax-highlighting.md) (done)
 2. [Tour files](../done/tours/tour-files.md) (done)
-3. [Tour player](tour-player.md)
+3. [Tour player](../done/tours/tour-player.md) (done)
 4. [Code annotations](code-annotations.md)
 5. [Beginner tours of visvet](beginner-tours.md)
 

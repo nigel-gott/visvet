@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: Pick a tour in the top bar and step through it; each step zooms to its box, opens its code and shows its text.
 ---
 # Tour player

@@ -152,7 +152,9 @@ function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: stri
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
     // A highlighted box (from `visvet show` or a change step) is centred at full size, its top in view.
     const hit = c ? absolute(graph.laid, c) : undefined
-    const middle = hit && { x: r.width / 2 - hit.x - hit.width / 2, y: 48 + Math.max((r.height - 48 - hit.height) / 2, 0) - hit.y, zoom: 1 }
+    // Centred in the map's visible part, right of the tour panel while a tour plays; a box too wide for it starts at its left.
+    const covered = document.querySelector('aside.tour')?.clientWidth ?? 0
+    const middle = hit && { x: covered + Math.max((r.width - covered - hit.width) / 2, 16) - hit.x, y: 48 + Math.max((r.height - 48 - hit.height) / 2, 0) - hit.y, zoom: 1 }
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
