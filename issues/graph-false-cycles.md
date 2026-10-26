@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: visvet graph reports cycles that aren't real: a Rust module and its own submodules, and Markdown notes linking to each other.
 ---
 # False cycles in visvet graph
