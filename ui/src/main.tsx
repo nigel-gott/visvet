@@ -7,7 +7,7 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
 import type { StepView } from './contract'
-import { ancestorsOf, flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
+import { ancestorsOf, flip, flipAll, getReview, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
 import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
@@ -48,7 +48,7 @@ function useModel() {
     let sent = 0, shown = 0
     const load = () => {
       const n = ++sent
-      getModel().then(m => { if (n > shown) { shown = n; setModel(m); setError(undefined) } }, e => n > shown && setError(e.message))
+      getReview().then(m => { if (n > shown) { shown = n; setModel(m); setError(undefined) } }, e => n > shown && setError(e.message))
     }
     let events: EventSource
     // A proxy error (e.g. a 502 while visvet restarts) closes the stream for good, so reconnect after a pause.

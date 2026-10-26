@@ -177,7 +177,7 @@ export type MessageKind = "reply" | "note";
 export type RepoPath = string;
 
 /**
- * One review, as the UI shows it. GET /api/model returns it.
+ * One review, as the UI shows it. GET /api/review returns it.
  * It has two halves: `boxes` and `dependencies` describe the code and are rebuilt from git on every
  * request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
  */

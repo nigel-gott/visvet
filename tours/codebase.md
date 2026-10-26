@@ -134,7 +134,7 @@ A pair of values taken apart into two names. `_` drops the receiver that comes w
 ### `let _watcher = watch::watch(repo_root.clone(), move |e| _ = to_ui.send(e))?;`
 `move` makes the closure own what it uses (`to_ui`), so it can run on another thread after this function's variables are gone. `_watcher` is never read, but keeping it in a variable keeps the watcher alive: when a value's owner ends, Rust drops it (here, at the end of `serve`), and dropping a watcher stops it. This "clean up when dropped" rule replaces `finally` and `close()` calls.
 
-### `.route("/api/model", get(model))`
+### `.route("/api/review", get(review))`
 Each route maps a URL to a handler, and handlers are plain async functions. The UI calls these five routes.
 
 ### `.layer(middleware::from_fn_with_state(app.clone(), check_host))`
@@ -151,10 +151,10 @@ Each step works on an `Option`: `and_then` goes on only when there is a value, `
 `format!` is a function-like macro that builds a `String` from a template: `{host}` puts a value in, `{host:?}` puts in its debug form, with quotes. It is a macro, not a function, for two reasons: a Rust function takes a fixed number of arguments, and the macro reads the template at compile time, so a `{name}` that doesn't exist, or a value that can't print, is a compile error, not a runtime one. `into_response` comes from axum's `IntoResponse` trait: a set of methods a type can take on, even a type from another crate, such as this tuple.
 
 ## The request this tour follows
-`src/server.rs::model` answers GET `/api/model`: it builds the review and sends it as JSON. The UI asks for it on load and after each change.
+`src/server.rs::review` answers GET `/api/review`: it builds the review and sends it as JSON. The UI asks for it on load and after each change.
 route: Same file: the handler that builds the review the map draws.
 
-### `async fn model(State(app): State<App>) -> Res<Json<Review>> {`
+### `async fn review(State(app): State<App>) -> Res<Json<Review>> {`
 axum reads the function's parameter types to know what to give it ("extractors"): `State<App>` asks for the shared state. `State(app)` is a pattern: it takes the value out of its wrapper right in the parameter list. Returning `Json<Review>` tells axum to send the review as JSON, which serde writes.
 
 ### `let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {`
@@ -455,7 +455,7 @@ A `u64` (an unsigned 64-bit number) would become a TypeScript `bigint`, since a 
 `Author` is an enum, `User` or `Ai`, which is `"user"` or `"ai"` in JSON.
 
 ## The whole review
-`src/types/review.rs::Review` is the top of the contract: everything GET `/api/model` returns. Its first parts are rebuilt from git on each request; its threads come from `.visvet/threads/`.
+`src/types/review.rs::Review` is the top of the contract: everything GET `/api/review` returns. Its first parts are rebuilt from git on each request; its threads come from `.visvet/threads/`.
 route: Over to review.rs: the one value the request handler sends.
 
 ### `#[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]`
@@ -521,10 +521,10 @@ route: Into ui/src: the generated copy of the Rust types.
 The `code` variant as a TypeScript object type. The `|` that follows it joins the other variants into a union. TypeScript types exist only while compiling: at runtime this is plain JSON.
 
 ## Fetching the review
-`ui/src/model.ts::getModel` asks the server for the review: the GET `/api/model` the server's `model` handler answers.
+`ui/src/model.ts::getReview` asks the server for the review: the GET `/api/review` the server's `review` handler answers.
 route: Over to model.ts: the UI's end of the request.
 
-### `export const getModel = (): Promise<Review> => req('/api/model').then(r => r.json())`
+### `export const getReview = (): Promise<Review> => req('/api/review').then(r => r.json())`
 `(): Promise<Review>` is the return type. `r.json()` is untyped at runtime: TypeScript trusts the annotation, and the generated contract is what makes it true.
 
 ## The tree the UI draws
@@ -571,7 +571,7 @@ route: Over to main.tsx, the app's shell, where the review is loaded.
 ### `events = new EventSource('/api/events')`
 The browser's end of the server's `events` stream: each `change` event loads the review again.
 
-### `getModel().then(m => { if (n > shown) { shown = n; setModel(m); setError(undefined) } }, e => n > shown && setError(e.message))`
+### `getReview().then(m => { if (n > shown) { shown = n; setModel(m); setError(undefined) } }, e => n > shown && setError(e.message))`
 Each load gets a number, and a slow answer that comes after a newer one is dropped.
 
 ## The app component

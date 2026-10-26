@@ -9,7 +9,7 @@ use super::{Dependency, MapBox, ReviewAnnotations, Tour};
 pub struct GitRef(pub String);
 string_methods!(GitRef);
 
-/// One review, as the UI shows it. GET /api/model returns it.
+/// One review, as the UI shows it. GET /api/review returns it.
 /// It has two halves: `boxes` and `dependencies` describe the code and are rebuilt from git on every
 /// request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]

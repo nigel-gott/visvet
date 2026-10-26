@@ -62,7 +62,7 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
     let _watcher = watch::watch(repo_root.clone(), move |e| _ = to_ui.send(e))?;
     let app = App { repo_root, base, tx, hosts };
     let router = Router::new()
-        .route("/api/model", get(model))
+        .route("/api/review", get(review))
         .route("/api/events", get(events))
         .route("/api/view", post(set_view))
         .route("/api/threads", post(new_thread))
@@ -89,7 +89,7 @@ async fn check_host(State(app): State<App>, req: Request, next: Next) -> Respons
 }
 
 /// Builds the review for the working tree and adds the stored review state.
-async fn model(State(app): State<App>) -> Res<Json<Review>> {
+async fn review(State(app): State<App>) -> Res<Json<Review>> {
     let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {
         let mut m = build_review(&app.repo_root, &app.base)?;
         m.annotations = store::load(&app.repo_root)?;

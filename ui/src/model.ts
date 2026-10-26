@@ -11,7 +11,7 @@ const req = (path: string, init?: RequestInit) =>
   })
 
 /** Fetches the review model. */
-export const getModel = (): Promise<Review> => req('/api/model').then(r => r.json())
+export const getReview = (): Promise<Review> => req('/api/review').then(r => r.json())
 
 /** POSTs JSON to the API. */
 export const post = (path: string, body: object) =>
