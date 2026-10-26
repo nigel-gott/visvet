@@ -23,3 +23,4 @@ People:
 You:
 
 - [Fog of war](fog-of-war.md): where you haven't looked or understood yet.
+- [Review debt](review-debt.md): changed lines not yet reviewed, as a number and a trend.
