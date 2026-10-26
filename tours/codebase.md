@@ -202,25 +202,9 @@ A real operating-system thread, not an async task: it spends its life waiting fo
 ### `if paths.contains(&show) && let Ok(json) = std::fs::read_to_string(&show) {`
 `let` in a condition runs the block only if the file could be read, and names its text `json`.
 
-## Building the review
-`src/review.rs::build_review` is the heart of visvet. It lists the files in the working tree and at the base, reads both versions of each, compares them, and finds the arrows between the boxes.
-route: Over to src/review.rs, which the request handler called to build the review.
-
-### `let cur: HashSet<RepoPath> = git::current_files(repo_root)?.into_iter().collect();`
-`collect` builds whatever collection the variable's type asks for: here a `HashSet`. Rust infers types backwards from where a value goes, so one `collect` can build a list, a set or a map.
-
-### `for f in cur.union(&old).filter(|f| !visvet_dir::holds(&f.0)).collect::<BTreeSet<_>>() {`
-Every file in either version, except visvet's own folder. A `BTreeSet` is a set kept in sorted order, so the files are read in path order. `f.0` is the first field of a struct with unnamed fields: `RepoPath` wraps a `PathBuf`.
-
-### `let new = cur.contains(f).then(|| std::fs::read(repo_root.join(&f.0)).ok()).flatten();`
-`then` turns a `bool` into an `Option`: `Some(...)` when true, `None` when false. So `new` is the file's bytes, or `None` when the file is gone now.
-
-### `Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, ..Default::default() })`
-`boxes` alone means `boxes: boxes`. `..Default::default()` fills every other field with its default.
-
 ## Asking git
 `src/git.rs::git` runs a git command and returns what it printed. visvet calls the `git` program instead of using a git library: what you see is what `git` says.
-route: Over to src/git.rs, which build_review asked for the lists of files.
+route: Over to src/git.rs: building a review starts by asking git which files there are.
 
 ### `pub fn git(repo_root: &Path, args: &[&str]) -> anyhow::Result<Vec<u8>> {`
 `&[&str]` is a slice: a borrowed view of a list, of any length, here of borrowed strings. `Vec<u8>` is a growable list of bytes, because git's output may not be valid text.
@@ -238,9 +222,25 @@ route: Same file: turning git's output into paths.
 ### `String::from_utf8_lossy(&out).split('\0').filter(|p| !p.is_empty()).map(|p| RepoPath(p.into())).collect()`
 Iterators are lazy: nothing runs until `collect` asks for the result, and then the compiler joins the steps into one loop, as fast as a hand-written one. `'\0'` is a `char`, written in single quotes, unlike a string.
 
+## Building the review
+`src/review.rs::build_review` is the heart of visvet. It lists the files in the working tree and at the base, reads both versions of each, compares them, and finds the arrows between the boxes.
+route: Over to src/review.rs: with git's lists, it builds the review the request handler sends.
+
+### `let cur: HashSet<RepoPath> = git::current_files(repo_root)?.into_iter().collect();`
+`collect` builds whatever collection the variable's type asks for: here a `HashSet`. Rust infers types backwards from where a value goes, so one `collect` can build a list, a set or a map.
+
+### `for f in cur.union(&old).filter(|f| !visvet_dir::holds(&f.0)).collect::<BTreeSet<_>>() {`
+Every file in either version, except visvet's own folder. A `BTreeSet` is a set kept in sorted order, so the files are read in path order. `f.0` is the first field of a struct with unnamed fields: `RepoPath` wraps a `PathBuf`.
+
+### `let new = cur.contains(f).then(|| std::fs::read(repo_root.join(&f.0)).ok()).flatten();`
+`then` turns a `bool` into an `Option`: `Some(...)` when true, `None` when false. So `new` is the file's bytes, or `None` when the file is gone now.
+
+### `Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, ..Default::default() })`
+`boxes` alone means `boxes: boxes`. `..Default::default()` fills every other field with its default.
+
 ## Comparing a file's two versions
 `src/review/compare.rs::compare_file` parses both versions of a file into boxes, pairs the old and new boxes by name, and compares each pair. That is how every box knows whether it was added, changed, removed or is the same.
-route: Back in src/review, into the first step of building: comparing each file.
+route: Into src/review: the first step of building, comparing each file.
 
 ### `pub fn compare_file(file: &RepoPath, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parsed> {`
 `Option<&[u8]>`: a file's bytes, borrowed, or `None` when that version doesn't exist (the file was added or deleted).
