@@ -8,7 +8,7 @@ description: A review of the tours work by touring it: syntax colours, tour file
 This step shows the tour you're taking, `tours/tour-feature.md`: a tour is a Markdown file in the `tours` folder. Plain Markdown means a tour is reviewed like any other file, and each box it names gets a "links" arrow on the map.
 route: Starting at the tour file itself: everything else is read from it.
 
-Each step shows its box among its neighbours, every box around it open, unless the step says `view: zoomed` on a line of its own. A `route:` line is the purple note shown while the map moves to the step.
+Each step shows its box among its neighbours, closed around it, unless the step says `view: zoomed` on a line of its own. A `route:` line is the purple note shown while the map moves to the step.
 
 ### `kind: tour`
 The front matter says this file is a tour. `description:` says what it is for.

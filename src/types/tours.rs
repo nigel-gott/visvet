@@ -41,7 +41,7 @@ pub struct TourStep {
 #[ts(export, export_to = "../ui/src/contract.ts")]
 #[serde(rename_all = "lowercase")]
 pub enum StepView {
-    /// Among its neighbours: zoomed into the box around it, with every box there open.
+    /// Among its neighbours: zoomed into the box around it, the step's box open and the rest closed.
     #[default]
     Context,
     /// On its own: zoomed into the box itself, with its code open.

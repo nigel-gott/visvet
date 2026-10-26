@@ -252,15 +252,14 @@ function App() {
   useShow(show, ix, nav.show)
   const focus = useFocus(ix, select)
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
-  /** The boxes a step opens: in context, the step's box and every box beside it; zoomed, just the step's box. */
-  const openFor = (id: string, view: StepView) =>
-    new Set(view === 'zoomed' ? [id] : [id, ...(ix.items.get(id)?.parent?.kids ?? []).map(kid => kid.id)])
+  /** The boxes a step opens: just its own box; the boxes beside it stay closed. */
+  const openFor = (id: string) => new Set([id])
   /** Shows box `id` as a tour step chooses (see `zoomedFor`, `openFor`), outlined and centred, in the current view. */
   const showBox = (id: string, view: StepView, replace = false) => {
     const to = zoomedFor(id, view)
     nav.show(id, to, [id], replace)
     // Opened in the view being opened, since a new view starts with nothing open.
-    setWide({ view: to ?? WHOLE_MAP, ids: openFor(id, view) })
+    setWide({ view: to ?? WHOLE_MAP, ids: openFor(id) })
   }
   /** The box a step's view zooms into: the step's box itself when zoomed, else the box around it (null: the whole map). */
   const zoomedFor = (id: string, view: StepView) => (view === 'zoomed' ? id : ix.items.get(id)?.parent?.id ?? null)
@@ -293,7 +292,7 @@ function App() {
     }
     setHeading(null)
     // The views on the way show the step playing now (the default); the last one, the step it is heading to.
-    const setupOf = (hop: string | null): ViewSetup => (hop === to ? { opened: openFor(step.target, step.view), bubble: bubbleBoxOf(step) ?? null, notes: step.code_notes } : {})
+    const setupOf = (hop: string | null): ViewSetup => (hop === to ? { opened: openFor(step.target), bubble: bubbleBoxOf(step) ?? null, notes: step.code_notes } : {})
     // Every view on the way is laid out before setting off, so the camera never waits for one.
     await zoomer.prepare?.(hops.map(hop => ({ to: hop, ...setupOf(hop) })))
     if (journey.current !== trip) return

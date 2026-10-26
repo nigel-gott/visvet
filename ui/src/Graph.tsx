@@ -258,29 +258,34 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const r = box.current?.getBoundingClientRect()
     const k = `${graph.view} ${visible} ${pop}`
     const same = fitted.current === k, c = centre ?? ''
-    if (!r?.width || !visible || !current || graph.view !== view || (same && centred.current === c)) return
-    centred.current = c
+    // A highlighted box (from `visvet show` or a tour step), with its step bubble if it has one.
+    const hit = c && graph.view === view ? withBubble(graph.laid, absolute(graph.laid, c)) : undefined
+    // The box and its size: when it opens or closes (a tour step arriving or left), the camera frames it again.
+    const aim = hit ? `${c} ${Math.round(hit.width)}x${Math.round(hit.height)}` : c
+    if (!r?.width || !visible || !current || graph.view !== view || (same && centred.current === aim)) return
+    centred.current = aim
     // A click clears the highlight; the map stays where it is.
     if (same && !c) return
-    // "You drive" leaves the camera to the user: a step's box is outlined where it is, never framed.
-    if (same && moves.byHand) return
     fitted.current = k
     const fit = fitOf(r, graph)
     // A saved viewport from before the layout changed can point at empty space; then fit instead.
     const vp = history.state?.vp
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
-    // A highlighted box (from `visvet show` or a tour step), with its step bubble if it has one.
-    const hit = c ? withBubble(graph.laid, absolute(graph.laid, c)) : undefined
     /** The camera centring the highlighted box at `zoom`, its top in view; a box too wide for the map starts at its left. */
     const centredAt = (zoom: number) => hit && {
       x: Math.max((r.width - hit.width * zoom) / 2, GUTTER) - hit.x * zoom,
       y: PANEL_CLEARANCE + Math.max((r.height - PANEL_CLEARANCE - hit.height * zoom) / 2, 0) - hit.y * zoom, zoom,
     }
-    /** The closest zoom that shows the highlighted box and its bubble whole, up to `CLOSEST_FRAMING` and never further out than the fit. */
-    const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, CLOSEST_FRAMING), fit.zoom)
-    // Opening a view on a box centres it at full size. Within the view (a tour step's journey has just landed on its
-    // fit), the camera closes in on the box and its bubble, as near as shows them whole.
-    const middle = hit && !moves.byHand ? (same ? centredAt(framing!) : centredAt(1)) : undefined
+    /**
+     * The closest zoom that shows the highlighted box and its bubble whole, never further out than the fit: up to
+     * `CLOSEST_FRAMING` for a step's box with its bubble, full size for a box on its own.
+     */
+    const closest = absolute(graph.laid, STEP_BUBBLE) ? CLOSEST_FRAMING : 1
+    const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, closest), fit.zoom)
+    // Within the view (a tour step's journey has just landed on its fit, or its box opened or closed), the camera
+    // closes in on the box and its bubble, as near as shows them whole. Opening a view on a box centres it at full
+    // size, unless the user drives, and the view opens on its fit.
+    const middle = hit && same ? centredAt(framing!) : hit && !moves.byHand ? centredAt(1) : undefined
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
