@@ -3,7 +3,7 @@
 
 import { useContext } from 'react'
 import { COMPLEX, subtree, type Item } from './model'
-import { X } from './Views'
+import { X } from './context'
 
 /** Lines above which a box counts as long, by kind; folders have none. */
 const LONG: Record<string, number> = { fn: 50, method: 50, file: 400, struct: 200, enum: 200, trait: 200, class: 200, interface: 200, impl: 200, type: 200 }

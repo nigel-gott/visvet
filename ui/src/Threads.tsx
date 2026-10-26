@@ -3,7 +3,7 @@
 import { Fragment, useContext, useEffect, useRef, useState } from 'react'
 import { post, type Item, type Thread, type ThreadMessage, type ThreadState } from './model'
 import { DebuffDetail } from './Debuffs'
-import { X, type Ctx } from './Views'
+import { X, type Ctx } from './context'
 
 /** The threads on box `id` or anything inside it (a folder id ends in "/"). */
 export const threadsIn = (id: string, threads: Thread[]) =>

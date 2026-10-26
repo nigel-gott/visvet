@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: Split the UI functions over complexity 15.
 ---
 # Split the big UI functions

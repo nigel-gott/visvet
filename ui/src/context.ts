@@ -1,0 +1,39 @@
+// The context every view reads: the model, the selection, navigation and review state.
+
+import { createContext } from 'react'
+import type { Index, Review, Thread } from './model'
+
+/** What every view reads: the model, the item index, the selection, navigation and review state. */
+export type Ctx = {
+  model: Review; ix: Index; sel: string | null
+  /** The comment threads between the user and the AI. */
+  threads: Thread[]
+  /** Boxes and arrows highlighted by `visvet show`; cleared by the next selection or Back. */
+  hl: Set<string>
+  /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
+  select: (id: string, replace?: boolean) => void
+  focus: (id: string, replace?: boolean) => void
+  /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
+  scope: string | null
+  zoom: (id: string | null) => void
+  /** Map boxes expanded in place to show their members and code (cleared when the view changes); `expand` flips one. */
+  expanded: Set<string>
+  expand: (id: string) => void
+  /** How deep the unzoomed map shows boxes, from 0 (only the top folders and files). The outline opens to the same depth. */
+  level: number
+  setLevel: (level: number) => void
+  back: () => void
+  /** The debuff whose details show beside the selected box, if one was clicked; `showDetail` sets or clears it. */
+  detail: { id: string; kind: string } | null
+  showDetail: (id: string, kind: string | null) => void
+  /** A comment being typed on the selected box: typing with a box selected starts one. */
+  draft: { target: string; text: string } | null
+  setDraft: (draft: { target: string; text: string } | null) => void
+  /** Whether the drawer shows the inbox of unresolved threads instead of the selected box. */
+  inbox: boolean
+  setInbox: (open: boolean) => void
+  /** Whether the drawer shows the selected box's whole conversation; otherwise a bubble shows only its latest message. */
+  full: boolean
+  setFull: (target: string | null) => void
+}
+export const X = createContext<Ctx>(null!)

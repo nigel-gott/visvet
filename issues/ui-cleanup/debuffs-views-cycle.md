@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: Debuffs.tsx and Views.tsx import each other.
 ---
 # Break the Debuffs ↔ Views cycle

@@ -1,10 +1,11 @@
 // The map: ELK lays out folder, file, code unit and member boxes; clicking selects a box, double-clicking zooms into it.
 
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import { ReactFlow, BaseEdge, Handle, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type NodeProps, type XYPosition } from '@xyflow/react'
+import { ReactFlow, BaseEdge, Handle, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type InternalNode, type Node, type NodeChange, type NodeProps, type Viewport, type XYPosition } from '@xyflow/react'
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
-import { codeOf, flip, reportView, within, type DependencyKind, type Index, type Item, type Review } from './model'
-import { DiffView, Head, Notes, X, type Ctx } from './Views'
+import { codeOf, flip, reportView, within, type Dependency, type DependencyKind, type Index, type Item } from './model'
+import { DiffView, Head, Notes } from './Views'
+import { X, type Ctx } from './context'
 import { ThreadChip } from './Threads'
 
 const elk = new ELK()
@@ -118,6 +119,80 @@ type CardData = {
 
 /** The last click on a box, so a second click on it within 300ms counts as a double click. */
 let lastClick = { id: '', at: 0 }
+/** Whether a click on `id` is the second of a double click; remembers it for the next one. */
+function isDouble(id: string) {
+  const double = lastClick.id === id && Date.now() - lastClick.at < 300
+  lastClick = { id, at: Date.now() }
+  return double
+}
+
+/** Where box node `n` is on screen in viewport `vp`, saved under `id` so the next view can open it from there. */
+const placeOf = (id: string, n: InternalNode, vp: Viewport) =>
+  ({ id, x: n.internals.positionAbsolute.x * vp.zoom + vp.x, y: n.internals.positionAbsolute.y * vp.zoom + vp.y, w: (n.measured.width ?? 320) * vp.zoom })
+
+/** The box a double click on `t` (box `it`, or one of its rows) zooms into: `t` itself, or for a member, the box it lives in. */
+const diveTo = (it: Item, t: Item, zoomable: boolean) =>
+  t === it ? (zoomable ? it.id : it.parent?.id) : !t.m && t.kids.length ? t.id : t.parent?.id
+
+/**
+ * Handles a click on box `it`, or on one of its rows, pills or field rows (`t`): selects it; a double click zooms the
+ * map into it, or for a member, into the box it lives in, and selects it. A box in view that can't be zoomed into (a
+ * function) opens or closes its More instead.
+ */
+function useClick(it: Item, ext: boolean) {
+  const x = useContext(X)
+  const { getViewport, getInternalNode } = useReactFlow()
+  const zoomable = it.id !== x.scope && !it.m && it.kids.length > 0
+  const dive = (t: Item) => {
+    if (t === it && !zoomable && !ext) return x.expand(it.id)
+    const to = diveTo(it, t, zoomable)
+    if (!to || to === x.scope) return
+    // The new view opens with `to` (or this box) where this box is now, then glides to its fit (see `useFit`).
+    const n = getInternalNode(it.id)
+    if (n) anchor = placeOf(to === t.id && t !== it ? to : it.id, n, getViewport())
+    x.zoom(to)
+    if (to !== t.id) x.select(t.id, true)
+  }
+  return (t: Item) => {
+    if (Date.now() - draggedAt < 300) return
+    if (isDouble(t.id)) dive(t)
+    else x.select(t.id, true)
+  }
+}
+
+/** What a part of a card shows, and what a click on one of its rows does. */
+type Part = { it: Item; rows: Item[]; click: (t: Item) => void }
+
+/** A small type's fields as a name/type table (see `fieldTable`), unless it is the zoomed box. */
+function Fields({ it, rows, click }: Part) {
+  const x = useContext(X)
+  const fields = fieldTable(it, rows)
+  if (it.id === x.scope || !fields.length) return null
+  return <table className="fields"><tbody>{fields.map(f => (
+    <tr key={f.id} className={`${f.status} ${x.sel === f.id ? 'sel' : ''}`} onClick={e => { e.stopPropagation(); click(f) }}><td>{f.name}</td><td>{typeOf(f)}</td></tr>
+  ))}</tbody></table>
+}
+
+/** An enum's values as pills (see `pills`). */
+function Pills({ it, rows, click }: Part) {
+  const x = useContext(X)
+  const values = pills(it, rows)
+  if (!values.length) return null
+  return <div className="pills">{values.map(k => (
+    <span key={k.id} className={`pill ${k.status} ${x.sel === k.id ? 'sel' : ''}`} title={k.m!.signature} onClick={e => { e.stopPropagation(); click(k) }}>{k.name}</span>
+  ))}</div>
+}
+
+/** A card's member rows. */
+function Rows({ rows, click }: Part) {
+  const x = useContext(X)
+  return rows.map(k => (
+    <div key={k.id} className={x.sel === k.id ? 'mrow sel' : 'mrow'} title={k.m?.signature ?? k.name}
+      onClick={e => { e.stopPropagation(); click(k) }}>
+      <Head it={k} />
+    </div>
+  ))
+}
 
 /**
  * Clicking a box selects it, so the user can talk to the AI about it.
@@ -128,33 +203,8 @@ let lastClick = { id: '', at: 0 }
 function Card({ data }: NodeProps<Node<CardData>>) {
   const { it, rows, ext } = data
   const x = useContext(X)
-  const { getViewport, getInternalNode } = useReactFlow()
-
-  const pinned = it.id === x.scope
-  const zoomable = !pinned && !it.m && it.kids.length > 0
-  /**
-   * Zooms the map into `t` (this box, or one of its rows), or for a member, into the box it lives in, and selects it.
-   * Remembers where this box is on screen, so the new view opens from there (see `useFit`).
-   */
-  const dive = (t: Item) => {
-    // A box in view that can't be zoomed into (a function) opens or closes its More instead.
-    if (t === it && !zoomable && !data.ext) return x.expand(it.id)
-    const to = t === it ? (zoomable ? it.id : it.parent?.id) : !t.m && t.kids.length ? t.id : t.parent?.id
-    if (!to || to === x.scope) return
-    // The new view opens with `to` (or this box) where this box is now, then glides to its fit.
-    const n = getInternalNode(it.id), vp = getViewport()
-    if (n) anchor = { id: to === t.id && t !== it ? to : it.id, x: n.internals.positionAbsolute.x * vp.zoom + vp.x, y: n.internals.positionAbsolute.y * vp.zoom + vp.y, w: (n.measured.width ?? 320) * vp.zoom }
-    x.zoom(to)
-    if (to !== t.id) x.select(t.id, true)
-  }
-  /** A click on this box, or on one of its rows, pills or field rows (`t`): selects it; a double click dives in (see `dive`). */
-  const click = (t: Item) => {
-    if (Date.now() - draggedAt < 300) return
-    const double = lastClick.id === t.id && Date.now() - lastClick.at < 300
-    lastClick = { id: t.id, at: Date.now() }
-    if (double) dive(t)
-    else x.select(t.id, true)
-  }
+  const click = useClick(it, ext)
+  const implemented = codeOf(it.o)?.implements ?? []
   return (
     <>
       <Handle type="target" position={Position.Left} />
@@ -166,20 +216,11 @@ function Card({ data }: NodeProps<Node<CardData>>) {
           {data.expands && <button className="grow" onClick={e => { e.stopPropagation(); x.expand(it.id) }}>{x.expanded.has(it.id) ? 'Less' : 'More'}</button>}
         </div>
         <Notes it={it} />
-        {it.id !== x.scope && fieldTable(it, rows).length > 0 && <table className="fields"><tbody>{fieldTable(it, rows).map(f => (
-          <tr key={f.id} className={`${f.status} ${x.sel === f.id ? 'sel' : ''}`} onClick={e => { e.stopPropagation(); click(f) }}><td>{f.name}</td><td>{typeOf(f)}</td></tr>
-        ))}</tbody></table>}
-        {pills(it, rows).length > 0 && <div className="pills">{pills(it, rows).map(k => (
-          <span key={k.id} className={`pill ${k.status} ${x.sel === k.id ? 'sel' : ''}`} title={k.m!.signature} onClick={e => { e.stopPropagation(); click(k) }}>{k.name}</span>
-        ))}</div>}
+        <Fields it={it} rows={rows} click={click} />
+        <Pills it={it} rows={rows} click={click} />
         {it.kind === 'folder' && <div className="meta">{stats(it)}</div>}
-        {!!codeOf(it.o)?.implements.length && <div className="meta">impl {codeOf(it.o)!.implements.map(t => t.name).join(', ')}</div>}
-        {rows.map(k => (
-          <div key={k.id} className={x.sel === k.id ? 'mrow sel' : 'mrow'} title={k.m?.signature ?? k.name}
-            onClick={e => { e.stopPropagation(); click(k) }}>
-            <Head it={k} />
-          </div>
-        ))}
+        {implemented.length > 0 && <div className="meta">impl {implemented.map(t => t.name).join(', ')}</div>}
+        <Rows it={it} rows={rows} click={click} />
         {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
         {showsCode(it, x) &&
           <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={it.diff} /></div>}
@@ -217,6 +258,114 @@ const PEERS = 12
 /** The most boxes inside a zoomed view with their own arrows to the same outside box; beyond this, one arrow. */
 const BUNDLE = 4
 
+/** A link with the boxes a view draws its ends at: `a` for its `from`, `b` for its `to`. */
+type Placed = Dependency & { a: string; b: string }
+
+/** The boxes a view shows, besides outside ones: unzoomed, every box down to `level`; zoomed, the box and its children. */
+const viewBoxes = (ix: Index, top: Item | undefined, level: number) =>
+  !top ? ix.all.filter(it => it.depth <= level && !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
+
+/** The box in the view (`ids`) that holds `id`: that box, or its nearest parent there; none if it is outside the view. */
+function lift(ix: Index, ids: Set<string>, id: string) {
+  let it = ix.items.get(id)
+  while (it && !ids.has(it.id)) it = it.parent
+  return it
+}
+
+/** The file that holds `id`, e.g. src/types/boxes.rs. */
+function fileOf(ix: Index, id: string) {
+  let it = ix.items.get(id)
+  while (it?.parent && it.kind !== 'file') it = it.parent
+  return it
+}
+
+/**
+ * Where a link's end outside the zoomed box is drawn: at its exact box with `exactPeers`, or when it sits in the
+ * zoomed box's own file (e.g. the types next to a zoomed type), which has no other file to show. Otherwise at its
+ * file, shown inside its folders or module files down to the zoomed box's depth, so you see where it goes without
+ * zooming out.
+ */
+function outsideEnd(ix: Index, top: Item | undefined, exactPeers: boolean, id: string) {
+  const home = top && fileOf(ix, top.id)
+  return exactPeers || (home && home !== top && fileOf(ix, id) === home) ? ix.items.get(id) : fileOf(ix, id)
+}
+
+/** Adds outside box `o` to `ext`, plus its parent boxes down to the zoomed box's depth (it can sit higher up). */
+function addOutside(ext: Map<string, Item>, o: Item, top: Item | undefined, ids: Set<string>) {
+  for (let p: Item | undefined = o; p && top && (p === o || p.depth >= top.depth) && !ids.has(p.id); p = p.parent) ext.set(p.id, p)
+}
+
+/**
+ * The links in `shown` that touch the view's boxes (`ids`), with the boxes their ends are drawn at, and the outside
+ * boxes they bring in (`ext`). Arrows end at outside boxes exactly when there are at most `PEERS` of them.
+ */
+function linkEnds(ix: Index, shown: Dependency[], top: Item | undefined, ids: Set<string>) {
+  const inView = (id: string) => lift(ix, ids, id)
+  const peers = new Set(shown.flatMap(e => (inView(e.from) || inView(e.to) ? [e.from, e.to].filter(id => !inView(id)) : [])))
+  const exactPeers = !!top && peers.size <= PEERS
+  const ext = new Map<string, Item>()
+  const exact = shown.flatMap((e): Placed[] => {
+    let a = inView(e.from), b = inView(e.to)
+    if (!a && !b) return [] // wholly outside the zoomed box
+    a ??= outsideEnd(ix, top, exactPeers, e.from)
+    b ??= outsideEnd(ix, top, exactPeers, e.to)
+    // Skip edges between a box and a box inside it: they'd loop onto the outer box.
+    if (!a || !b || within(a, b.id) || within(b, a.id)) return []
+    for (const o of [a, b]) addOutside(ext, o, top, ids)
+    return [{ ...e, a: a.id, b: b.id }]
+  })
+  return { exact, ext, exactPeers }
+}
+
+const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
+
+/**
+ * The arrows between owner boxes, merged by their two ends. When more than `BUNDLE` boxes inside the zoomed box have
+ * arrows to (or from) one outside box, those become one arrow from the zoomed box itself, with a count: e.g. every
+ * type in code.rs "generates" its copy in contract.ts. Selecting a box inside still shows its own exact arrows.
+ */
+function bundle(owned: Placed[], top: Item | undefined, ext: Map<string, Item>) {
+  const inside = (id: string) => !!top && id !== top.id && !ext.has(id)
+  const fans = Map.groupBy(owned.filter(e => inside(e.a) !== inside(e.b)), e => (inside(e.a) ? '-> ' + e.b : '<- ' + e.a))
+  const bundled = new Set([...fans.values()].filter(es => new Set(es.map(e => (inside(e.a) ? e.a : e.b))).size > BUNDLE).flat())
+  return Map.groupBy(owned.map(e => (!bundled.has(e) ? e : inside(e.a) ? { ...e, a: top!.id } : { ...e, b: top!.id })), key)
+}
+
+/** The box inside top box `box` that holds `id` (or `box` itself). */
+function childOf(ix: Index, id: string, box: string) {
+  let it = ix.items.get(id)!
+  while (it.id !== box && it.parent && it.parent.id !== box) it = it.parent
+  return it.id
+}
+
+/** Finer arrows standing in for the merged arrow `replaces`, for the top boxes in `tops`, or for exact ends (`exact`). */
+type Finer = { es: Placed[]; tops: Set<string>; exact: boolean; replaces: string | undefined }
+
+/**
+ * The finer arrows `edges` merged away, drawn instead of them for the selected box: for a selected top box, its
+ * children's arrows to other top boxes; for a box inside one, its exact arrows, including those to its siblings.
+ */
+function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, owner: (id: string) => string) {
+  const detail = new Map<string, Finer>()
+  const add = (e: Placed, top: string | undefined, replaces: string | undefined) => {
+    if (edges.has(key(e))) return
+    const d = detail.get(key(e)) ?? detail.set(key(e), { es: [], tops: new Set(), exact: false, replaces }).get(key(e))!
+    if (top) d.tops.add(top)
+    else d.exact = true
+    d.es.push(e)
+  }
+  for (const e of exact) {
+    const [ca, cb] = [owner(e.a), owner(e.b)]
+    const replaces = ca === cb ? undefined : key({ a: ca, b: cb })
+    add(e, undefined, replaces)
+    if (ca !== cb) {
+      add({ ...e, a: childOf(ix, e.a, ca), b: cb }, ca, replaces)
+      add({ ...e, a: ca, b: childOf(ix, e.b, cb) }, cb, replaces)
+    }
+  }
+  return detail
+}
+
 /**
  * The boxes one map view shows, the edges (of the kinds `shows` lets through) lifted onto them, and each box's member
  * rows; a box in `expanded` also lists members not shown as boxes. Unzoomed: every box down to `level`, objects
@@ -225,45 +374,13 @@ const BUNDLE = 4
  * when there are at most `PEERS` of those; with more, it ends at that box's file, so a busy view stays readable.
  * Selection never changes the view, so boxes don't move as you click around.
  */
-export function mapView(ix: Index, links: Review['dependencies'], top: Item | undefined, level: number,
+export function mapView(ix: Index, links: Dependency[], top: Item | undefined, level: number,
   shows: (kind: string) => boolean, expanded: Set<string>) {
-  const inner = !top ? ix.all.filter(it => it.depth <= level && !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
+  const inner = viewBoxes(ix, top, level)
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
   const ids = new Set(inner.map(it => it.id))
-  const lift = (id: string) => {
-    let it = ix.items.get(id)
-    while (it && !ids.has(it.id)) it = up(it)
-    return it
-  }
-  /**
-   * Outside the zoomed box, a link ends at the file it leads to, e.g. src/types/boxes.rs, shown inside its folders or
-   * module files down to the zoomed box's depth, so you see where it goes without zooming out.
-   */
-  const peer = (id: string) => {
-    let it = ix.items.get(id)
-    while (it?.parent && it.kind !== 'file') it = it.parent
-    return it
-  }
-  const ext = new Map<string, Item>()
-  const shown = links.filter(e => shows(e.kind))
-  // Peer to peer when few outside boxes are linked: arrows end at them exactly. Otherwise at their files, except for
-  // boxes in the zoomed box's own file (e.g. the types next to a zoomed type), which have no other file to show.
-  const peers = new Set(shown.flatMap(e => (lift(e.from) || lift(e.to) ? [e.from, e.to].filter(id => !lift(id)) : [])))
-  const exactPeers = !!top && peers.size <= PEERS
-  const home = top && peer(top.id)
-  const outside = (id: string) => (exactPeers || (home && home !== top && peer(id) === home) ? ix.items.get(id) : peer(id))
-  const exact = shown.flatMap(e => {
-    let a = lift(e.from), b = lift(e.to)
-    if (!a && !b) return [] // wholly outside the zoomed box
-    a ??= outside(e.from)
-    b ??= outside(e.to)
-    // Skip edges between a box and a box inside it: they'd loop onto the outer box.
-    if (!a || !b || within(a, b.id) || within(b, a.id)) return []
-    // An outside end always gets its box, plus its parent boxes down to the zoomed box's depth (it can sit higher up).
-    for (const o of [a, b]) for (let p: Item | undefined = o; p && top && (p === o || p.depth >= top.depth) && !ids.has(p.id); p = p.parent) ext.set(p.id, p)
-    return [{ ...e, a: a.id, b: b.id }]
-  })
+  const { exact, ext, exactPeers } = linkEnds(ix, links.filter(e => shows(e.kind)), top, ids)
   /**
    * A box hands its arrows to its outermost box in this view (a child of the zoomed box, or with outside files rather
    * than exact peers, the outermost box around them), so arrows connect only the top boxes; the selected box's own
@@ -275,45 +392,12 @@ export function mapView(ix: Index, links: Review['dependencies'], top: Item | un
     while (it.parent && it.parent !== top && (ids.has(it.parent.id) || (!exactPeers && ext.has(it.parent.id)))) it = it.parent
     return it.id
   }
-  const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
   const owned = exact.flatMap(e => {
     const [a, b] = [owner(e.a), owner(e.b)]
     return a === b ? [] : [{ ...e, a, b }]
   })
-  // When more than `BUNDLE` boxes inside have arrows to (or from) one outside box, those become one arrow from the
-  // zoomed box itself, with a count: e.g. every type in code.rs "generates" its copy in contract.ts. Selecting a box
-  // inside still shows its own exact arrows.
-  const inside = (id: string) => !!top && id !== top.id && !ext.has(id)
-  const fans = Map.groupBy(owned.filter(e => inside(e.a) !== inside(e.b)), e => (inside(e.a) ? '-> ' + e.b : '<- ' + e.a))
-  const bundled = new Set([...fans.values()].filter(es => new Set(es.map(e => (inside(e.a) ? e.a : e.b))).size > BUNDLE).flat())
-  const edges = Map.groupBy(owned.map(e => (!bundled.has(e) ? e : inside(e.a) ? { ...e, a: top!.id } : { ...e, b: top!.id })), key)
-  /** The box inside top box `box` that holds `id` (or `box` itself). */
-  const childOf = (id: string, box: string) => {
-    let it = ix.items.get(id)!
-    while (it.id !== box && it.parent && it.parent.id !== box) it = it.parent
-    return it.id
-  }
-  /**
-   * The finer arrows `edges` merged away, drawn instead of them for the selected box: for a selected top box, its
-   * children's arrows to other top boxes; for a box inside one, its exact arrows, including those to its siblings.
-   */
-  const detail = new Map<string, { es: typeof exact; tops: Set<string>; exact: boolean; replaces: string | undefined }>()
-  const addDetail = (e: (typeof exact)[number], top: string | undefined, replaces: string | undefined) => {
-    if (edges.has(key(e))) return
-    const d = detail.get(key(e)) ?? detail.set(key(e), { es: [], tops: new Set(), exact: false, replaces }).get(key(e))!
-    if (top) d.tops.add(top)
-    else d.exact = true
-    d.es.push(e)
-  }
-  for (const e of exact) {
-    const [ca, cb] = [owner(e.a), owner(e.b)]
-    const replaces = ca === cb ? undefined : key({ a: ca, b: cb })
-    addDetail(e, undefined, replaces)
-    if (ca !== cb) {
-      addDetail({ ...e, a: childOf(e.a, ca), b: cb }, ca, replaces)
-      addDetail({ ...e, a: ca, b: childOf(e.b, cb) }, cb, replaces)
-    }
-  }
+  const edges = bundle(owned, top, ext)
+  const detail = finerEdges(ix, exact, edges, owner)
   /** A box's rows: everything directly inside it when expanded (More); else its members, only unzoomed. */
   const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top ? [] : it.kids.filter(k => k.m)
   /** Whether a box can expand: it holds something to list, or code to show. */
@@ -408,7 +492,7 @@ function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: stri
     if (anchor) return // a double click already chose the clicked box
     const n = ids.map(id => getInternalNode(id)).find(n => n)
     const vp = getViewport()
-    if (n) anchor = { id: n.id, x: n.internals.positionAbsolute.x * vp.zoom + vp.x, y: n.internals.positionAbsolute.y * vp.zoom + vp.y, w: (n.measured.width ?? 320) * vp.zoom }
+    if (n) anchor = placeOf(n.id, n, vp)
   }, [view])
   useEffect(() => {
     const r = box.current?.getBoundingClientRect()
