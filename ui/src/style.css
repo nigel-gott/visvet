@@ -298,3 +298,18 @@ main { grid-area: 2 / 1; min-height: 0 }
 .code-bubble p { margin: 0 0 6px }
 .code-bubble p:last-child, .bubble p:last-child { margin-bottom: 0 }
 .stale { color: var(--del) }
+
+/* A zoom between views (nestedZoom.tsx): the box it passes through draws the inner view inside it, scaled down.
+   Zooming in, the box's own face fades out as the inner view fades in; zooming out, the reverse. */
+.react-flow__node:has(> .card.zooming-in), .react-flow__node:has(> .card.zooming-out) { transition: height .6s ease }
+.card.zooming-in, .card.zooming-out { position: relative }
+.card.zooming-in > :not(.inner-preview) { animation: fade-away .6s ease forwards }
+.card.zooming-out > :not(.inner-preview) { animation: appear .8s ease .5s both }
+.inner-preview { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; background: var(--bg) }
+.inner-preview.fading-in { animation: appear .9s ease both }
+.inner-preview.fading-out { animation: fade-away .8s ease .4s both }
+.inner-preview > .hdr { height: 34px }
+.preview-box { position: absolute; overflow: hidden }
+.preview-arrows { position: absolute; left: 0; top: 0; overflow: visible }
+.preview-arrows polyline { fill: none; stroke: var(--muted); stroke-width: 1.5; opacity: .6 }
+@keyframes fade-away { to { opacity: 0 } }

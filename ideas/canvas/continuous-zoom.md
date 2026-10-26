@@ -1,9 +1,11 @@
 ---
 kind: idea
-status: exploring
-description: Lay the whole map out once, every box nested in its parent at a fixed place; zooming only moves the camera, and detail fades in as you get close.
+status: dropped
+description: Lay the whole map out once, every box nested in its parent at a fixed place. Dropped: a giant canvas isn't reviewable; nested zoom between today's views replaced it.
 ---
 # Continuous zoom
+
+**Dropped, 2026-10-26.** A prototype laid all 609 boxes out as one canvas; the user: "how can I review anything on a giant canvas?" The per-area views are what make review work. Instead, zooming between them became continuous: the camera glides into a box while the inner view, laid out ahead, fades in inside it, and only then takes over (`ui/src/nestedZoom.tsx`).
 
 The user, 2026-10-26, taking a tour: moving between steps "flashes", "the map disappears", it "zooms into a random location". It should feel like moving around one big canvas: smooth, slow, continuous, no relayouts, and the outer view only goes once you are fully inside the inner one. And this is how zooming should work everywhere, not only in tours.
 

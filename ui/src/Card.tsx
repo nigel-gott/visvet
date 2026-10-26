@@ -9,6 +9,7 @@ import { DiffView, Head, Notes } from './Views'
 import { languageOf } from './highlight'
 import { ThreadChip } from './Threads'
 import { BoxBubble, StepBubble, useTourStep } from './Tours'
+import { InnerPreview, type ZoomPreview } from './nestedZoom'
 import { allLines, codeHeight, fieldTable, pills, showsCode } from './size'
 
 /** Where a box was on screen as the view changed, so the next view can open with that box in the same place (see `useFit` in Graph.tsx). */
@@ -31,6 +32,8 @@ export type CardData = {
   openAll: string[]
   /** Tour notes on this box, or on boxes inside it that the view doesn't draw, shown in bubbles above it. */
   boxNotes: CodeNote[]
+  /** While a zoom passes through this box: the view inside it, drawn into it (see nestedZoom.tsx). */
+  zoomPreview?: ZoomPreview
 }
 
 /** The last click on a box, so a second click on it within 300ms counts as a double click. */
@@ -133,7 +136,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
       {stepHere && <StepBubble />}
       {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
       <Handle type="target" position={Position.Left} />
-      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''}`}
+      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${data.zoomPreview ? (data.zoomPreview.inward ? 'zooming-in' : 'zooming-out') : ''}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />
@@ -151,6 +154,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
         {showsCode(it, x) &&
           <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} /></div>}
+        {data.zoomPreview && <InnerPreview preview={data.zoomPreview} />}
       </div>
       <Handle type="source" position={Position.Right} />
     </>

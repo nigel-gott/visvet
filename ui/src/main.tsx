@@ -9,6 +9,7 @@ import './style.css'
 import type { StepView } from './contract'
 import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph from './Graph'
+import { zoomer } from './nestedZoom'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
@@ -278,7 +279,7 @@ function App() {
     travel.current = setTimeout(() => showBox(step.target, step.view), TRAVEL_PAUSE)
   }
   const x: Ctx = {
-    model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
+    model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })), level, setLevel,
     tour, showStep, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),

@@ -4,4 +4,4 @@ description: The map as one continuous canvas, laid out once, where zooming only
 ---
 # One canvas
 
-- [Continuous zoom](continuous-zoom.md): why separate views per zoom level feel like jumps, and the one-canvas design that replaces them.
+- [Continuous zoom](continuous-zoom.md): why separate views per zoom level felt like jumps; the one-canvas fix was dropped for nested zoom between views.

@@ -9,6 +9,7 @@ import { STEP_BUBBLE_ROOM, useTourStep } from './Tours'
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
 import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
+import { showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
 const LEVELS = ['Top level', '2 levels', '3 levels']
@@ -46,7 +47,7 @@ function Routed({ id, data, label, markerEnd, sourceX, sourceY, targetX, targetY
 const edgeTypes = { routed: Routed }
 
 /** A node placed by ELK, in xyflow's shape. */
-type Laid = Pick<Node, 'id' | 'parentId' | 'position' | 'width' | 'height'>
+export type Laid = Pick<Node, 'id' | 'parentId' | 'position' | 'width' | 'height'>
 
 
 /**
@@ -87,29 +88,34 @@ const flat = (n: ElkNode, parentId?: string): Laid[] => (n.children ?? []).flatM
   ...flat(c, c.id),
 ])
 
+/** One view laid out by ELK: which view, its size, each box's place, and each arrow's route. */
+export type Layout = { view: string; width: number; height: number; laid: Laid[]; routes: Record<string, XYPosition[]> }
+
+/** Lays view `view` (its boxes and arrows, `v`) out with ELK, with each box's height and width. */
+export async function layOut(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number): Promise<Layout> {
+  const turned = flipped(v)
+  const g = await elk.layout(elkGraph(v, size, wide))
+  const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
+    const s = e.sections?.[0], pts = s ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint] : []
+    return s ? [[e.id, turned.has(e.id) ? pts.reverse() : pts]] : []
+  }))
+  return { view, width: g.width!, height: g.height!, laid: flat(g), routes }
+}
+
 /** Lays a view out with ELK again whenever its boxes, their sizes or its edges change. */
 function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number) {
-  const [graph, setGraph] = useState({ view: '', width: 0, height: 0, laid: [] as Laid[], routes: {} as Record<string, XYPosition[]> })
+  const [graph, setGraph] = useState<Layout>({ view: '', width: 0, height: 0, laid: [], routes: {} })
   const key = [...v.boxes.map(it => `${it.id} ${size(it)}x${wide(it)}`), ...v.edges.keys(), ...v.detail.keys()].join('|')
   useEffect(() => {
     let live = true
-    const turned = flipped(v)
-    elk.layout(elkGraph(v, size, wide)).then(g => {
-      if (!live) return
-      const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
-        const s = e.sections?.[0], pts = s ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint] : []
-        return s ? [[e.id, turned.has(e.id) ? pts.reverse() : pts]] : []
-      }))
-      setGraph({ view, width: g.width!, height: g.height!, laid: flat(g), routes })
-    })
+    layOut(view, v, size, wide).then(laid => live && setGraph(laid))
     return () => { live = false }
   }, [key])
   return graph
 }
-type Layout = ReturnType<typeof useLayout>
 
 /** A laid-out box's position on the whole map (ELK gives positions inside the parent box) and width. */
-function absolute(laid: Laid[], id: string) {
+export function absolute(laid: Laid[], id: string) {
   const byId = new Map(laid.map(n => [n.id, n]))
   let n = byId.get(id)
   const at = { x: 0, y: 0, width: n?.width ?? 0, height: n?.height ?? 0 }
@@ -237,12 +243,13 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   // Arrow kinds the user switched on or off; "has" starts off in a folder zoom, where it buries the interface.
   const [kinds, setKinds] = useState<Record<string, boolean>>({})
   const top = x.scope ? x.ix.items.get(x.scope) : undefined
-  const shows = (k: string) => kinds[k] ?? !(k === 'has' && top?.kind === 'folder')
+  const shows = showsIn(kinds, top)
   const view = top ? top.id : String(x.level)
   const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded)
   // A box showing its code doesn't also list what's inside it as rows.
   const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
   const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x))
+  const preview = useNestedZoom(box, graph, kinds)
   const centre = [...x.hl][0]
   const playing = useTourStep()
   const stepTarget = playing?.step.target
@@ -264,16 +271,20 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   // A tour note on a box goes on that box, or on the nearest box around it that this view draws.
   const drawnBoxOf = (id: string) => { let it = x.ix.items.get(id); while (it && !byId.has(it.id)) it = it.parent; return it?.id }
   const boxNotes = (playing?.step.code_notes ?? []).filter(note => note.on_box && note.on_box !== playing!.step.target)
-  const nodes = graph.laid.filter(n => byId.has(n.id)).map(n => {
+  const nodes = graph.laid.filter(n => byId.has(n.id)).map(laid => {
+    let n = laid
     const it = byId.get(n.id)!
     const rows = rowsOf(it), position = clamp(n, pos.moved[n.id] ?? n.position)
     const notesHere = boxNotes.filter(note => drawnBoxOf(note.on_box!) === n.id)
-    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code)].join('|')
+    // A box a zoom passes through draws the view inside it, and is as tall as that view at its width.
+    const drawsInside = preview?.box === n.id && n.id !== x.scope ? preview : undefined
+    if (drawsInside && !drawsInside.settling) n = { ...n, height: absolute(drawsInside.inner.laid, n.id)!.height * drawsInside.scale }
+    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code), drawsInside?.inward, drawsInside?.settling, n.height].join('|')
     const old = made.current.boxes.get(n.id)
     if (old?.key === key) return old.node
     const data: CardData = {
       it, rows, ext: v.ext.has(n.id),
-      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere,
+      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere, zoomPreview: drawsInside,
     }
     const extent = n.parentId ? 'parent' as const : undefined
     // Where arrows attach (mid left in, mid right out), given up front so a box being dragged keeps its arrows.
