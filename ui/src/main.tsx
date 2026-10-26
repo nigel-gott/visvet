@@ -286,7 +286,9 @@ function App() {
     const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
     if (moves.byHand) {
       // The user makes the moves, following the cues (see `guide`); the step opens, bubble and all, once they reach it.
+      // Until then the boxes the step left open close again.
       setRoute(null)
+      setWide({ view, ids: new Set() })
       return setHeading({ place, to })
     }
     setHeading(null)
