@@ -151,11 +151,11 @@ view: zoomed
 ### `const [tour, setTour] = useState<TourPlace | null>(null)`
 `useState` returns the value and a function to change it; calling `setTour` re-renders. `<TourPlace | null>` is TypeScript: it holds a place in a tour, or nothing.
 
-### `await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubbleBoxOf(step))`
+### `await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubble)`
 Moving to the next step passes through each zoom level between the two places: out to the box holding both, then in. Every view on that route is laid out before the camera sets off, so it never waits for one. `?.` skips the call when there's nothing to call.
 
-### `await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length)) : enter())`
-Each level is one zoom, the same as double-clicking or pressing Up, but `journeyMotion` gives it a slice of one long ease, so the camera only slows at the start and the end, never between levels. `await` waits for each level before the next, as in JavaScript.
+### `await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length), bubble) : enter())`
+Each level is one zoom, the same as double-clicking or pressing Up, but `journeyMotion` gives it a slice of one long ease, so the camera only slows at the start and the end, never between levels. `await` waits for each level before the next, as in JavaScript. The step itself only changes as its view takes over (`arriving`), so the view you leave stays as it was.
 
 ### `const journey = useRef(0)`
 `useRef` keeps a value between renders without re-rendering, like a plain variable in Vue's `setup()`. Each move gets a number; pressing Next again starts a newer one, and the older move stops at its next level.
