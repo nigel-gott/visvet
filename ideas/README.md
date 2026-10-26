@@ -7,9 +7,11 @@ Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 
 - [Tours](tours.md): a guided path through the code, in an order that builds understanding.
 - [Learning tours](learning-tours.md): tours that teach the language: annotated syntax, doc excerpts and koans.
-- [Added content](added-content.md): what the AI adds to the map: notes, arrows, widgets; first-class, never a hidden layer.
+- [Views](views.md): quick annotated arrangements the AI makes to show something; a tour is a view with steps.
+- [Added content](added-content.md): what the AI adds to the map permanently: boxes, arrows, widgets, shown like everything else.
 - [Live components](live-components.md): seeing, and one day playing with, UI components on their boxes.
 - [Dimensions](dimensions.md): other ways to look at the same project, e.g. its data instead of its code.
+- [Concept dimension](concept-dimension.md): the ideas people use to explain the app, drawn from the docs.
 - [Data dimension](data-dimension.md): databases, schemas and the data models inside the code.
 - [State machines](state-machines.md): a kind of picture that fits inside any dimension; spread over the code, so a candidate for annotations.
 - [Methodology](methodology.md): visvet as a way to build projects, with a recommended stack, not only a review tool.
