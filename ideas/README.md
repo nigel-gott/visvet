@@ -10,11 +10,11 @@ Labels in each note's front matter: `kind: idea` or `kind: hub`, and a `status:`
 
 Hubs, one per theme:
 
-- [Dimensions](hub-dimensions.md): other ways to look at the same project than its code.
-- [Box signals](hub-box-signals.md): what a box tells you at a glance about its health and its people.
-- [Tests and flows](hub-tests-and-flows.md): behaviour tests, and the paths they trace through the code.
-- [Guided reading](hub-guided-reading.md): tours, views and learning, so you're never dropped at a random box.
-- [AI in visvet](hub-ai.md): more agents, a cheap model, voice, and using the Claude apps.
-- [Extending visvet](hub-extending.md): new languages, plugins, widgets and things added to the map.
+- [Dimensions](dimensions/README.md): other ways to look at the same project than its code.
+- [Box signals](box-signals/README.md): what a box tells you at a glance about its health and its people.
+- [Tests and flows](tests-and-flows/README.md): behaviour tests, and the paths they trace through the code.
+- [Guided reading](guided-reading/README.md): tours, views and learning, so you're never dropped at a random box.
+- [AI in visvet](ai/README.md): more agents, a cheap model, voice, and using the Claude apps.
+- [Extending visvet](extending/README.md): new languages, plugins, widgets and things added to the map.
 
 Two notes cut across all of them: [methodology](methodology.md), visvet as a way to build projects, and [extracted, not drawn](extracted-not-drawn.md), the rule that the map comes from tools.
