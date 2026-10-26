@@ -49,10 +49,6 @@ impl RepoPath {
     pub fn src_folder(&self) -> Option<&Path> {
         self.0.ancestors().find(|a| a.file_name().is_some_and(|n| n == "src"))
     }
-    /// Whether the file sits in the folder of Rust module `parent`, like "src/review/parse.rs" in "src/review.rs".
-    pub fn in_submodule_of(&self, parent: &RepoPath) -> bool {
-        parent.is_rust() && self.0.starts_with(parent.0.with_extension(""))
-    }
     /// The path with `suffix` added to its last part, e.g. "src/a" plus ".rs" is "src/a.rs".
     pub fn with_suffix(&self, suffix: &str) -> RepoPath {
         let mut path = self.0.clone().into_os_string();

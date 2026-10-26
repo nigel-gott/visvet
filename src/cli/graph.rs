@@ -1,5 +1,5 @@
 //! `visvet graph`: the review map as text, so the AI sees the coupling, cycles and complexity the user sees.
-use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, MapBox, ChangeStatus, MemberKind, BoxKind, RepoPath}};
+use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, MapBox, ChangeStatus, MemberKind, BoxKind}};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
@@ -30,8 +30,6 @@ struct Tally<'a> {
     deps: [Graph<'a>; 2],
     calls: [Graph<'a>; 2],
     zoom: BTreeMap<&'a str, Zoom<'a>>,
-    /// Each file's path, by its id.
-    files: HashMap<&'a str, &'a RepoPath>,
 }
 
 /// Prints the map of the change against `base`, each section worst first: totals, top-folder coupling, cycles,
@@ -40,8 +38,7 @@ pub fn print(repo_root: &Path, base: &str) -> anyhow::Result<()> {
     let m = build_review(repo_root, base)?;
     let objs: Vec<&MapBox> = m.boxes.iter().filter(|o| o.status != ChangeStatus::Removed).collect();
     let path = paths(&objs);
-    let files = objs.iter().map(|o| (o.file.as_str(), &o.file)).collect();
-    let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), files, ..Default::default() };
+    let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), ..Default::default() };
     // Both ends must be live: a Markdown link can still name a box the change removed.
     for e in m.dependencies.iter().filter(|e| path.contains_key(e.from.as_str()) && path.contains_key(e.to.as_str())) {
         t.add(e, [&path[e.from.as_str()], &path[e.to.as_str()]]);
@@ -79,7 +76,7 @@ impl<'a> Tally<'a> {
             if from_box == to_box {
                 continue;
             }
-            if self.can_cycle(dep.kind, level, from_box, to_box) {
+            if dep.kind.counts_for_cycles() {
                 self.deps[level].entry(from_box).or_default().insert(to_box);
             }
             if level == TOP_FOLDERS {
@@ -91,15 +88,6 @@ impl<'a> Tally<'a> {
         }
     }
 
-    /// Whether a link of `kind` between two boxes at `level` can be part of a cycle a reader must untangle: it is a
-    /// code link, and not one between a Rust module file and a file in its own folder.
-    fn can_cycle(&self, kind: DependencyKind, level: usize, from_box: &str, to_box: &str) -> bool {
-        let module_and_own_file = level == FILES && {
-            let (from, to) = (self.files[from_box], self.files[to_box]);
-            from.in_submodule_of(to) || to.in_submodule_of(from)
-        };
-        kind.counts_for_cycles() && !module_and_own_file
-    }
 
     /// Zoomed into either end's level-`k` box, the other end shows as its box at the same depth, inside that box's parent.
     fn add_zoom(&mut self, k: usize, ends: [&(Vec<&'a str>, &'a str); 2]) {

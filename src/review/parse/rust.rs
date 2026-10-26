@@ -1,24 +1,24 @@
 //! What only Rust has: `use crate::...` imports and `impl` blocks.
 use super::names::base;
 use super::walk::FileParser;
-use super::join;
 use crate::types::RepoPath;
+use std::path::{Path, PathBuf};
 use tree_sitter::Node;
 
 /// What only Rust has: `use crate::...` imports and `impl` blocks.
 impl FileParser<'_> {
     /// Records the files of the crate modules a Rust `use crate::...` names.
-    pub(super) fn rust_use(&mut self, n: Node) {
-        let Some(a) = n.child_by_field_name("argument") else { return };
-        let krate = self.path.src_folder().unwrap_or(self.path.folder());
-        let list = a.child_by_field_name("list").filter(|_| a.child_by_field_name("path").is_some_and(|p| self.t(p) == "crate"));
-        let items: Vec<&str> = match list {
-            Some(l) => l.named_children(&mut l.walk()).map(|c| self.t(c)).collect(),
-            None => self.t(a).strip_prefix("crate::").into_iter().collect(),
+    pub(super) fn rust_use(&mut self, use_item: Node) {
+        let Some(imported) = use_item.child_by_field_name("argument") else { return };
+        let crate_src = self.path.src_folder().unwrap_or(self.path.folder());
+        let is_crate = |path: Node| self.t(path) == "crate";
+        let list = imported.child_by_field_name("list").filter(|_| imported.child_by_field_name("path").is_some_and(is_crate));
+        let names: Vec<&str> = match list {
+            Some(list) => list.named_children(&mut list.walk()).map(|name| self.t(name)).collect(),
+            None => self.t(imported).strip_prefix("crate::").into_iter().collect(),
         };
-        for m in items {
-            let p = join(krate, m.split([':', ' ']).next().unwrap());
-            self.boxes[0].uses.push(vec![p.with_suffix(".rs"), RepoPath(p.0.join("mod.rs"))]);
+        for name in names {
+            self.boxes[0].uses.push(module_files(crate_src, name));
         }
     }
 
@@ -31,5 +31,30 @@ impl FileParser<'_> {
             self.boxes[oi].impls.insert(tr);
         }
         self.members(oi, n, n.child_by_field_name("body"));
+    }
+}
+
+/// The files that may hold the module a name from `use crate::...` is in, innermost first: for
+/// `review::parse::join`, "review/parse/join.rs", "review/parse.rs", then "review.rs", each also as a folder's
+/// `mod.rs`, inside `crate_src`. The first that exists is the one imported, so a name inside a module points at
+/// that module's own file, not at its parent's.
+fn module_files(crate_src: &Path, name: &str) -> Vec<RepoPath> {
+    let path = name.split([' ', '{']).next().unwrap_or("");
+    let modules: Vec<&str> = path.split("::").filter(|module| !module.is_empty()).collect();
+    (1..=modules.len()).rev().flat_map(|depth| {
+        let module = RepoPath(crate_src.join(modules[..depth].iter().collect::<PathBuf>()));
+        [module.with_suffix(".rs"), RepoPath(module.0.join("mod.rs"))]
+    }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_name_points_at_its_innermost_module_first() {
+        let files = |name| module_files(Path::new("src"), name).iter().map(|f| f.to_string()).collect::<Vec<_>>();
+        assert_eq!(files("review::parse::{ParsedBox, parse}"), ["src/review/parse.rs", "src/review/parse/mod.rs", "src/review.rs", "src/review/mod.rs"]);
+        assert_eq!(files("types"), ["src/types.rs", "src/types/mod.rs"]);
     }
 }
