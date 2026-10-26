@@ -10,7 +10,7 @@ What a [dimension](dimensions.md) is, then each one:
 - [Behaviour](behaviour-dimension.md): what the system does, taken from [black-box tests](black-box-tests.md).
 - [Concepts](concepts/concept-dimension.md): the ideas people explain the app with, mostly from [concept annotations](concepts/concept-annotations.md) so they don't go stale. Backlinks for agents: [visvet impact](concepts/visvet-impact.md).
 - [Architecture](architecture/architecture-dimension.md): services and people, in the [C4 model](architecture/c4-model.md)'s levels, possibly [across repos](architecture/multi-repo-workspace.md).
-- [Trust](trust-dimension.md), [time](time-dimension.md), [dependencies](dependencies-dimension.md): smaller ones.
+- [Trust](trust-dimension.md), [time](time-dimension.md), [dependencies](dependencies-dimension.md): smaller ones. The key libraries also show on the code map: [library boxes](library-boxes.md).
 
 [State machines](state-machines/state-machines.md) aren't a dimension but a kind of picture that appears in several, made findable by [annotations](state-machines/state-machine-annotations.md).
 
