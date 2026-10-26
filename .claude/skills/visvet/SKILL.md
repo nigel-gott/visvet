@@ -46,7 +46,7 @@ Reduce them, or explain the trade-off with `visvet explain` on the box or arrow.
 The UI's data types in `ui/src/contract.ts` are generated from `src/types.rs` by ts-rs. After changing `src/types.rs`, run `cargo test` to regenerate them; never edit `contract.ts` by hand.
 
 ## Keep changes reviewable
-The user reviews at the folder, file and code unit level, then reads code only where needed. Prefer small, well-named code units and members with clear signatures. Never edit `.visvet/` files by hand; use `visvet reply` and `visvet explain`. Commit the thread files in `.visvet/threads/` along with your code.
+The user reviews at the folder, file and code unit level, then reads code only where needed. Prefer small, well-named code units and members with clear signatures. Never edit `.visvet/` files by hand; use `visvet reply` and `visvet explain`. The one exception: you may delete a thread folder holding only your own note once it is stale, e.g. its box was moved or removed, since `visvet explain` can't remove a note. Never touch the user's messages. Commit the thread files in `.visvet/threads/` along with your code.
 
 ## Follow and steer what the user sees
 The user keeps visvet open beside this session.
