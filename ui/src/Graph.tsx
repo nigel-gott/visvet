@@ -1,6 +1,6 @@
 // The map: ELK lays out folder, file, box and member boxes; clicking selects a box, double-clicking zooms into it.
 
-import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type XYPosition } from '@xyflow/react'
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
 import { reportView, type DependencyKind, type Index, type Item } from './model'
@@ -14,6 +14,8 @@ import { easeInOut, glideCamera, moves, nextOutwardGlide, showsIn, useNestedZoom
 const elk = new ELK()
 /** How long the camera takes to glide to a selected box, in ms. */
 const SELECT_GLIDE_TIME = 600
+/** How long boxes take to slide and grow into a new layout of the same view (a box opened, a tour bubble added), in ms. */
+const RELAYOUT_TIME = 350
 /** The name of the unzoomed view, the whole map, among views named by their zoomed box. */
 export const WHOLE_MAP = 'map'
 /** ELK settings for every box: fewer crossings, straighter edges, source order kept, right-angle routes around boxes. */
@@ -324,12 +326,35 @@ function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, gr
       return void glideCamera(setViewport, vp, centred(vp.zoom), { duration: SELECT_GLIDE_TIME, ease: GLIDE.ease })
     }
     if (before.graph === graph || !before.place) return
-    // A new layout for the same selection: keep the box where it is on screen, then finish any glide from there.
+    // A new layout for the same selection: the boxes slide into it (see `useRelayoutMotion`), and the camera moves
+    // with them, with the same easing, so the selected box stays where it is on screen; any glide to it carries on.
     const moved = { x: place.x - before.place.x, y: place.y - before.place.y }
     const kept = { x: vp.x - moved.x * vp.zoom, y: vp.y - moved.y * vp.zoom, zoom: vp.zoom }
     const left = SELECT_GLIDE_TIME - (Date.now() - before.glideStart)
-    void glideCamera(setViewport, kept, left > 0 ? centred(vp.zoom) : kept, { duration: Math.max(left, 0), ease: GLIDE.ease })
+    void glideCamera(setViewport, vp, left > 0 ? centred(vp.zoom) : kept, { duration: Math.max(left, RELAYOUT_TIME), ease: GLIDE.ease })
   }, [sel, graph])
+}
+
+/**
+ * Whether the boxes are sliding into a new layout of the same view: for `RELAYOUT_TIME` after it, boxes move and
+ * resize smoothly instead of jumping, and arrows wait out of sight. Worked out while drawing, so the new positions
+ * already have the motion on; a new view's layout appears as it is.
+ */
+function useRelayoutMotion(graph: Layout) {
+  const motion = useRef({ graph, until: 0 })
+  if (motion.current.graph !== graph) {
+    const sameView = motion.current.graph.view === graph.view && motion.current.graph.laid.length > 0
+    motion.current = { graph, until: sameView ? Date.now() + RELAYOUT_TIME : 0 }
+  }
+  const sliding = Date.now() < motion.current.until
+  // Drawn again once the motion is over, to take it off.
+  const [, redraw] = useState(0)
+  useEffect(() => {
+    if (!sliding) return
+    const over = setTimeout(() => redraw(n => n + 1), RELAYOUT_TIME)
+    return () => clearTimeout(over)
+  }, [graph])
+  return sliding
 }
 
 /** Where the user dragged boxes in a view with the boxes `sig`, loaded from and saved to this browser. */
@@ -416,6 +441,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const ready = graph.view === view
   // A box object is reused until something about it changes: xyflow re-measures every new object, and while it
   // does, it hides the box's arrows, so rebuilding them all on each mouse move of a drag made every arrow vanish.
+  const sliding = useRelayoutMotion(graph)
   const made = useRef({ graph, boxes: new Map<string, { key: string; node: Node<CardData> }>() })
   if (made.current.graph !== graph) made.current = { graph, boxes: new Map() }
   // A tour note on a box goes on that box, or on the nearest box around it that this view draws.
@@ -456,7 +482,8 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     <ReactFlow
       ref={box}
       // During a tour's move, each new view's boxes appear at once, exactly where their drawing was.
-      className={x.route ? 'travelling' : undefined}
+      className={x.route ? 'travelling' : sliding ? 'relayout' : undefined}
+      style={{ '--relayout-time': `${RELAYOUT_TIME}ms` } as CSSProperties}
       nodes={shown.nodes}
       edges={shown.edges}
       onEdgeClick={(_, e) => x.select(e.id)}

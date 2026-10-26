@@ -158,6 +158,15 @@ main { grid-area: 2 / 1; min-height: 0 }
 /* Boxes new to the map fade in, so a zoomed box's insides appear rather than pop in. */
 /* New boxes fade in quickly; slower, a change of view looked like the map vanishing. */
 .react-flow__node { animation: appear .15s ease-out }
+/* A new layout of the same view (see `useRelayoutMotion` in Graph.tsx): boxes slide and grow into place, with the
+   camera's easing, and arrows fade out until they are drawn on their new routes. */
+.relayout .react-flow__node { transition: transform var(--relayout-time) cubic-bezier(.65, 0, .35, 1), width var(--relayout-time) cubic-bezier(.65, 0, .35, 1), height var(--relayout-time) cubic-bezier(.65, 0, .35, 1) }
+.react-flow__edges, .react-flow__edgelabel-renderer { transition: opacity .2s ease }
+.relayout .react-flow__edges, .relayout .react-flow__edgelabel-renderer { opacity: 0; transition: none }
+/* A tour step's bubble pops in beside its box, and its notes on the code fade in after it. */
+.step-bubble.in-layout { animation: bubble-pop .3s cubic-bezier(.34, 1.4, .64, 1) both }
+@keyframes bubble-pop { from { opacity: 0; transform: scale(.9) translateX(-12px) } }
+.code-bubble { animation: appear .3s ease .15s both }
 @keyframes appear { from { opacity: 0 } }
 /* On the map a thick outline in the status colour shows what changed, so the +/~/- mark is left out; More/Less expands. */
 .card .mk { display: none }

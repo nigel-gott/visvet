@@ -146,7 +146,8 @@ export function StepBubble({ floating = false }: { floating?: boolean }) {
   const lost = step.code_notes.filter(note => !note.span && !note.on_box)
   const last = number === tour.steps.length - 1
   return (
-    <div className={`bubble step-bubble nodrag nopan nowheel ${floating ? 'floating' : 'in-layout'}`} onClick={e => e.stopPropagation()}>
+    // Keyed by the step, so each step's bubble pops in afresh.
+    <div key={number} className={`bubble step-bubble nodrag nopan nowheel ${floating ? 'floating' : 'in-layout'}`} onClick={e => e.stopPropagation()}>
       <p className="bubble-kicker">Step {number + 1} of {tour.steps.length}</p>
       <h3>{step.title}</h3>
       <div className="step-text">
