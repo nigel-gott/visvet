@@ -215,10 +215,19 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     // A saved viewport from before the layout changed can point at empty space; then fit instead.
     const vp = history.state?.vp
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
-    // A highlighted box (from `visvet show` or a change step) is centred at full size, its top in view.
+    // A highlighted box (from `visvet show` or a tour step), with its step bubble if it has one.
     const hit = c ? withBubble(graph.laid, absolute(graph.laid, c)) : undefined
-    // Centred, a box too wide for the map starting at its left.
-    const middle = hit && { x: Math.max((r.width - hit.width) / 2, GUTTER) - hit.x, y: PANEL_CLEARANCE + Math.max((r.height - PANEL_CLEARANCE - hit.height) / 2, 0) - hit.y, zoom: 1 }
+    /** The camera centring the highlighted box at `zoom`, its top in view; a box too wide for the map starts at its left. */
+    const centredAt = (zoom: number) => hit && {
+      x: Math.max((r.width - hit.width * zoom) / 2, GUTTER) - hit.x * zoom,
+      y: PANEL_CLEARANCE + Math.max((r.height - PANEL_CLEARANCE - hit.height * zoom) / 2, 0) - hit.y * zoom, zoom,
+    }
+    /** Whether the highlighted box is wholly on screen with camera `camera`. */
+    const wholly = (camera: typeof fit) => !!hit && hit.x * camera.zoom + camera.x >= 0 && (hit.x + hit.width) * camera.zoom + camera.x <= r.width &&
+      hit.y * camera.zoom + camera.y >= PANEL_CLEARANCE && (hit.y + hit.height) * camera.zoom + camera.y <= r.height
+    // Opening a view on a box centres it at full size. Within the view (a tour step's journey has just landed on its
+    // fit), the camera keeps the fit's zoom, and only moves if the box isn't wholly in view.
+    const middle = hit && (same ? (wholly(fit) ? fit : centredAt(fit.zoom)) : centredAt(1))
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
