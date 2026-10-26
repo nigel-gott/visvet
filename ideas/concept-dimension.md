@@ -4,10 +4,17 @@ The ideas people use to explain the app to each other: "a review", "a thread", "
 
 ## Where it comes from
 
-Like [tests](tests.md) feed the [behaviour dimension](behaviour-dimension.md), **documentation feeds this one**: a subset of the docs, e.g. one Markdown file per concept, or a glossary.
+Docs that describe the code go stale, so as little as possible lives in separate docs:
 
-- Each concept file says what it is, and links to the code, data and behaviours it lives in. visvet already turns Markdown links into arrows, so this mostly works today.
-- Code can point back: a doc comment mentioning a concept.
+- **Annotations in the code:** a concept is declared once, in a doc comment next to the code that is most "it" (e.g. the `Order` model), with a one-paragraph definition. Other code marks that it takes part: `concept: order`. Hard to go stale, because it sits beside the code it describes and moves with it.
+- **Docs** only for what has no home in code: how concepts relate, the big picture. visvet already turns Markdown links into arrows, so docs pointing at code show up today.
+- **Tests:** maybe a concept's behaviours are the tests that name it. Unclear yet.
+
+## Backlinks for agents
+
+The most practical use may be for the AI editing code: before changing a box, see what points at it (concepts, docs, tours, threads) and update those too. A command for it:
+
+- `visvet impact`: given the current diff, list every concept, doc, tour and thread that points at a changed box. The agent runs it before finishing (or the stop hook does), so docs get updated in the same change instead of rotting.
 
 ## How it looks
 

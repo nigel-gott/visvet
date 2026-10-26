@@ -11,7 +11,8 @@ Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 - [Added content](added-content.md): what the AI adds to the map permanently: boxes, arrows, widgets, shown like everything else.
 - [Live components](live-components.md): seeing, and one day playing with, UI components on their boxes.
 - [Dimensions](dimensions.md): other ways to look at the same project, e.g. its data instead of its code.
-- [Concept dimension](concept-dimension.md): the ideas people use to explain the app, drawn from the docs.
+- [Stacked dimensions](stacked-dimensions.md): dimensions as stacked planes; the camera tilts to move between them.
+- [Concept dimension](concept-dimension.md): the ideas people use to explain the app, from code annotations and docs; backlinks for agents.
 - [Data dimension](data-dimension.md): databases, schemas and the data models inside the code.
 - [State machines](state-machines.md): a kind of picture that fits inside any dimension; spread over the code, so a candidate for annotations.
 - [Methodology](methodology.md): visvet as a way to build projects, with a recommended stack, not only a review tool.

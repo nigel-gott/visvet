@@ -15,11 +15,10 @@ Other dimensions show the same project another way, and you switch between them:
 
 ## Between dimensions
 
-The same thing exists in several dimensions: the concept "thread", the `Thread` type, the threads folder on disk, the "reply to a thread" behaviour. Jumping between them should be one click. Drawing every cross-dimension link would swamp the map, so instead:
+The same thing exists in several dimensions: the concept "order", the `Order` ORM model, the `orders` table, the "place an order" behaviour. Moving between them must be easy, but boxes already carry a lot, so no more badges on them.
 
-- **Chips on the selected box:** "also: concept *Thread* · behaviour *reply* · data *threads/*", in each dimension's colour. Click one to jump; the camera moves to the same thing in the other dimension.
-- **Side by side:** two dimensions next to each other. Select in one and its counterparts highlight in the other (in charts this is called linked brushing). Lines between the two only for the selection.
-- **A summary on each box:** a few small dots, one per dimension it's linked into. Shows at a glance which code has no concept behind it, or which concept has no code.
+- **For now:** a quick way to switch dimension, keeping the selection where the other dimension has it. Then experiment.
+- **One experiment, a stack:** see [stacked dimensions](stacked-dimensions.md).
 
 A dimension can also be projected into another: in the code dimension, a database shows up as its migration files or ORM classes.
 
