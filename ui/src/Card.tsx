@@ -6,7 +6,7 @@ import { codeOf, type Item } from './model'
 import { X } from './context'
 import { DiffView, Head, Notes } from './Views'
 import { ThreadChip } from './Threads'
-import { codeHeight, fieldTable, pills, showsCode } from './size'
+import { allLines, codeHeight, fieldTable, pills, showsCode } from './size'
 
 /** Where a box was on screen as the view changed, so the next view can open with that box in the same place (see `useFit` in Graph.tsx). */
 export const anchor = { box: null as { id: string; x: number; y: number; w: number } | null }
@@ -132,7 +132,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <Rows it={it} rows={rows} click={click} />
         {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
         {showsCode(it, x) &&
-          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={it.diff} /></div>}
+          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={allLines(it)} /></div>}
       </div>
       <Handle type="source" position={Position.Right} />
     </>

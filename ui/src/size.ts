@@ -38,11 +38,19 @@ export const showsCode = (it: Item, x: Ctx) => x.expanded.has(it.id) && it.diff.
 /** An expanded box's code wraps lines longer than 140 characters. */
 const CODE_COLS = 140
 /** How many characters wide an expanded box's code is: its longest line, up to CODE_COLS. */
-const cols = (it: Item) => Math.min(CODE_COLS, Math.max(...it.diff.map(l => l.text.length)))
+/**
+ * All of a box's code, as diff lines: its own text, then its members written outside it, e.g. a Rust type's methods,
+ * which live in impl blocks below the struct.
+ */
+export function allLines(it: Item) {
+  const own = it.diff.map(l => l.line), lo = Math.min(...own), hi = Math.max(...own)
+  return [...it.diff, ...it.kids.flatMap(k => (k.diff.length && (k.diff[0].line < lo || k.diff[0].line > hi) ? k.diff : []))]
+}
+const cols = (it: Item) => Math.min(CODE_COLS, Math.max(...allLines(it).map(l => l.text.length)))
 /** An expanded box is as wide as its code (plus line numbers), but never narrower than a box. */
 const codeWidth = (it: Item) => Math.max(320, measure('m'.repeat(cols(it)), '12px ui-monospace, SFMono-Regular, Menlo, monospace') + 64)
 /** The height of an expanded box's code: up to 30 rows of 16px (a wrapped line takes several), scrolling beyond that. */
-export const codeHeight = (it: Item) => Math.min(it.diff.reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / cols(it))), 0), 30) * 16 + 8
+export const codeHeight = (it: Item) => Math.min(allLines(it).reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / cols(it))), 0), 30) * 16 + 8
 /** An enum's values, shown as pills when its box lists no member rows and it has fewer than 20. */
 export const pills = (it: Item, rows: Item[]) => {
   const values = it.kind === 'enum' && !rows.length ? it.kids.filter(k => k.kind === 'variant') : []

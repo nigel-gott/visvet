@@ -1,8 +1,14 @@
 //! Parsing one version of one file with tree-sitter: its type-like objects and their members, with the names they
 //! mention, not yet linked to anything.
-use std::collections::{BTreeSet, HashSet};
+mod names;
+mod rust;
+mod ts;
+mod walk;
+
 use crate::types::{MemberKind, UnitKind};
-use tree_sitter::{Node, Parser};
+use std::collections::{BTreeSet, HashSet};
+use tree_sitter::Parser;
+use walk::Ex;
 
 /// A raw object from one version of a file, before it is paired with the other version.
 #[derive(Default, Debug)]
@@ -39,13 +45,6 @@ pub struct Mem {
     pub types: BTreeSet<String>,
 }
 
-/// Extraction state for one file: its source, path and the objects found so far.
-struct Ex<'a> {
-    src: &'a str,
-    path: &'a str,
-    objs: Vec<Obj>,
-}
-
 /// A "file" object (whole text, free fns as members, imports) followed by the file's types.
 /// Only .rs/.ts/.tsx files are parsed.
 pub fn parse(path: &str, src: &str) -> Vec<Obj> {
@@ -77,16 +76,6 @@ pub fn parse(path: &str, src: &str) -> Vec<Obj> {
         }
     }
     x.objs
-}
-
-/// The node's 1-based start line.
-fn line(n: Node) -> u32 {
-    n.start_position().row as u32 + 1
-}
-
-/// The node, or the `export` statement around it (which also holds its decorators).
-fn outer(n: Node) -> Node {
-    n.parent().filter(|p| p.kind() == "export_statement").unwrap_or(n)
 }
 
 /// The directory part of a repo-relative path ("" at the root).
@@ -128,7 +117,7 @@ fn head_doc(path: &str, src: &str) -> String {
 
 /// Strips comment markers; keeps the first paragraph (up to a blank or `@tag` line) on one line,
 /// capped at 300 chars.
-fn clean(text: &str) -> String {
+pub(super) fn clean(text: &str) -> String {
     let mut words = vec![];
     for l in text.lines() {
         let l = l.trim().trim_start_matches(['/', '*', '!', '#']).trim_end_matches("*/").trim();
@@ -138,298 +127,6 @@ fn clean(text: &str) -> String {
         words.extend(l.split_whitespace());
     }
     words.join(" ").chars().take(300).collect()
-}
-
-/// Whether `n` adds a decision a reader must follow: a branch, loop, catch, `&&`/`||`/`??`, or a whole match or switch.
-/// A match counts once, not per arm, so a flat dispatch over many cases stays simple; `?` only passes errors up.
-fn decision(n: Node) -> bool {
-    let op = matches!(n.kind(), "&&" | "||" | "??") && n.parent().is_some_and(|p| matches!(p.kind(), "binary_expression" | "let_chain"));
-    op || matches!(n.kind(), "if_expression" | "for_expression" | "while_expression" | "loop_expression" | "match_expression"
-        | "if_statement" | "for_statement" | "for_in_statement" | "while_statement" | "do_statement" | "switch_statement" | "catch_clause" | "ternary_expression")
-}
-
-/// The object kind of a type-declaring node kind, if it is one.
-fn type_kind(k: &str) -> Option<UnitKind> {
-    Some(match k {
-        "struct_item" => UnitKind::Struct,
-        "enum_item" | "enum_declaration" => UnitKind::Enum,
-        "trait_item" => UnitKind::Trait,
-        "type_item" | "type_alias_declaration" => UnitKind::TypeAlias,
-        "class_declaration" | "abstract_class_declaration" => UnitKind::Class,
-        "interface_declaration" => UnitKind::Interface,
-        _ => return None,
-    })
-}
-
-/// `fmt::Display` -> `Display`, `Foo<T>` -> `Foo`.
-fn base(s: &str) -> String {
-    s.split('<').next().unwrap().rsplit([':', '.']).next().unwrap().trim().into()
-}
-
-impl<'a> Ex<'a> {
-    /// The node's source text.
-    fn t(&self, n: Node) -> &'a str {
-        &self.src[n.byte_range()]
-    }
-
-    /// Where `n`'s text starts, that line's number, and its doc comment. The text takes in its
-    /// `export`/decorators and the doc comment and attribute lines right above it, and starts at
-    /// the beginning of its line unless other code precedes it there.
-    fn head(&self, n: Node) -> (usize, u32, String) {
-        let marks: &[&str] = if self.path.ends_with(".rs") { &["///", "/**"] } else { &["//", "/**"] };
-        let lead = |b: usize| self.src[..b].rsplit('\n').next().unwrap();
-        let (mut n, mut parts) = (outer(n), vec![]);
-        while let Some(p) = n.prev_sibling() {
-            let t = self.t(p).trim_end();
-            let gap = &self.src[p.start_byte() + t.len()..n.start_byte()];
-            if gap.matches('\n').count() > 1 || !lead(p.start_byte()).trim().is_empty() {
-                break;
-            }
-            if p.kind().ends_with("comment") && marks.iter().any(|m| t.starts_with(m)) {
-                parts.push(t);
-            } else if p.kind() != "attribute_item" {
-                break;
-            }
-            n = p;
-        }
-        parts.reverse();
-        let b = n.start_byte();
-        (if lead(b).trim().is_empty() { b - lead(b).len() } else { b }, line(n), clean(&parts.join("\n")))
-    }
-
-    /// Index of the object named `name`, adding an "impl" object when the type is declared elsewhere.
-    fn obj(&mut self, name: &str, n: Node) -> usize {
-        if let Some(i) = self.objs.iter().position(|o| o.name == name) {
-            return i;
-        }
-        self.objs.push(Obj { name: name.into(), kind: UnitKind::Impl, line: line(n), ..Default::default() });
-        self.objs.len() - 1
-    }
-
-    /// Handles one top-level item: imports, types, impls and free functions.
-    fn item(&mut self, n: Node) {
-        if let Some(s) = n.child_by_field_name("source") {
-            return self.ts_import(s);
-        }
-        match n.kind() {
-            "export_statement" => n.child_by_field_name("declaration").into_iter().for_each(|d| self.item(d)),
-            "function_item" | "function_declaration" => {
-                n.child_by_field_name("name").into_iter().for_each(|nm| self.add_member(0, MemberKind::Fn, n, self.t(nm), n.child_by_field_name("body")));
-            }
-            "lexical_declaration" => self.const_fns(n),
-            "use_declaration" => self.rust_use(n),
-            "impl_item" => self.rust_impl(n),
-            k => type_kind(k).into_iter().for_each(|kind| self.type_item(n, kind)),
-        }
-    }
-
-    /// Records a TS import or re-export from relative module `s`, as candidate files.
-    fn ts_import(&mut self, s: Node) {
-        let spec = self.t(s).trim_matches(['\'', '"']);
-        if spec.starts_with('.') {
-            let p = join(dir(self.path), spec);
-            self.objs[0].uses.push(["", ".ts", ".tsx", "/index.ts", "/index.tsx"].map(|e| format!("{p}{e}")).into());
-        }
-    }
-
-    /// Adds `const f = () => ...` and `const f = function ...` declarations as free fns.
-    fn const_fns(&mut self, n: Node) {
-        for d in n.named_children(&mut n.walk()) {
-            let (Some(nm), Some(v)) = (d.child_by_field_name("name"), d.child_by_field_name("value")) else { continue };
-            if matches!(v.kind(), "arrow_function" | "function_expression" | "function") {
-                self.add_member(0, MemberKind::Fn, n, self.t(nm), v.child_by_field_name("body"));
-            }
-        }
-    }
-
-    /// Records the files of the crate modules a Rust `use crate::...` names.
-    fn rust_use(&mut self, n: Node) {
-        let Some(a) = n.child_by_field_name("argument") else { return };
-        let krate = &self.path[..self.path.rfind("src/").map_or(dir(self.path).len(), |i| i + 3)];
-        let list = a.child_by_field_name("list").filter(|_| a.child_by_field_name("path").is_some_and(|p| self.t(p) == "crate"));
-        let items: Vec<&str> = match list {
-            Some(l) => l.named_children(&mut l.walk()).map(|c| self.t(c)).collect(),
-            None => self.t(a).strip_prefix("crate::").into_iter().collect(),
-        };
-        for m in items {
-            let p = join(krate, m.split([':', ' ']).next().unwrap());
-            self.objs[0].uses.push(vec![format!("{p}.rs"), format!("{p}/mod.rs")]);
-        }
-    }
-
-    /// Adds a Rust impl block's methods, and its trait, to the object for its type.
-    fn rust_impl(&mut self, n: Node) {
-        let Some(ty) = n.child_by_field_name("type") else { return };
-        let oi = self.obj(&base(self.t(ty)), n);
-        if let Some(tr) = n.child_by_field_name("trait") {
-            let tr = base(self.t(tr));
-            self.objs[oi].impls.insert(tr);
-        }
-        self.members(oi, n, n.child_by_field_name("body"));
-    }
-
-    /// Adds a struct, enum, trait, type alias, class or interface with its text, doc, heritage, type refs and members.
-    fn type_item(&mut self, n: Node, kind: UnitKind) {
-        let Some(name) = n.child_by_field_name("name") else { return };
-        let oi = self.obj(self.t(name), n);
-        let (start, line, doc) = self.head(n);
-        let o = &mut self.objs[oi];
-        (o.kind, o.line, o.text, o.doc) = (kind, line, self.src[start..n.end_byte()].into(), doc);
-        self.heritage(oi, n);
-        let body = n.child_by_field_name("body").or_else(|| n.child_by_field_name("value").filter(|v| v.kind() == "object_type"));
-        let whole = if kind == UnitKind::TypeAlias { Some(n) } else { body.filter(|b| b.kind() == "ordered_field_declaration_list") };
-        if let Some(w) = whole {
-            let names = self.type_names(w);
-            self.objs[oi].refs.extend(names);
-        }
-        self.members(oi, n, body);
-        if whole.is_some() {
-            // A type alias's members are inside its whole text, whose names the alias already has.
-            self.objs[oi].members.iter_mut().for_each(|m| m.types.clear());
-        }
-    }
-
-    /// Records the base classes and interfaces a TS class or interface extends or implements.
-    fn heritage(&mut self, oi: usize, n: Node) {
-        for c in n.named_children(&mut n.walk()) {
-            match c.kind() {
-                "class_heritage" => self.heritage(oi, c),
-                "extends_clause" | "implements_clause" | "extends_type_clause" => {
-                    for t in c.named_children(&mut c.walk()).filter(|t| t.kind() != "type_arguments") {
-                        let t = base(self.t(t));
-                        self.objs[oi].impls.insert(t);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    /// Adds the members in `body`; generic parameters of `owner` are not type references.
-    fn members(&mut self, oi: usize, owner: Node, body: Option<Node>) {
-        if let Some(b) = body {
-            for c in b.named_children(&mut b.walk()) {
-                let kind = match c.kind() {
-                    "field_declaration" | "public_field_definition" | "property_signature" | "const_item" | "type_item"
-                    | "associated_type" => MemberKind::Field,
-                    "enum_variant" | "enum_assignment" | "property_identifier" => MemberKind::Variant,
-                    "function_item" | "function_signature_item" | "method_definition" | "method_signature"
-                    | "abstract_method_signature" => MemberKind::Method,
-                    _ => continue,
-                };
-                let name = self.t(c.child_by_field_name("name").unwrap_or(c));
-                if kind == MemberKind::Method {
-                    self.add_member(oi, kind, c, name, c.child_by_field_name("body"));
-                } else {
-                    self.add_member(oi, kind, c, name, None);
-                }
-            }
-        }
-        if let Some(tp) = owner.child_by_field_name("type_parameters") {
-            for nm in tp.named_children(&mut tp.walk()).filter_map(|p| p.child_by_field_name("name")) {
-                let t = self.t(nm);
-                let o = &mut self.objs[oi];
-                o.refs.remove(t);
-                o.members.iter_mut().for_each(|m| { m.types.remove(t); });
-            }
-        }
-    }
-
-    /// The type names used under `n`, for "has" arrows.
-    fn type_names(&self, n: Node) -> BTreeSet<String> {
-        let (mut stack, mut names) = (vec![n], BTreeSet::new());
-        while let Some(n) = stack.pop() {
-            if n.kind() == "type_identifier" {
-                names.insert(self.t(n).into());
-            }
-            stack.extend(n.children(&mut n.walk()));
-        }
-        names
-    }
-
-    /// Adds a member; the signature is the text up to `body`, on one line.
-    fn add_member(&mut self, oi: usize, kind: MemberKind, n: Node, name: &str, body: Option<Node>) {
-        let end = body.map_or(n.end_byte(), |b| b.start_byte());
-        let sig = self.src[n.start_byte()..end].split_whitespace().collect::<Vec<_>>().join(" ");
-        // A struct-like enum variant's signature stops at its name, e.g. "Threads", not its whole field list; More shows the fields.
-        let sig = if kind == MemberKind::Variant { sig.split(" {").next().unwrap_or(&sig).to_string() } else { sig };
-        let sig = sig.trim_end_matches([',', ';']).trim_end().into();
-        let ((start, line, doc), mut calls) = (self.head(n), vec![]);
-        let complexity = 1 + body.map_or(0, |b| self.calls(oi, b, &mut calls));
-        let text = self.src[start..n.end_byte()].into();
-        let types = if matches!(kind, MemberKind::Fn | MemberKind::Method) { self.unpacked(n).into_iter().chain(body.map(|b| self.uses(b)).unwrap_or_default()).collect() } else { self.type_names(n) };
-        self.objs[oi].members.push(Mem { name: name.into(), kind, sig, text, doc, line, calls, complexity, types });
-    }
-
-    /// The types a function body really uses: values it reads, like `ChangeStatus::Removed` in Rust or
-    /// `Kind.Foo` in TS, and type arguments it passes, like `get::<View>()` or `useState<Review>()`.
-    /// Its signature doesn't count, and calls and constructions are "calls" and "creates" arrows instead.
-    fn uses(&self, body: Node) -> BTreeSet<String> {
-        let (mut stack, mut names) = (vec![body], BTreeSet::new());
-        let called = |n: Node| n.parent().is_some_and(|p| p.kind() == "call_expression" && p.child_by_field_name("function") == Some(n));
-        while let Some(n) = stack.pop() {
-            let owner = match n.kind() {
-                "scoped_identifier" if !called(n) => n.child_by_field_name("path"),
-                "member_expression" if !called(n) => n.child_by_field_name("object").filter(|o| o.kind() == "identifier"),
-                _ => None,
-            };
-            if let Some(t) = owner.map(|o| base(self.t(o))).filter(|t| t.starts_with(char::is_uppercase) && t != "Self") {
-                names.insert(t);
-            }
-            if n.kind() == "type_arguments" && n.parent().is_some_and(|p| matches!(p.kind(), "generic_function" | "call_expression" | "new_expression")) {
-                names.extend(self.type_names(n));
-            }
-            stack.extend(n.children(&mut n.walk()));
-        }
-        names
-    }
-
-    /// The types inside parameters a Rust function unpacks, like `View` in `Json(v): Json<View>`: the caller
-    /// (often a framework) builds them for it, e.g. by decoding JSON, so the function really uses them.
-    fn unpacked(&self, f: Node) -> BTreeSet<String> {
-        let Some(ps) = f.child_by_field_name("parameters") else { return BTreeSet::new() };
-        ps.named_children(&mut ps.walk())
-            .filter(|p| p.child_by_field_name("pattern").is_some_and(|pat| pat.kind() == "tuple_struct_pattern"))
-            .filter_map(|p| p.child_by_field_name("type")?.child_by_field_name("type_arguments"))
-            .flat_map(|args| self.type_names(args))
-            .collect()
-    }
-
-    /// Calls and JSX components inside `n` as (qualifier, name). The qualifier is "" for a free fn,
-    /// else an object or module name (`self`/`Self`/`this` → enclosing object); calls on other values are skipped.
-    /// A Rust struct literal or TS `new` gives ("new", type name). Returns the decision points inside `n`,
-    /// nested closures and fns included.
-    fn calls(&self, oi: usize, n: Node, out: &mut Vec<(String, String)>) -> u32 {
-        let (mut stack, mut decisions) = (vec![n], 0);
-        while let Some(n) = stack.pop() {
-            decisions += u32::from(decision(n));
-            let made = match n.kind() {
-                "struct_expression" => n.child_by_field_name("name"),
-                "new_expression" => n.child_by_field_name("constructor"),
-                _ => None,
-            };
-            if let Some(t) = made.map(|t| base(self.t(t))) {
-                out.push(("new".into(), if t == "Self" { self.objs[oi].name.clone() } else { t }));
-            }
-            let f = match n.kind() {
-                "call_expression" => n.child_by_field_name("function"),
-                "jsx_opening_element" | "jsx_self_closing_element" => n.child_by_field_name("name").filter(|f| !self.t(*f).starts_with(char::is_lowercase)),
-                _ => None,
-            };
-            if let Some(t) = f.map(|f| self.t(f)) {
-                let i = t.rfind(['.', ':']);
-                let (q, name) = i.map_or(("", t), |i| (t[..i].trim_end_matches(':'), &t[i + 1..]));
-                let q = match q {
-                    "self" | "Self" | "this" => Some(self.objs[oi].name.clone()),
-                    _ if i.is_some_and(|i| t[i..].starts_with('.')) => None,
-                    q => Some(base(q)),
-                };
-                out.extend(q.map(|q| (q, name.into())));
-            }
-            stack.extend(n.children(&mut n.walk()));
-        }
-        decisions
-    }
 }
 
 #[cfg(test)]

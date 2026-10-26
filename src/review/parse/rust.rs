@@ -1,0 +1,33 @@
+//! What only Rust has: `use crate::...` imports and `impl` blocks.
+use super::names::base;
+use super::walk::Ex;
+use super::{dir, join};
+use tree_sitter::Node;
+
+impl Ex<'_> {
+    /// Records the files of the crate modules a Rust `use crate::...` names.
+    pub(super) fn rust_use(&mut self, n: Node) {
+        let Some(a) = n.child_by_field_name("argument") else { return };
+        let krate = &self.path[..self.path.rfind("src/").map_or(dir(self.path).len(), |i| i + 3)];
+        let list = a.child_by_field_name("list").filter(|_| a.child_by_field_name("path").is_some_and(|p| self.t(p) == "crate"));
+        let items: Vec<&str> = match list {
+            Some(l) => l.named_children(&mut l.walk()).map(|c| self.t(c)).collect(),
+            None => self.t(a).strip_prefix("crate::").into_iter().collect(),
+        };
+        for m in items {
+            let p = join(krate, m.split([':', ' ']).next().unwrap());
+            self.objs[0].uses.push(vec![format!("{p}.rs"), format!("{p}/mod.rs")]);
+        }
+    }
+
+    /// Adds a Rust impl block's methods, and its trait, to the object for its type.
+    pub(super) fn rust_impl(&mut self, n: Node) {
+        let Some(ty) = n.child_by_field_name("type") else { return };
+        let oi = self.obj(&base(self.t(ty)), n);
+        if let Some(tr) = n.child_by_field_name("trait") {
+            let tr = base(self.t(tr));
+            self.objs[oi].impls.insert(tr);
+        }
+        self.members(oi, n, n.child_by_field_name("body"));
+    }
+}
