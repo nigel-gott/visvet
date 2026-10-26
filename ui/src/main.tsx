@@ -181,10 +181,6 @@ function useTypeToComment(sel: string | null, setDraft: Ctx['setDraft']) {
   }, [sel])
 }
 
-/** How long a move between far-apart tour steps rests on the view holding both, in ms: the camera's glide (GLIDE in
- * Graph.tsx, 900ms) and a moment to look. */
-const TRAVEL_PAUSE = 1500
-
 /** The box to zoom into to show `it`: itself when it holds boxes, else the box it sits in. */
 const zoomFor = (it: Item) => (it.kids.length ? it : it.parent)?.id ?? null
 
@@ -238,8 +234,8 @@ function App() {
   const [inbox, setInbox] = useState(false)
   const [full, setFull] = useState<string | null>(null)
   const [tour, setTour] = useState<TourPlace | null>(null)
-  /** The pending second half of a move between tour steps far apart, so a quick Next cancels it. */
-  const travel = useRef<number | undefined>(undefined)
+  /** Which move between tour steps is the latest, so a quick Next stops an older one between zoom levels. */
+  const journey = useRef(0)
   useTypeToComment(sel, setDraft)
   useShow(show, ix, nav.show)
   const focus = useFocus(ix, select)
@@ -248,36 +244,51 @@ function App() {
    * Shows box `id` as a tour step chooses: in `context`, zoomed into the box around it with every box there open;
    * `zoomed`, zoomed into the box itself with its code open. Either way it is outlined.
    */
+  /** The boxes a step opens: in context, the step's box and every box beside it; zoomed, just the step's box. */
+  const openFor = (id: string, view: StepView) =>
+    new Set(view === 'zoomed' ? [id] : [id, ...(ix.items.get(id)?.parent?.kids ?? []).map(kid => kid.id)])
+  /** Shows box `id` as a tour step chooses (see `zoomedFor`, `openFor`), outlined and centred, in the current view. */
   const showBox = (id: string, view: StepView) => {
-    const around = ix.items.get(id)?.parent
     const to = zoomedFor(id, view)
-    const open = view === 'zoomed' ? [id] : [id, ...(around?.kids ?? []).map(kid => kid.id)]
     nav.show(id, to, [id])
     // Opened in the view being opened, since a new view starts with nothing open.
-    setWide({ view: to ?? WHOLE_MAP, ids: new Set(open) })
+    setWide({ view: to ?? WHOLE_MAP, ids: openFor(id, view) })
   }
   /** The box a step's view zooms into: the step's box itself when zoomed, else the box around it (null: the whole map). */
   const zoomedFor = (id: string, view: StepView) => (view === 'zoomed' ? id : ix.items.get(id)?.parent?.id ?? null)
-  /** The innermost box holding both boxes `a` and `b`, or null for the whole map. */
-  const holdingBoth = (a: string | null, b: string | null) => {
-    const outwards = (id: string | null) => { const ids = []; for (let it = id ? ix.items.get(id) : undefined; it; it = it.parent) ids.push(it.id); return ids }
-    const aroundA = new Set(outwards(a))
-    return outwards(b).find(id => aroundA.has(id)) ?? null
+  /**
+   * The views a move from zoomed box `from` to zoomed box `to` passes through, one zoom level at a time, as Up and
+   * double clicks would: out to the box holding both (null: the whole map), then in, ending with `to`.
+   */
+  const hopsBetween = (from: string | null, to: string | null): (string | null)[] => {
+    const outwards = (id: string | null) => { const ids: string[] = []; for (let it = id ? ix.items.get(id) : undefined; it; it = it.parent) ids.push(it.id); return ids }
+    const fromChain = outwards(from), toChain = outwards(to)
+    const holdingBoth = toChain.find(id => fromChain.includes(id)) ?? null
+    const out: (string | null)[] = holdingBoth === null ? [...fromChain.slice(1), ...(from === null ? [] : [null])] : fromChain.slice(1, fromChain.indexOf(holdingBoth) + 1)
+    const into = (holdingBoth === null ? toChain : toChain.slice(0, toChain.indexOf(holdingBoth))).reverse()
+    return [...out, ...into]
   }
-  const showStep = (place: TourPlace | null) => {
+  /**
+   * Moves to a tour step one zoom level at a time, each a continuous zoom (see nestedZoom.tsx); the last view opens
+   * with the step's boxes already open, so nothing jumps on arrival. Then the camera glides to the step's box.
+   */
+  const showStep = async (place: TourPlace | null) => {
     setTour(place)
-    clearTimeout(travel.current)
+    const trip = ++journey.current
     const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
     if (!step) return
-    const to = zoomedFor(step.target, step.view), between = holdingBoth(scope, to)
-    const elsewhere = between !== scope && between !== to
-    if (!elsewhere) return showBox(step.target, step.view)
-    // To another part of the map: zoom out to where both places show, pause, then zoom into the step, so the move is seen.
-    go({ scope: between, map })
-    travel.current = setTimeout(() => showBox(step.target, step.view), TRAVEL_PAUSE)
+    const to = zoomedFor(step.target, step.view)
+    for (const hop of hopsBetween(scope, to)) {
+      const opened = hop === to ? openFor(step.target, step.view) : new Set<string>()
+      const enter = () => { go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: opened }) }
+      await (zoomer.run ? zoomer.run(hop, enter, opened) : enter())
+      // A newer step (a quick Next) takes over the journey.
+      if (journey.current !== trip) return
+    }
+    showBox(step.target, step.view)
   }
   const x: Ctx = {
-    model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
+    model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     tour, showStep, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),

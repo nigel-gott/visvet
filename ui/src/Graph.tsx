@@ -277,7 +277,8 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const top = x.scope ? x.ix.items.get(x.scope) : undefined
   const shows = showsIn(kinds, top)
   const view = top ? top.id : WHOLE_MAP
-  const v = mapView(x.ix, x.model.dependencies, top, shows, x.expanded, x.sel)
+  // A tour step's box (highlighted) doesn't bring in its peers: only the user's own selection does.
+  const v = mapView(x.ix, x.model.dependencies, top, shows, x.expanded, x.sel && !x.hl.has(x.sel) ? x.sel : null)
   // A box showing its code doesn't also list what's inside it as rows.
   const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
   const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x))

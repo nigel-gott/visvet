@@ -34,16 +34,22 @@ export type ZoomPreview = {
   landed?: boolean
 }
 
-/** Lays out the view zoomed into `top` (the whole map when none), as the map would show it with nothing opened. */
-function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>) {
-  const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: new Set() }
+/** Lays out the view zoomed into `top` (the whole map when none), as the map will show it with the boxes `opened` open. */
+function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>, opened: Set<string>) {
+  const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened }
   const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null)
   const rowsOf = (it: Item) => (showsCode(it, scoped) ? [] : v.rowsOf(it))
   return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped))
 }
 
-/** What the map asks of a zoom: starts it, given the box to zoom into (or out to) and how to switch to that view at the end. */
-export const zoomer: { run: ((to: string | null, switchView: () => void) => void) | null } = { run: null }
+/**
+ * What the map asks of a zoom: runs it, given the box to zoom into (or out to), how to switch to that view at the right
+ * moment, and which boxes that view opens with; done once the new view has fully taken over.
+ */
+export const zoomer: { run: ((to: string | null, switchView: () => void, opened?: Set<string>) => Promise<void>) | null } = { run: null }
+
+/** Waits `ms` milliseconds. */
+const pause = (ms: number) => new Promise(done => setTimeout(done, ms))
 
 /**
  * Runs the map's zooms between views (see the top of this file), and gives the box currently drawing a view inside
@@ -57,9 +63,9 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
   latest.current = { x, graph, kinds }
 
   /** Zooming into box `to`, drawn in this view: glide in while its view fades in inside it, then switch to that view. */
-  const zoomIn = async (to: string, switchView: () => void) => {
+  const zoomIn = async (to: string, switchView: () => void, opened: Set<string>) => {
     const { x, kinds } = latest.current, node = getInternalNode(to), rect = map.current?.getBoundingClientRect()
-    const inner = await layOutView(x, x.ix.items.get(to), kinds)
+    const inner = await layOutView(x, x.ix.items.get(to), kinds, opened)
     const box = absolute(inner.laid, to)
     if (!node || !rect || !box) return switchView()
     // Where the inner view will put the box once it takes over: its fit (see `useFit`).
@@ -69,33 +75,38 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     setPreview({ box: to, inner, scale: nodeWidth / box.width, inward: true })
     // Glide until the box sits exactly where the inner view will draw it; then switching views changes nothing on screen.
     const zoom = screen.w / nodeWidth, at = node.internals.positionAbsolute
-    await setViewport({ x: screen.x - at.x * zoom, y: screen.y - at.y * zoom, zoom }, ZOOM_GLIDE)
+    // Waits the glide's time rather than for the glide: an interrupted glide never says it has ended.
+    void setViewport({ x: screen.x - at.x * zoom, y: screen.y - at.y * zoom, zoom }, ZOOM_GLIDE)
+    await pause(ZOOM_TIME)
     anchor.box = { id: to, x: screen.x, y: screen.y, w: screen.w }
     switchView()
+    await pause(LANDING_TIME)
   }
 
   /** Zooming out of the current box to `to`: switch to the outer view with the current one drawn inside its box, fading. */
-  const zoomOut = async (to: string | null, switchView: () => void) => {
+  const zoomOut = async (to: string | null, switchView: () => void, opened: Set<string>) => {
     const { x, graph, kinds } = latest.current, from = x.scope
-    const outer = await layOutView(x, to ? x.ix.items.get(to) : undefined, kinds)
+    const outer = await layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, opened)
     const inOuter = from && outer.laid.find(n => n.id === from), box = from && absolute(graph.laid, from)
     if (!inOuter || !box) return switchView()
     const preview = { box: from, inner: graph, scale: inOuter.width! / box.width, inward: false }
+    const settling = { ...preview, settling: true }
     setPreview(preview)
     switchView()
-    setTimeout(() => setPreview({ ...preview, settling: true }), ZOOM_TIME / 3)
-    setTimeout(() => setPreview(null), ZOOM_TIME)
+    setTimeout(() => setPreview(current => (current === preview ? settling : current)), ZOOM_TIME / 3)
+    await pause(ZOOM_TIME)
+    setPreview(current => (current === settling || current === preview ? null : current))
   }
 
   useEffect(() => {
-    zoomer.run = (to, switchView) => {
+    zoomer.run = async (to, switchView, opened = new Set()) => {
       const { x } = latest.current
       const around: string[] = []
       for (let it = x.scope ? x.ix.items.get(x.scope)?.parent : undefined; it; it = it.parent) around.push(it.id)
       const inward = to !== null && to !== x.scope && getInternalNode(to)
       const outward = to === null ? x.scope !== null : around.includes(to)
-      if (inward) void zoomIn(to, switchView)
-      else if (outward) void zoomOut(to, switchView)
+      if (inward) await zoomIn(to, switchView, opened)
+      else if (outward) await zoomOut(to, switchView, opened)
       else switchView()
     }
     return () => { zoomer.run = null }
@@ -103,8 +114,10 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
   // Zoomed in: once the inner view is laid out and on screen, its real boxes fade in over the drawing, which then goes.
   useEffect(() => {
     if (!preview?.inward || graph.view !== preview.box) return
-    setPreview({ ...preview, scale: 1, landed: true })
-    const gone = setTimeout(() => setPreview(null), LANDING_TIME)
+    const landed = { ...preview, scale: 1, landed: true }
+    setPreview(landed)
+    // Only this drawing goes: by then the next zoom (a tour's next level) may have put up its own.
+    const gone = setTimeout(() => setPreview(current => (current === landed ? null : current)), LANDING_TIME)
     return () => clearTimeout(gone)
   }, [graph.view])
   return preview
