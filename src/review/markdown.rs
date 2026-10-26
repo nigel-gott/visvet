@@ -9,8 +9,21 @@ pub fn labels(src: &str) -> DocLabels {
     let Some((head, _)) = src.strip_prefix("---\n").and_then(|s| s.split_once("\n---")) else { return DocLabels::default() };
     let field = |key: &str| head.lines().find_map(|l| Some(l.strip_prefix(key)?.strip_prefix(':')?.trim().trim_matches(['"', '\''])));
     DocLabels {
-        kind: match field("kind") { Some("issue") => Some(DocKind::Issue), Some("milestone") => Some(DocKind::Milestone), _ => None },
-        status: match field("status") { Some("open") => Some(WorkStatus::Open), Some("done" | "closed") => Some(WorkStatus::Done), _ => None },
+        kind: match field("kind") {
+            Some("issue") => Some(DocKind::Issue),
+            Some("milestone") => Some(DocKind::Milestone),
+            Some("idea") => Some(DocKind::Idea),
+            Some("hub") => Some(DocKind::Hub),
+            _ => None,
+        },
+        status: match field("status") {
+            Some("open") => Some(WorkStatus::Open),
+            Some("done" | "closed") => Some(WorkStatus::Done),
+            Some("exploring") => Some(WorkStatus::Exploring),
+            Some("parked") => Some(WorkStatus::Parked),
+            Some("dropped") => Some(WorkStatus::Dropped),
+            _ => None,
+        },
     }
 }
 
@@ -35,5 +48,6 @@ mod tests {
         assert_eq!(labels(md), DocLabels { kind: Some(DocKind::Issue), status: Some(WorkStatus::Open) });
         assert_eq!(links("issues/a.md", md), ["ui/src/Graph.tsx::mapView", "src/model.rs"]);
         assert_eq!(labels("# No header"), DocLabels::default());
+        assert_eq!(labels("---\nkind: idea\nstatus: parked\n---\n"), DocLabels { kind: Some(DocKind::Idea), status: Some(WorkStatus::Parked) });
     }
 }

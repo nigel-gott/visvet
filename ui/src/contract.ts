@@ -52,7 +52,7 @@ export type DiffLineKind = "ctx" | "add" | "del";
 /**
  * What a Markdown file is, from `kind:` in its front matter.
  */
-export type DocKind = "issue" | "milestone";
+export type DocKind = "issue" | "milestone" | "idea" | "hub";
 
 /**
  * What a Markdown file's front matter says about it, e.g. `kind: issue` and `status: open`. Other keys are ignored.
@@ -233,6 +233,6 @@ highlight: Array<MapId>,
 visible: Array<MapId>, };
 
 /**
- * Where an issue or milestone stands, from `status:` in its front matter.
+ * Where an issue, milestone or idea stands, from `status:` in its front matter.
  */
-export type WorkStatus = "open" | "done";
+export type WorkStatus = "open" | "done" | "exploring" | "parked" | "dropped";

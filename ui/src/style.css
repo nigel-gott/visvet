@@ -102,9 +102,13 @@ main { grid-area: 2 / 1; min-height: 0 }
 .k-variant { --k: var(--k-enum) } .k-variant::before { content: '▹' }
 .k-issue { --k: var(--chg) } .k-issue::before { content: '◉' }
 .k-milestone { --k: var(--add) } .k-milestone::before { content: '⚑' }
+.k-idea { --k: var(--ai) } .k-idea::before { content: '✦' }
+.k-hub { --k: var(--add) } .k-hub::before { content: '❖' }
 /* A Markdown file's front matter values, e.g. "open" for `status: open`. */
 .tag { flex: none; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 10px; line-height: 15px }
 .tag.done, .tag.closed { color: var(--add); border-color: var(--add) }
+.tag.exploring { color: var(--chg); border-color: var(--chg) }
+.tag.dropped { text-decoration: line-through }
 .ok { color: var(--add) }
 .legend { margin: 0 0 8px; color: var(--muted); font-size: 11px }
 .doc, .ai { flex-basis: 100%; padding: 0 8px; font-size: 12px; line-height: 16px; overflow-wrap: anywhere }

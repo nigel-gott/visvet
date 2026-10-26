@@ -9,7 +9,7 @@ const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: 
 
 /**
  * An item's status mark, kind badge (a coloured symbol, plus the kind's name for anything but a member), name, and
- * for an issue or milestone, its status. A Markdown file's labelled kind, issue or milestone, replaces "file".
+ * for a labelled Markdown file, its status. A Markdown file's labelled kind (issue, milestone, idea or hub) replaces "file".
  */
 export function Head({ it }: { it: Item }) {
   const x = useContext(X)
