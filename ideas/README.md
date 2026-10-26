@@ -10,8 +10,9 @@ Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 - [Live components](live-components.md): seeing, and one day playing with, UI components on their boxes.
 - [Dimensions](dimensions.md): other ways to look at the same project, e.g. its data instead of its code.
 - [Data dimension](data-dimension.md): databases, schemas and the data models inside the code.
-- [State machines](state-machines.md): a kind of picture that fits inside any dimension.
+- [State machines](state-machines.md): a kind of picture that fits inside any dimension; spread over the code, so a candidate for annotations.
 - [Methodology](methodology.md): visvet as a way to build projects, with a recommended stack, not only a review tool.
 - [Tests](tests.md): black-box, behaviour-style tests, and what they should show on the map.
 - [Behaviour dimension](behaviour-dimension.md): the system as black boxes and what they do, taken from the tests.
 - [Fog of war](fog-of-war.md): the map shows where you haven't looked or understood, without a checklist.
+- [Node signals](node-signals.md): churn, hotspots, dead code, and which visual channel shows what.
