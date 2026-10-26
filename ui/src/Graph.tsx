@@ -358,7 +358,8 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
       it, rows, ext: v.ext.has(n.id),
       expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere, zoomPreview: drawsInside,
     }
-    const extent = n.parentId ? 'parent' as const : undefined
+    // Kept inside its parent box, except while a zoom grows it to draw the view inside it: React Flow would push it up.
+    const extent = n.parentId && !drawsInside ? 'parent' as const : undefined
     // Where arrows attach (mid left in, mid right out), given up front so a box being dragged keeps its arrows.
     const handles = [{ type: 'target' as const, position: Position.Left, x: 0, y: n.height! / 2, width: 1, height: 1 },
       { type: 'source' as const, position: Position.Right, x: n.width!, y: n.height! / 2, width: 1, height: 1 }]
