@@ -5,7 +5,7 @@ import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, us
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
 import { reportView, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
-import { STEP_BUBBLE_ROOM, useTourStep } from './Tours'
+import { STEP_BUBBLE, StepBubble, stepBubbleBox, useTourStep, type StepBubbleBox } from './Tours'
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
 import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
@@ -35,7 +35,7 @@ const save = (view: string, sig: string, pos: Record<string, XYPosition>) => {
 }
 /** Camera moves for zooming into a box: a straight path (not d3's zoom-out-then-in arc), eased in and out. */
 const GLIDE = { duration: 900, interpolate: 'linear' as const, ease: (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2) }
-const nodeTypes = { card: Card }
+const nodeTypes = { card: Card, stepBubble: () => <StepBubble /> }
 
 /** Follows ELK's route, which bends around boxes, while both ends are where ELK put them; a curve once one was dragged. */
 function Routed({ id, data, label, markerEnd, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<Edge<{ points?: XYPosition[] }>>) {
@@ -60,8 +60,11 @@ export type Laid = Pick<Node, 'id' | 'parentId' | 'position' | 'width' | 'height
  */
 const flipped = (v: View) => new Set([...v.edges, ...v.detail].filter(([, d]) => v.ext.has(('es' in d ? d.es[0] : d[0]).a)).map(([id]) => id))
 
-/** ELK's input: a node per box, nested in its parent's node, and an edge per lifted link. */
-function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number): ElkNode {
+/**
+ * ELK's input: a node per box, nested in its parent's node, and an edge per lifted link; while a tour step shows a box
+ * in this view, its bubble too, as a node beside that box (an edge to the box puts it just left of it).
+ */
+function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): ElkNode {
   // Each box starts at its place in source order, far enough apart that box heights can't change it; the interactive
   // crossing step keeps that order down each column.
   const nodes = new Map(v.boxes.map((it, i) => [it.id, {
@@ -82,6 +85,11 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
     layoutOptions: { ...LAYOUT, 'elk.direction': 'RIGHT' },
   }
   for (const it of v.boxes) (nodes.get(v.up(it)?.id ?? '') || root).children!.push(nodes.get(it.id)!)
+  const target = bubble && v.boxes.find(it => it.id === bubble.target)
+  if (bubble && target) {
+    (nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height })
+    root.edges!.push({ id: `${STEP_BUBBLE} -> ${target.id}`, sources: [STEP_BUBBLE], targets: [target.id] })
+  }
   return root
 }
 
@@ -95,9 +103,9 @@ const flat = (n: ElkNode, parentId?: string): Laid[] => (n.children ?? []).flatM
 export type Layout = { view: string; width: number; height: number; laid: Laid[]; routes: Record<string, XYPosition[]> }
 
 /** Lays view `view` (its boxes and arrows, `v`) out with ELK, with each box's height and width. */
-export async function layOut(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number): Promise<Layout> {
+export async function layOut(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): Promise<Layout> {
   const turned = flipped(v)
-  const g = await elk.layout(elkGraph(v, size, wide))
+  const g = await elk.layout(elkGraph(v, size, wide, bubble))
   const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
     const s = e.sections?.[0], pts = s ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint] : []
     return s ? [[e.id, turned.has(e.id) ? pts.reverse() : pts]] : []
@@ -105,13 +113,13 @@ export async function layOut(view: string, v: View, size: (it: Item) => number, 
   return { view, width: g.width!, height: g.height!, laid: flat(g), routes }
 }
 
-/** Lays a view out with ELK again whenever its boxes, their sizes or its edges change. */
-function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number) {
+/** Lays a view out with ELK again whenever its boxes, their sizes, its edges or the tour step's bubble change. */
+function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox) {
   const [graph, setGraph] = useState<Layout>({ view: '', width: 0, height: 0, laid: [], routes: {} })
-  const key = [...v.boxes.map(it => `${it.id} ${size(it)}x${wide(it)}`), ...v.edges.keys(), ...v.detail.keys()].join('|')
+  const key = [...v.boxes.map(it => `${it.id} ${size(it)}x${wide(it)}`), ...v.edges.keys(), ...v.detail.keys(), bubble && `${bubble.target} ${bubble.height}`].join('|')
   useEffect(() => {
     let live = true
-    layOut(view, v, size, wide).then(laid => live && setGraph(laid))
+    layOut(view, v, size, wide, bubble).then(laid => live && setGraph(laid))
     return () => { live = false }
   }, [key])
   return graph
@@ -126,15 +134,23 @@ export function absolute(laid: Laid[], id: string) {
   return at.width ? at : undefined
 }
 
+/** A box's place grown to take in the tour step's bubble beside it, when the layout has one. */
+function withBubble(laid: Laid[], place: ReturnType<typeof absolute>) {
+  const bubble = absolute(laid, STEP_BUBBLE)
+  if (!place || !bubble) return place
+  const x = Math.min(place.x, bubble.x), y = Math.min(place.y, bubble.y)
+  return { x, y, width: Math.max(place.x + place.width, bubble.x + bubble.width) - x, height: Math.max(place.y + place.height, bubble.y + bubble.height) - y }
+}
+
 /**
  * For each new view, each Back or Forward (`pop`) and whenever the map becomes visible, restores the history entry's
- * viewport, or centres the highlighted box `centre` (below its tour step's bubble, with `bubbleAbove`), or fits the whole
+ * viewport, or centres the highlighted box `centre` (with its tour step's bubble beside it, if laid out), or fits the whole
  * layout; 48px clears the panel. Fitting never zooms out past half size,
  * where text is still readable: a bigger layout starts at its top left instead. When the view changes, the new one
  * opens with the box it zooms into (or out of) exactly where that box was on screen, then glides to the fit or the
  * restored viewport, so zooming in, Up, Back and Forward are each one continuous move.
  */
-function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, view: string, visible: boolean, pop: number, centre?: string, bubbleAbove = false) {
+function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, view: string, visible: boolean, pop: number, centre?: string) {
   const { setViewport, getViewport, getInternalNode } = useReactFlow()
   const fitted = useRef(''), centred = useRef('')
   // While the old view is still on screen, note where the box being zoomed into (or out of) is.
@@ -165,10 +181,9 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const vp = history.state?.vp
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
     // A highlighted box (from `visvet show` or a change step) is centred at full size, its top in view.
-    const hit = c ? absolute(graph.laid, c) : undefined
-    // Centred, a box too wide for the map starting at its left; room is kept above it for a tour step's bubble.
-    const top = 48 + (bubbleAbove ? STEP_BUBBLE_ROOM : 0)
-    const middle = hit && { x: Math.max((r.width - hit.width) / 2, 16) - hit.x, y: top + Math.max((r.height - top - hit.height) / 2, 0) - hit.y, zoom: 1 }
+    const hit = c ? withBubble(graph.laid, absolute(graph.laid, c)) : undefined
+    // Centred, a box too wide for the map starting at its left.
+    const middle = hit && { x: Math.max((r.width - hit.width) / 2, 16) - hit.x, y: 48 + Math.max((r.height - 48 - hit.height) / 2, 0) - hit.y, zoom: 1 }
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
@@ -176,7 +191,7 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     if (!from || !at) return void setViewport(target, same ? GLIDE : undefined)
     const zoom0 = from.w / at.width
     setViewport({ x: from.x - at.x * zoom0, y: from.y - at.y * zoom0, zoom: zoom0 }).then(() => setViewport(target, GLIDE))
-  }, [graph, view, visible, pop])
+  }, [graph, view, visible, pop, centre])
 }
 
 /**
@@ -281,13 +296,12 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const v = mapView(x.ix, x.model.dependencies, top, shows, x.expanded, x.sel && !x.hl.has(x.sel) ? x.sel : null)
   // A box showing its code doesn't also list what's inside it as rows.
   const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
-  const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x))
+  const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x), stepBubbleBox(x))
   const preview = useNestedZoom(box, graph, kinds)
   useCentreSelection(box, x.ix, graph, view, x.sel, x.scope, x.hl)
   const centre = [...x.hl][0]
   const playing = useTourStep()
-  const stepTarget = playing?.step.target
-  useFit(box, x.ix, graph, view, visible, pop, centre, centre !== undefined && centre === stepTarget)
+  useFit(box, x.ix, graph, view, visible, pop, centre)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
@@ -328,6 +342,9 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     made.current.boxes.set(n.id, { key, node })
     return node
   })
+  // The tour step's bubble, where the layout put it beside the step's box.
+  const bubbleLaid = graph.laid.find(n => n.id === STEP_BUBBLE)
+  if (bubbleLaid) nodes.push({ ...bubbleLaid, type: 'stepBubble', draggable: false, data: {} as CardData })
   // Until a new view is laid out, the last frame of the old one stays up, so the map never blanks or flashes.
   const frame = useRef({ nodes, edges: [] as Edge[] })
   if (ready) frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel) }

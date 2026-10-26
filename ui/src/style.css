@@ -274,10 +274,14 @@ main { grid-area: 2 / 1; min-height: 0 }
 .bubble::after { content: ''; position: absolute; left: 28px; bottom: -8px; width: 14px; height: 14px; background: var(--bg);
   border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg) }
 .bubble p { margin: 0 0 8px }
-/* At most 316px tall, so the map can keep a fixed room above the box (STEP_BUBBLE_ROOM in Tours.tsx); longer text scrolls. */
-.step-bubble { display: flex; flex-direction: column; width: 560px; max-height: 316px; border-top: 3px solid var(--ai) }
+/* The step bubble is a box of its own in the layout, left of the step's box, pointing right at it; its text scrolls
+   when the layout's room for it (worked out in Tours.tsx) is too small. */
+.step-bubble { display: flex; flex-direction: column; border-top: 3px solid var(--ai) }
+.step-bubble.in-layout { position: relative; bottom: auto; left: auto; width: 100%; height: 100% }
+.step-bubble.in-layout::after { left: auto; right: -8px; bottom: auto; top: 28px; border: 0; border-top: 1px solid var(--line); border-right: 1px solid var(--line) }
+.preview-bubble { position: absolute; width: auto; padding: 0 }
 .step-bubble .step-text { flex: 1; min-height: 0; overflow: auto }
-.step-bubble.floating { position: relative; bottom: auto; grid-area: 2 / 1; align-self: start; justify-self: center; margin-top: 24px; z-index: 6 }
+.step-bubble.floating { width: 560px; position: relative; bottom: auto; grid-area: 2 / 1; align-self: start; justify-self: center; margin-top: 24px; z-index: 6 }
 .step-bubble.floating::after { display: none }
 .bubble-kicker { color: var(--ai); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em }
 .bubble h3 { margin: 2px 0 8px; font-size: 17px }

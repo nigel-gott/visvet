@@ -8,7 +8,7 @@ import { X } from './context'
 import { DiffView, Head, Notes } from './Views'
 import { languageOf } from './highlight'
 import { ThreadChip } from './Threads'
-import { BoxBubble, StepBubble, useTourStep } from './Tours'
+import { BoxBubble, useTourStep } from './Tours'
 import { InnerPreview, type ZoomPreview } from './nestedZoom'
 import { allLines, codeHeight, fieldTable, pills, showsCode } from './size'
 
@@ -127,13 +127,12 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   const implemented = codeOf(it.o)?.implements ?? []
   // Made once per box, so its syntax colours are worked out once, not on every render.
   const code = useMemo(() => allLines(it), [it])
-  // While a tour plays: its step's bubble on the step's box, with its notes on code.
+  // While a tour plays: the step's notes on code, on the step's box.
   const playing = useTourStep()
   const stepHere = playing?.step.target === it.id
   const codeNotes = stepHere ? playing!.step.code_notes.filter(note => note.span) : []
   return (
     <>
-      {stepHere && <StepBubble />}
       {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
       <Handle type="target" position={Position.Left} />
       <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}

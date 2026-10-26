@@ -1,13 +1,33 @@
-// The tour player, drawn on the map itself: each step's text in a bubble on its box, notes on code under the noted
-// lines, and notes on other boxes in bubbles beside them. Back and Next (or the arrow keys) step through it.
+// The tour player, drawn on the map itself: each step's text in a bubble laid out beside its box, notes on code under
+// the noted lines, and notes on other boxes in bubbles above them. Back and Next (or the arrow keys) step through it.
 
 import { useContext, useEffect } from 'react'
-import { X } from './context'
+import { X, type Ctx } from './context'
 import { Rich } from './Rich'
-import type { CodeNote, Tour } from './contract'
+import type { CodeNote, Tour, TourStep } from './contract'
 
-/** Room kept above a step's box for its bubble, in pixels: the bubble's most height (CSS `.step-bubble`) and its pointer. */
-export const STEP_BUBBLE_ROOM = 340
+/** The step bubble's id in the map's layout, where it is a box of its own beside the step's box. */
+export const STEP_BUBBLE = 'tour-step-bubble'
+/** The step bubble's width, and its most height (CSS `.step-bubble.in-layout`); longer text scrolls inside it. */
+const BUBBLE_WIDTH = 440, BUBBLE_MOST_HEIGHT = 380
+
+/** The step bubble as a box for the layout: the box it sits beside, and its size. */
+export type StepBubbleBox = { target: string; width: number; height: number }
+
+/**
+ * How tall a step's bubble will be, worked out before it is drawn so the layout can make room for it: its step
+ * number, title, Back and Next (180px with padding), and its text at about 46 characters a 22px line.
+ */
+const bubbleHeight = (step: TourStep) => {
+  const lines = step.text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 46)), 0)
+  return Math.min(BUBBLE_MOST_HEIGHT, 180 + lines * 22)
+}
+
+/** The playing tour's step bubble, as a box for the layout, if a step is showing a box that still exists. */
+export function stepBubbleBox(x: Ctx): StepBubbleBox | undefined {
+  const step = x.tour && x.model.tours.find(t => t.file === x.tour!.file)?.steps[x.tour.step]
+  return step?.target_found ? { target: step.target, width: BUBBLE_WIDTH, height: bubbleHeight(step) } : undefined
+}
 
 /** Which tour is playing and which of its steps (from 0) is showing. */
 export type TourPlace = { file: string; step: number }
@@ -65,8 +85,9 @@ export function TourBar() {
 }
 
 /**
- * The current step, in a bubble above its box: the step's title and text, notes whose code can't be found any more,
- * and Back and Next with a dot per step. With `floating`, for a step whose box is gone, it floats over the map instead.
+ * The current step, in a bubble laid out beside its box, pointing at it: the step's title and text, notes whose code
+ * can't be found any more, and Back and Next with a dot per step. With `floating`, for a step whose box is gone, it
+ * floats over the map instead.
  */
 export function StepBubble({ floating = false }: { floating?: boolean }) {
   const x = useContext(X)
@@ -77,7 +98,7 @@ export function StepBubble({ floating = false }: { floating?: boolean }) {
   const lost = step.code_notes.filter(note => !note.span && !note.on_box)
   const last = number === tour.steps.length - 1
   return (
-    <div className={`bubble step-bubble nodrag nopan nowheel ${floating ? 'floating' : ''}`} onClick={e => e.stopPropagation()}>
+    <div className={`bubble step-bubble nodrag nopan nowheel ${floating ? 'floating' : 'in-layout'}`} onClick={e => e.stopPropagation()}>
       <p className="bubble-kicker">Step {number + 1} of {tour.steps.length}</p>
       <h3>{step.title}</h3>
       <div className="step-text">

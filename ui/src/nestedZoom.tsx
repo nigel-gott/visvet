@@ -10,6 +10,7 @@ import { anchor } from './Card'
 import { Head, Notes } from './Views'
 import { height, showsCode, width } from './size'
 import { mapView } from './view'
+import { STEP_BUBBLE, stepBubbleBox } from './Tours'
 import type { Item } from './model'
 
 /** How long a zoom from one view into another takes, in ms: slow enough to see where you go. */
@@ -39,7 +40,7 @@ function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean
   const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened }
   const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null)
   const rowsOf = (it: Item) => (showsCode(it, scoped) ? [] : v.rowsOf(it))
-  return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped))
+  return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped), stepBubbleBox(x))
 }
 
 /**
@@ -153,6 +154,7 @@ export function InnerPreview({ preview }: { preview: ZoomPreview }) {
       <svg className="preview-arrows" width={container.width} height={container.height}>
         {routes.map((points, index) => <polyline key={index} points={points.map(p => `${p.x - container.x},${p.y - container.y}`).join(' ')} />)}
       </svg>
+      {byId.has(STEP_BUBBLE) && isInside(byId, STEP_BUBBLE, box) && <div className="bubble step-bubble preview-bubble" style={placeIn(inner.laid, STEP_BUBBLE, container)} />}
       {boxes.map(n => {
         const kid = x.ix.items.get(n.id)
         return kid && (

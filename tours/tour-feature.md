@@ -134,12 +134,15 @@ A template string builds the class list, like Vue's `:class` with an object.
 ### `{l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map((note, index) => <CodeBubble key={index} note={note} />)}`
 After each line, the notes whose code ends on it. `!` tells TypeScript "this can't be missing here": only notes with a place in the code reach `DiffView`.
 
-## Room for the bubble
-`ui/src/Graph.tsx::useFit` moves the camera to each step's box, keeping a fixed room above it for the bubble.
+## The bubble is a box of its own
+`ui/src/Graph.tsx::elkGraph` builds what ELK lays out. While a tour step shows a box, its bubble is one more node, in the same parent box, so the layout makes room for it and it never covers anything.
 view: zoomed
 
-### `const top = 48 + (bubbleAbove ? STEP_BUBBLE_ROOM : 0)`
-The bubble isn't drawn yet when the camera moves, so its height can't be measured. Instead it has a fixed most height (longer text scrolls inside it), and the camera always leaves that much room.
+### `(nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height })`
+The bubble goes in beside the step's box. Its height is worked out from its text before it is drawn (`stepBubbleBox`), since the layout needs every size up front.
+
+### `sources: [STEP_BUBBLE], targets: [target.id]`
+An edge from the bubble to its box, which ELK puts left to right: so the bubble always lands just left of the box, pointing at it.
 
 ## Where the tour's state lives
 `ui/src/main.tsx::App` holds which tour plays and its step, and passes them down in the context `x`, React's `provide`/`inject`.
@@ -148,8 +151,11 @@ view: zoomed
 ### `const [tour, setTour] = useState<TourPlace | null>(null)`
 `useState` returns the value and a function to change it; calling `setTour` re-renders. `<TourPlace | null>` is TypeScript: it holds a place in a tour, or nothing.
 
-### `if (!elsewhere) return showBox(step.target, step.view)`
-Each step shows its box the way the step chose: among its neighbours, or zoomed in. When the next step is in another part of the map, the camera first zooms out to the box holding both places, rests there for a moment, then zooms into the new step, so you see where it is compared to the last one.
+### `for (const hop of hopsBetween(scope, to)) {`
+Moving to the next step goes one zoom level at a time, out to the box holding both places, then in: each level is one continuous zoom, the same as double-clicking or pressing Up.
 
-### `travel.current = setTimeout(() => showBox(step.target, step.view), TRAVEL_PAUSE)`
-`useRef` keeps a value between renders without re-rendering, like a plain variable in Vue's `setup()`. It holds the pending second half of the move, so pressing Next again quickly cancels it.
+### `await (zoomer.run ? zoomer.run(hop, enter, opened) : enter())`
+`await` waits for each zoom to finish before the next starts. `async`/`await` work the same in TypeScript as in JavaScript.
+
+### `const journey = useRef(0)`
+`useRef` keeps a value between renders without re-rendering, like a plain variable in Vue's `setup()`. Each move gets a number; pressing Next again starts a newer one, and the older move stops at its next level.
