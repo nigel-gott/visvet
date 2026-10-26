@@ -8,6 +8,16 @@ Who is working on what, as small avatars on the boxes (profile pictures, or init
 - **Open pull requests:** from GitHub, mapped to the boxes their diffs touch. "Six PRs are changing this box" warns of conflicts before they happen.
 - **Ownership:** from the git log.
 
+## Pull requests
+
+A PR is just another comparison: visvet already compares the working tree with a base, so a PR is its base compared with its head.
+
+- **Every PR at once:** each open PR gets a colour. A box touched by a PR gets a stripe of that colour on its edge. Six PRs, six stripes: busy on purpose, because a box with that much going on deserves to stand out.
+- **Rolled up:** a closed folder shows the stripes of everything inside it, so hot areas show from the top.
+- **Real clashes:** when two PRs change the same member, not just the same box, a stronger mark. `git merge-tree` can even test-merge them and say whether they really conflict.
+- **One PR:** pick it from a list in the top bar (like the inbox). The map then highlights what that PR changes, exactly as it highlights uncommitted edits today, with its review threads from GitHub.
+- PRs with no activity for a while fade.
+
 ## Ownership
 
 Not "who created it". A score per person per box:

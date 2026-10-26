@@ -13,6 +13,6 @@ A [tour](tours.md) can stop and need something from you:
 - **A choice:** pick from options, and the tour branches. "I built it like this; want the why, or the alternative I rejected?"
 - **A check:** "what does this return?", answered in a mini thread embedded in the tour step. Resolve it, then the tour continues.
 
-## Kept private
+## Committed or private
 
-Tour conversations and quiz answers aren't committed: they're about you, not the code. They live in `.visvet/` outside git, like [fog of war](fog-of-war.md), and can feed it: a question answered well raises familiarity.
+The AI decides per thread. A thread that settles a design choice is committed, like any thread. A learning one (a quiz, a tour check) is about you, not the code, so it stays in `.visvet/` outside git, like [fog of war](fog-of-war.md), and can feed it: a question answered well raises familiarity.
