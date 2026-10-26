@@ -1,5 +1,5 @@
 //! Comment threads for the AI: listing what waits for it, the stop hook that keeps it working, and waiting while idle.
-use super::{store, visvet_dir};
+use crate::state::{store, visvet_dir};
 use crate::types::{Author, Thread, ThreadState};
 use std::path::Path;
 use std::time::Duration;
