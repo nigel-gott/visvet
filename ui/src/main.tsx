@@ -332,7 +332,8 @@ function App() {
   const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
-    tour, showStep, route, guide, stepBox: playingStep?.target, stepNotes: playingStep?.code_notes ?? [],
+    // While the user drives to the next step, the step they left hides its bubble and notes.
+    tour, showStep, route, guide, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,

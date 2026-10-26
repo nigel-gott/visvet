@@ -142,8 +142,8 @@ The note comes from a `route:` line in the tour file, like the one in this step.
 `ui/src/Card.tsx::Card` draws every box. While a tour plays, the step's box gets the step bubble and its notes on code, and a box a note names gets that note in a bubble of its own.
 route: To Card.tsx: how bubbles and notes get onto boxes.
 
-### `const stepHere = playing?.step.target === it.id`
-`?.` stops at a missing value instead of throwing: with no tour playing, `stepHere` is simply false.
+### `const stepHere = x.stepBox === it.id`
+Whether this box is the one the tour's step shows. `stepBox` is empty with no tour playing, and while you drive to the next step, so the step you left hides its notes.
 
 ### `ui/src/Tours.tsx::BoxBubble`
 This bubble is itself a note on a whole box: its `###` heading in the tour file names a box instead of code, so the server sets `on_box`, and `BoxBubble` draws the note above that box.

@@ -331,15 +331,13 @@ main { grid-area: 2 / 1; min-height: 0 }
   border: 1px solid var(--line); border-radius: 20px; background: var(--bg); box-shadow: 0 6px 20px rgb(0 0 0 / .15); pointer-events: none }
 .route ol { display: flex; gap: 0; margin: 0; padding: 0; list-style: none }
 .route-note { max-width: 560px; margin: 8px auto 0; color: var(--ai); font-size: 13px; text-align: center }
-/* "You drive": the move to make next pulses, the ↑ button or the box to double-click, and the guide says what to do. */
+/* "You drive": the move to make next pulses, the ↑ button or the box to click or double-click, with a label saying which. */
 @keyframes cue-pulse { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--ai) 40%, transparent) } }
 .react-flow__node .card.tour-cue { outline: 3px solid var(--ai); outline-offset: 3px; animation: cue-pulse 1.4s ease-in-out infinite }
 .cue-label { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 10; padding: 4px 10px; border-radius: 8px; background: var(--ai); color: #fff;
   font-size: 13px; font-weight: 600; white-space: nowrap; pointer-events: none }
 .steps button.cue { border: 2px solid var(--ai); color: var(--ai); animation: cue-pulse 1.4s ease-in-out infinite }
 .guide-next { margin: 8px 0 0; text-align: center; font-size: 14px }
-.guide-do { margin: 8px 0 0; text-align: center; font-size: 15px; font-weight: 600 }
-.guide kbd { padding: 1px 6px; border: 1px solid var(--ai); border-radius: 4px; color: var(--ai); font: inherit }
 .speed-pick { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap }
 .speed-pick select { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 12px }
 .route li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 76px; color: var(--muted); font-size: 12px; white-space: nowrap }

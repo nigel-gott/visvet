@@ -30,7 +30,7 @@ export const bubbleBoxOf = (step: TourStep | undefined): StepBubbleBox | undefin
   step?.target_found ? { target: step.target, width: BUBBLE_WIDTH, height: bubbleHeight(step) } : undefined
 
 /** The playing tour's step bubble, as a box for the layout, if a step is showing a box that still exists. */
-export const stepBubbleBox = (x: Ctx) => bubbleBoxOf(x.tour ? x.model.tours.find(t => t.file === x.tour!.file)?.steps[x.tour.step] : undefined)
+export const stepBubbleBox = (x: Ctx) => bubbleBoxOf(x.tour && !x.guide ? x.model.tours.find(t => t.file === x.tour!.file)?.steps[x.tour.step] : undefined)
 
 /**
  * The route of a move between tour steps: the zoomed box at each zoom level it passes through, from where it started
@@ -46,7 +46,7 @@ export type Route = { stops: (string | null)[]; at: number; note: string }
  */
 export type Guide = { stops: (string | null)[]; next: string | null; move: 'up' | 'into' | 'view'; title: string; note: string }
 
-/** Over the map while the user drives to a tour step: the way there, from where they are, the step's note, and what to do next. */
+/** Over the map while the user drives to a tour step: the way there, from where they are, and the step's title and note; the move to make pulses on the map. */
 function GuideOverlay({ guide, name }: { guide: Guide; name: (stop: string | null) => string }) {
   return (
     <div className="route guide">
@@ -55,11 +55,6 @@ function GuideOverlay({ guide, name }: { guide: Guide; name: (stop: string | nul
       </ol>}
       <p className="guide-next">Next: <b>{guide.title}</b></p>
       {guide.note && <p className="route-note">{guide.note}</p>}
-      <p className="guide-do">{{
-        up: <>Press <kbd>↑</kbd> at the top left to go up to <b>{name(guide.next)}</b></>,
-        into: <>Double-click <b>{name(guide.next)}</b> to go into it</>,
-        view: <>Click <b>{name(guide.next)}</b> to view it</>,
-      }[guide.move]}</p>
     </div>
   )
 }
@@ -145,7 +140,7 @@ export function TourBar() {
 export function StepBubble({ floating = false }: { floating?: boolean }) {
   const x = useContext(X)
   const playing = useTourStep()
-  if (!playing) return null
+  if (!playing || x.guide) return null
   const { tour, step, number } = playing
   const go = (to: number) => x.showStep(to < tour.steps.length ? { file: tour.file, step: to } : null)
   const lost = step.code_notes.filter(note => !note.span && !note.on_box)

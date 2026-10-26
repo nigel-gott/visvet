@@ -8,7 +8,7 @@ import { X } from './context'
 import { DiffView, Head, Notes } from './Views'
 import { languageOf } from './highlight'
 import { ThreadChip } from './Threads'
-import { BoxBubble, useTourStep } from './Tours'
+import { BoxBubble } from './Tours'
 import { InnerPreview, type ZoomPreview } from './nestedZoom'
 import { allLines, codeHeight, fieldTable, pills, showsCode } from './size'
 
@@ -128,9 +128,8 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   // Made once per box, so its syntax colours are worked out once, not on every render.
   const code = useMemo(() => allLines(it), [it])
   // While a tour plays: the step's notes on code, on the step's box.
-  const playing = useTourStep()
-  const stepHere = playing?.step.target === it.id
-  const codeNotes = stepHere ? playing!.step.code_notes.filter(note => note.span) : []
+  const stepHere = x.stepBox === it.id
+  const codeNotes = stepHere ? x.stepNotes.filter(note => note.span) : []
   // With "you drive" chosen: the box to double-click (or, in the step's view, click) next on the way to the tour's next step.
   const cue = x.guide && x.guide.move !== 'up' && x.guide.next === it.id && !ext ? x.guide.move : undefined
   return (

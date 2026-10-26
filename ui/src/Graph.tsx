@@ -5,7 +5,7 @@ import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, us
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
 import { reportView, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
-import { STEP_BUBBLE, StepBubble, stepBubbleBox, useTourStep, type StepBubbleBox } from './Tours'
+import { STEP_BUBBLE, StepBubble, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
 import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
@@ -420,7 +420,6 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const preview = useNestedZoom(box, graph, kinds)
   useCentreSelection(box, x.ix, graph, view, x.sel, x.scope, x.hl)
   const centre = [...x.hl][0]
-  const playing = useTourStep()
   useFit(box, x.ix, graph, current, view, visible, pop, centre)
   useShowCue(box, graph, view, x.guide && x.guide.move !== 'up' ? x.guide.next ?? undefined : undefined)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
@@ -439,7 +438,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   if (made.current.graph !== graph) made.current = { graph, boxes: new Map() }
   // A tour note on a box goes on that box, or on the nearest box around it that this view draws.
   const drawnBoxOf = (id: string) => { let it = x.ix.items.get(id); while (it && !byId.has(it.id)) it = it.parent; return it?.id }
-  const boxNotes = (playing?.step.code_notes ?? []).filter(note => note.on_box && note.on_box !== playing!.step.target)
+  const boxNotes = x.stepNotes.filter(note => note.on_box && note.on_box !== x.stepBox)
   const nodes = graph.laid.filter(n => byId.has(n.id)).map(laid => {
     let n = laid
     const it = byId.get(n.id)!
