@@ -220,23 +220,26 @@ export function fitOf(rect: { width: number; height: number }, graph: { width: n
 }
 
 /** A box's place grown to take in the tour step's bubble beside it, when the layout has one. */
-function withBubble(laid: Laid[], place: ReturnType<typeof absolute>) {
-  const bubble = absolute(laid, STEP_BUBBLE)
-  if (!place || !bubble) return place
-  const x = Math.min(place.x, bubble.x), y = Math.min(place.y, bubble.y)
-  return { x, y, width: Math.max(place.x + place.width, bubble.x + bubble.width) - x, height: Math.max(place.y + place.height, bubble.y + bubble.height) - y }
+const withBubble = (laid: Laid[], place: ReturnType<typeof absolute>) => around(place, absolute(laid, STEP_BUBBLE))
+
+/** The smallest place holding both `a` and `b`, either of which may be missing. */
+function around(a: ReturnType<typeof absolute>, b: ReturnType<typeof absolute>) {
+  if (!a || !b) return a ?? b
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
+  return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y }
 }
 
 /**
  * For each new view, each Back or Forward (`pop`) and whenever the map becomes visible, restores the history entry's
- * viewport, or centres the highlighted box `centre` (with its tour step's bubble beside it, if laid out), or fits the whole
+ * viewport, or centres the highlighted box `centre` (with its tour step's bubble beside it, if laid out, and box
+ * `alsoShow`, if given), or fits the whole
  * layout; 48px clears the panel. Fitting never zooms out past half size,
  * where text is still readable: a bigger layout starts at its top left instead. When the view changes, the new one
  * opens with the box it zooms into (or out of) exactly where that box was on screen, then glides to the fit or the
  * restored viewport, so zooming in, Up, Back and Forward are each one continuous move. It waits for the layout to be
  * `current`: the last one may have the tour step's bubble beside another box.
  */
-function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, current: boolean, view: string, visible: boolean, pop: number, centre?: string) {
+function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, current: boolean, view: string, visible: boolean, pop: number, centre?: string, alsoShow?: string) {
   const { setViewport, getViewport, getInternalNode } = useReactFlow()
   const fitted = useRef(''), centred = useRef('')
   // While the old view is still on screen, note where the box being zoomed into (or out of) is.
@@ -259,9 +262,10 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const k = `${graph.view} ${visible} ${pop}`
     const same = fitted.current === k, c = centre ?? ''
     // A highlighted box (from `visvet show` or a tour step), with its step bubble if it has one.
-    const hit = c && graph.view === view ? withBubble(graph.laid, absolute(graph.laid, c)) : undefined
+    // With "you drive", after Next: also the box to click next, so the box left and the way on are both in view.
+    const hit = c && graph.view === view ? around(withBubble(graph.laid, absolute(graph.laid, c)), alsoShow ? absolute(graph.laid, alsoShow) : undefined) : undefined
     // The box and its size: when it opens or closes (a tour step arriving or left), the camera frames it again.
-    const aim = hit ? `${c} ${Math.round(hit.width)}x${Math.round(hit.height)}` : c
+    const aim = hit ? `${c} ${alsoShow ?? ''} ${Math.round(hit.width)}x${Math.round(hit.height)}` : c
     if (!r?.width || !visible || !current || graph.view !== view || (same && centred.current === aim)) return
     centred.current = aim
     // A click clears the highlight; the map stays where it is.
@@ -299,7 +303,7 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const start = { x: from.x - at.x * zoom0, y: from.y - at.y * zoom0, zoom: zoom0 }
     setViewport(start)
     void glideCamera(setViewport, start, target, outward ?? GLIDE)
-  }, [graph, current, view, visible, pop, centre])
+  }, [graph, current, view, visible, pop, centre, alsoShow])
 }
 
 /**
@@ -433,7 +437,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const preview = useNestedZoom(box, graph, kinds)
   useCentreSelection(box, x.ix, graph, view, x.sel, x.scope, x.hl)
   const centre = [...x.hl][0]
-  useFit(box, x.ix, graph, current, view, visible, pop, centre)
+  useFit(box, x.ix, graph, current, view, visible, pop, centre, x.guide && x.guide.move !== 'up' ? x.guide.next ?? undefined : undefined)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
