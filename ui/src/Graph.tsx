@@ -278,7 +278,7 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, CLOSEST_FRAMING), fit.zoom)
     // Opening a view on a box centres it at full size. Within the view (a tour step's journey has just landed on its
     // fit), the camera closes in on the box and its bubble, as near as shows them whole.
-    const middle = hit && !moves.byHand && (same ? centredAt(framing!) : centredAt(1))
+    const middle = hit && !moves.byHand ? (same ? centredAt(framing!) : centredAt(1)) : undefined
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
