@@ -2,7 +2,7 @@
 
 import { Fragment, useContext, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { post, type Item, type Thread, type ThreadMessage, type ThreadState } from './model'
+import { post, type Index, type Item, type Thread, type ThreadMessage, type ThreadState } from './model'
 import { DebuffDetail } from './Debuffs'
 import { X, type Ctx } from './context'
 
@@ -187,13 +187,25 @@ export function ThreadCounts() {
 }
 
 /**
+ * The nearest box around `id` that still exists: its type, then its file, then its folders. For a thread whose box was
+ * renamed or removed, that's where the box was.
+ */
+function nearest(ix: Index, id: string) {
+  let at = id
+  while (at && !ix.items.has(at)) at = at.includes('::') ? at.slice(0, at.lastIndexOf('::')) : at.slice(0, at.lastIndexOf('/', at.length - 2) + 1)
+  return at || null
+}
+
+/**
  * Every thread: open ones first, then resolved ones, each with its box, state and last message, most recently active
- * first. Clicking one shows its box among its siblings, with the whole thread open in the drawer.
+ * first. Clicking one shows its box among its siblings, with the whole thread open in the drawer. If its box is gone
+ * (renamed or removed), it zooms into where the box was instead.
  */
 export function Inbox() {
   const x = useContext(X)
   const go = (t: Thread) => {
-    const up = x.ix.items.get(t.target)?.parent?.id ?? null
+    const it = x.ix.items.get(t.target)
+    const up = it ? it.parent?.id ?? null : nearest(x.ix, t.target)
     if (up !== x.scope) x.zoom(up)
     x.select(t.target, true)
     x.setFull(t.target)
