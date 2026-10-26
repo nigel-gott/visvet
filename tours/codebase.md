@@ -59,6 +59,8 @@ route: Over to src/cli.rs: what the program reads first is its command line.
 ### `#[derive(Parser)]`
 A derive macro. At compile time, clap's `Parser` macro is handed the tokens of this struct: its name, each field, its type, and every attribute and doc comment on it. It writes a new block, `impl Parser for Cli { ... }`, with the code that reads the arguments into a `Cli`, and turns the `///` doc comments into the `--help` text. Unlike an attribute macro, a derive can only add code: the struct itself stays as written. The type is the schema: no separate description of the arguments.
 
+Who provides what: `#[derive(...)]` itself is built into Rust: it means "run these derive macros on this type". `Parser` is the macro, and it comes from clap: the `derive` feature switched on in `Cargo.toml` adds it, and `use clap::{Args, Parser, Subcommand}` at the top of this file brings it into scope. `#[arg]` and `#[command]` below also come from clap, and `subcommand` and `flatten` are just words inside them.
+
 ### `#[arg(long, global = true, default_value = ".")]`
 Not a macro: a "helper attribute". An attribute is always `#[name]` or `#[name(...)]`, and what goes in the brackets is free-form tokens, which only whoever reads the attribute gives meaning to. Here that is the `Parser` derive: as it walks each field, it reads that field's `#[arg]` and `#[command]` attributes as settings. Nothing else does, and without the derive the compiler would reject them.
 
