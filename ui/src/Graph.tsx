@@ -329,7 +329,7 @@ function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, gr
 }
 
 /**
- * With "you drive" chosen, keeps the box the guide says to double-click next in view: if it isn't wholly on screen
+ * With "you drive" chosen, keeps the box the guide says to click or double-click next in view: if it isn't wholly on screen
  * once the view is laid out, the camera glides to centre it, at the zoom it is at.
  */
 function useShowCue(map: RefObject<HTMLDivElement | null>, graph: Layout, view: string, cue: string | undefined) {
@@ -422,7 +422,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const centre = [...x.hl][0]
   const playing = useTourStep()
   useFit(box, x.ix, graph, current, view, visible, pop, centre)
-  useShowCue(box, graph, view, x.guide && !x.guide.up ? x.guide.next ?? undefined : undefined)
+  useShowCue(box, graph, view, x.guide && x.guide.move !== 'up' ? x.guide.next ?? undefined : undefined)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
