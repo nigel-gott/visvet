@@ -46,25 +46,12 @@ export type Route = { stops: (string | null)[]; at: number; note: string }
  */
 export type Guide = { stops: (string | null)[]; next: string | null; move: 'up' | 'into' | 'view'; title: string; note: string }
 
-/** Over the map while the user drives to a tour step: the way there, from where they are, and the step's title and note; the move to make pulses on the map. */
-function GuideOverlay({ guide, name }: { guide: Guide; name: (stop: string | null) => string }) {
-  return (
-    <div className="route guide">
-      {guide.stops.length > 1 && <ol>
-        {guide.stops.map((stop, index) => <li key={index} className={index === 0 ? 'passed' : index === 1 ? 'heading' : ''}>{name(stop)}</li>)}
-      </ol>}
-      <p className="guide-next">Next: <b>{guide.title}</b></p>
-      {guide.note && <p className="route-note">{guide.note}</p>}
-    </div>
-  )
-}
-
 /** Over the map during a move between tour steps: its route as a line of stops filled in up to where the camera is, and the step's note on why. */
 export function RouteOverlay() {
   const x = useContext(X)
   const name = (stop: string | null) => (stop ? x.ix.items.get(stop)?.name ?? stop : 'Map')
-  if (x.guide) return <GuideOverlay guide={x.guide} name={name} />
-  if (!x.route) return null
+  // With "you drive", the way on is part of the breadcrumbs (see `WayAhead` in main.tsx).
+  if (!x.route || x.guide) return null
   return (
     <div className="route">
       <ol>

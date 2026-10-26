@@ -141,22 +141,51 @@ function Header({ error }: { error?: string }) {
   const to = (id: string | null) => id !== x.scope && x.zoom(id)
   return (
     <header>
-      <nav className="steps">
-        <button title="Back" onClick={() => history.back()}>←</button>
-        <button title="Forward" onClick={() => history.forward()}>→</button>
-        <button title="Up to the box this one is in" className={x.guide?.move === 'up' ? 'cue' : ''} disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>
-      </nav>
-      <nav className="path">
-        <a className={x.scope ? '' : 'here'} onClick={() => to(null)}>Map</a>
-        {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
-      </nav>
-      <TourBar />
-      <SpeedPicker />
-      <ChangeTotals />
-      <ThreadCounts />
-      <span className="vs">vs <code>{x.model.compared_against}</code></span>
-      {error && <span className="err">Refresh failed: {error}</span>}
+      <div className="header-top">
+        <TourBar />
+        <SpeedPicker />
+        <ChangeTotals />
+        <ThreadCounts />
+        <span className="vs">vs <code>{x.model.compared_against}</code></span>
+        {error && <span className="err">Refresh failed: {error}</span>}
+      </div>
+      <div className="header-path">
+        <nav className="steps">
+          <button title="Back" onClick={() => history.back()}>←</button>
+          <button title="Forward" onClick={() => history.forward()}>→</button>
+          <button title="Up to the box this one is in" className={x.guide?.move === 'up' ? 'cue' : ''} disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>
+        </nav>
+        <nav className="path">
+          <a className={`${x.scope ? '' : 'here'} ${upCue(x, null) ? 'cue' : ''}`} onClick={() => to(null)}>Map</a>
+          {path.map(it => <Fragment key={it.id}><span>›</span><a className={`${it.id === x.scope ? 'here' : ''} ${upCue(x, it.id) ? 'cue' : ''}`} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
+          <WayAhead path={path} />
+        </nav>
+      </div>
     </header>
+  )
+}
+
+/** With "you drive", whether the next move is up to box `id` (null: the whole map), so its breadcrumb pulses. */
+const upCue = (x: Ctx, id: string | null) => x.guide?.move === 'up' && x.guide.next === id
+
+/**
+ * With "you drive", the rest of the breadcrumbs: the way on from where the user is to the next tour step, in purple,
+ * the next move pulsing (each stop goes there when clicked), then the step's title and its note on where and why.
+ */
+function WayAhead({ path }: { path: Item[] }) {
+  const x = useContext(X)
+  if (!x.guide) return null
+  const { guide } = x
+  const here = new Set(path.map(it => it.id))
+  const ahead = guide.stops.slice(1).filter((stop): stop is string => stop !== null && !here.has(stop))
+  const name = (id: string) => x.ix.items.get(id)?.name ?? id
+  return (
+    <>
+      <span className="way">➜</span>
+      {ahead.map(stop => <a key={stop} className={`ahead ${guide.move === 'into' && guide.next === stop ? 'cue' : ''}`} onClick={() => x.zoom(stop)}>{name(stop)}</a>)}
+      {guide.move === 'view' && <a className="ahead cue" onClick={() => x.select(guide.next!)}>{name(guide.next!)}</a>}
+      <span className="path-next">Next: <b>{guide.title}</b>{guide.note && <> · {guide.note}</>}</span>
+    </>
   )
 }
 

@@ -598,8 +598,8 @@ route: Same file: the top bar, and how JSX does what Vue templates do.
 ### `const x = useContext(X)`
 Vue's `inject`.
 
-### `{path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}`
-`map` is `v-for`, and `key` is `:key`. `className` is `class`, since `class` is a JavaScript word, and `onClick={...}` is `@click`. `Fragment` groups tags without adding an element, like Vue's `<template>`.
+### `onClick={() => to(it.id)}>{it.name}</a></Fragment>)}`
+The end of a `path.map(it => <Fragment key={it.id}>...)` over the breadcrumbs. `map` is `v-for`, and `key` is `:key`. `className` is `class`, since `class` is a JavaScript word, and `onClick={...}` is `@click`. `Fragment` groups tags without adding an element, like Vue's `<template>`.
 
 ### `{error && <span className="err">Refresh failed: {error}</span>}`
 `&&` is `v-if`: when `error` is empty, nothing is drawn.

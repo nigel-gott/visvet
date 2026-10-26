@@ -25,14 +25,22 @@ input[type=search] { display: block; width: 100%; padding: 6px }
 label { display: inline-flex; align-items: center; gap: 4px }
 
 .app { height: 100vh; height: 100dvh; display: grid; grid-template: auto 1fr / 1fr }
-header { grid-area: 1 / 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel) }
+/* The header: the tour and review controls, then a row of its own for where the map is (the breadcrumbs). */
+header { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel) }
+.header-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px }
+.header-path { display: flex; align-items: center; gap: 10px; min-width: 0 }
 .steps { display: flex; gap: 4px }
 .steps button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 18px; line-height: 1; cursor: pointer }
 .steps button:disabled { opacity: .35; cursor: default }
-.path { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; white-space: nowrap; font-weight: 600 }
-.path a { color: var(--sel); cursor: pointer }
-.path a.here { color: var(--fg); cursor: default }
-.path span { color: var(--muted) }
+.path { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 15px; font-weight: 600 }
+.path a { padding: 4px 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); color: var(--sel); white-space: nowrap; cursor: pointer }
+.path a.here { border-color: var(--fg); color: var(--fg); cursor: default }
+.path > span { color: var(--muted) }
+/* "You drive": the way on to the next tour step continues the breadcrumbs in purple; the next move pulses. */
+.path a.ahead { border-style: dashed; border-color: var(--ai); color: var(--ai) }
+.path a.cue { border: 2px solid var(--ai); color: var(--ai); animation: cue-pulse 1.4s ease-in-out infinite }
+.path .way { color: var(--ai) }
+.path .path-next { color: var(--ai); font-size: 13px; font-weight: 400; white-space: normal }
 .vs { color: var(--muted); font-size: 12px; white-space: nowrap }
 main { grid-area: 2 / 1; min-height: 0 }
 /* The side drawer: the selected box's comment threads and debuff details, over the map's right edge. */
@@ -362,7 +370,6 @@ main { grid-area: 2 / 1; min-height: 0 }
 .cue-label { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 10; padding: 4px 10px; border-radius: 8px; background: var(--ai); color: #fff;
   font-size: 13px; font-weight: 600; white-space: nowrap; pointer-events: none }
 .steps button.cue { border: 2px solid var(--ai); color: var(--ai); animation: cue-pulse 1.4s ease-in-out infinite }
-.guide-next { margin: 8px 0 0; text-align: center; font-size: 14px }
 .speed-pick { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap }
 .speed-pick select { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 12px }
 .route li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 76px; color: var(--muted); font-size: 12px; white-space: nowrap }
