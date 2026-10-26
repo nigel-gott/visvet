@@ -162,7 +162,7 @@ function ChangeSteps() {
   /** Shows the change `by` steps on, wrapping round; from no change, the first or last one. */
   const step = (by: number) => {
     const from = at < 0 ? (by > 0 ? -1 : 0) : at
-    x.showAt(changes[(from + by + changes.length) % changes.length].id)
+    x.zoomTo(changes[(from + by + changes.length) % changes.length].id)
   }
   const total = { added: x.ix.roots.reduce((n, r) => n + r.diffCount.added, 0), removed: x.ix.roots.reduce((n, r) => n + r.diffCount.removed, 0) }
   return (
@@ -245,7 +245,11 @@ function App() {
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
-    showAt: id => nav.show(id, zoomFor(ix.items.get(id)!), [id]),
+    zoomTo: id => {
+      nav.show(id, id, [id])
+      // Opened, so its diff shows; in the view being opened, since a new view starts with nothing open.
+      setWide({ view: id, ids: new Set([id]) })
+    },
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,

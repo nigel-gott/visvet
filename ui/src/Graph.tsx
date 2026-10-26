@@ -111,21 +111,21 @@ type Layout = ReturnType<typeof useLayout>
 function absolute(laid: Laid[], id: string) {
   const byId = new Map(laid.map(n => [n.id, n]))
   let n = byId.get(id)
-  const at = { x: 0, y: 0, width: n?.width ?? 0 }
+  const at = { x: 0, y: 0, width: n?.width ?? 0, height: n?.height ?? 0 }
   for (; n; n = n.parentId ? byId.get(n.parentId) : undefined) { at.x += n.position.x; at.y += n.position.y }
   return at.width ? at : undefined
 }
 
 /**
  * For each new view, each Back or Forward (`pop`) and whenever the map becomes visible, restores the history entry's
- * viewport, or fits the whole layout if it has none; 48px clears the panel. Fitting never zooms out past half size,
+ * viewport, or centres the highlighted box `centre`, or fits the whole layout; 48px clears the panel. Fitting never zooms out past half size,
  * where text is still readable: a bigger layout starts at its top left instead. When the view changes, the new one
  * opens with the box it zooms into (or out of) exactly where that box was on screen, then glides to the fit or the
  * restored viewport, so zooming in, Up, Back and Forward are each one continuous move.
  */
-function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: string, visible: boolean, pop: number) {
+function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: string, visible: boolean, pop: number, centre?: string) {
   const { setViewport, getViewport, getInternalNode } = useReactFlow()
-  const fitted = useRef('')
+  const fitted = useRef(''), centred = useRef('')
   // While the old view is still on screen, note where the box being zoomed into (or out of) is.
   const was = useRef(view)
   useLayoutEffect(() => {
@@ -139,18 +139,25 @@ function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: stri
   useEffect(() => {
     const r = box.current?.getBoundingClientRect()
     const k = `${graph.view} ${visible} ${pop}`
-    if (!r?.width || !visible || graph.view !== view || fitted.current === k) return
+    const same = fitted.current === k, c = centre ?? ''
+    if (!r?.width || !visible || graph.view !== view || (same && centred.current === c)) return
+    centred.current = c
+    // A click clears the highlight; the map stays where it is.
+    if (same && !c) return
     fitted.current = k
     const zoom = Math.max(Math.min(r.width / graph.width, (r.height - 48) / graph.height, 1), 0.5)
     const fit = { x: Math.max((r.width - graph.width * zoom) / 2, 16), y: 48, zoom }
     // A saved viewport from before the layout changed can point at empty space; then fit instead.
     const vp = history.state?.vp
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
-    const target = shows ? vp : fit
+    // A highlighted box (from `visvet show` or a change step) is centred at full size, its top in view.
+    const hit = c ? absolute(graph.laid, c) : undefined
+    const middle = hit && { x: r.width / 2 - hit.x - hit.width / 2, y: 48 + Math.max((r.height - 48 - hit.height) / 2, 0) - hit.y, zoom: 1 }
+    const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
     const at = from && absolute(graph.laid, from.id)
-    if (!from || !at) return void setViewport(target)
+    if (!from || !at) return void setViewport(target, same ? GLIDE : undefined)
     const zoom0 = from.w / at.width
     setViewport({ x: from.x - at.x * zoom0, y: from.y - at.y * zoom0, zoom: zoom0 }).then(() => setViewport(target, GLIDE))
   }, [graph, view, visible, pop])
@@ -227,7 +234,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const view = top ? top.id : String(x.level)
   const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded)
   const graph = useLayout(view, v, it => height(it, x, v.rowsOf(it)), it => width(it, v.rowsOf(it), x))
-  useFit(box, graph, view, visible, pop)
+  useFit(box, graph, view, visible, pop, [...x.hl][0])
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
