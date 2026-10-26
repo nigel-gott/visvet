@@ -6,7 +6,8 @@ Other dimensions show the same project another way, and you switch between them:
 
 - **[Data](data-dimension.md):** schemas, tables and data models, and how they relate.
 - **[Behaviour](behaviour-dimension.md):** what the system does, as black boxes and their behaviours, taken from the tests.
-- More to find, e.g. runtime (processes and services) or the HTTP surface (see `issues/map-views/http-endpoints.md`).
+- **[Architecture](architecture-dimension.md):** services, containers, people and teams (C4 levels 1 and 2).
+- More to find, e.g. the HTTP surface (see `issues/map-views/http-endpoints.md`).
 
 A dimension can be projected into another: in the code dimension, a database shows up as its migration files or ORM classes.
 

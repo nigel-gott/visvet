@@ -14,5 +14,7 @@ Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 - [Methodology](methodology.md): visvet as a way to build projects, with a recommended stack, not only a review tool.
 - [Tests](tests.md): black-box, behaviour-style tests, and what they should show on the map.
 - [Behaviour dimension](behaviour-dimension.md): the system as black boxes and what they do, taken from the tests.
+- [Flows](flows.md): highlighted paths through the code, derived from tests or tracing.
+- [Architecture dimension](architecture-dimension.md): services, containers, people and teams, C4-style.
 - [Fog of war](fog-of-war.md): the map shows where you haven't looked or understood, without a checklist.
 - [Node signals](node-signals.md): churn, hotspots, dead code, and which visual channel shows what.
