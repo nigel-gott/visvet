@@ -60,7 +60,19 @@ route: Over to src/cli.rs: what the program reads first is its command line.
 A derive macro. At compile time, clap's `Parser` macro is handed the tokens of this struct: its name, each field, its type, and every attribute and doc comment on it. It writes a new block, `impl Parser for Cli { ... }`, with the code that reads the arguments into a `Cli`, and turns the `///` doc comments into the `--help` text. Unlike an attribute macro, a derive can only add code: the struct itself stays as written. The type is the schema: no separate description of the arguments.
 
 ### `#[arg(long, global = true, default_value = ".")]`
-Settings for one argument: `--repo`, allowed after any subcommand, `.` when not given. `#[arg]` isn't a macro of its own: it is a "helper attribute" that only the `Parser` derive reads, as it walks the fields. On its own the compiler would reject it.
+Not a macro: a "helper attribute". An attribute is always `#[name]` or `#[name(...)]`, and what goes in the brackets is free-form tokens, which only whoever reads the attribute gives meaning to. Here that is the `Parser` derive: as it walks each field, it reads that field's `#[arg]` and `#[command]` attributes as settings. Nothing else does, and without the derive the compiler would reject them.
+
+`#[arg(...)]` sets up the field as one argument:
+
+- `long`: given as `--repo` (the field's name), not by position.
+- `global = true`: allowed after a subcommand too, e.g. `visvet tours --repo x`.
+- `default_value = "."`: the current folder when not given.
+
+### `#[command(subcommand)]`
+`#[command(...)]` is the derive's other helper. `subcommand` says this field holds the subcommand: the first word, such as `tours` or `reply`, picks a variant of the `Cmd` enum, and the words after it fill that variant's fields. It is an `Option` because no subcommand is allowed: then visvet serves.
+
+### `#[command(flatten)]`
+`flatten` pulls the arguments of `ServeArgs`, a struct of its own, into this command as if written here, so `visvet --port 7880` works with no subcommand. `ServeArgs` has `#[derive(Args)]`: clap's derive for a group of arguments that is part of a command, not a whole command.
 
 ### `cmd: Option<Cmd>,`
 Rust has no `null` or `undefined`. A value that may be missing is an `Option`: `Some(value)` or `None`. The compiler won't let you use it until you have handled `None`.
