@@ -60,7 +60,7 @@ export function glideCamera(setCamera: (camera: Camera) => void, from: Camera, t
     const frame = (now: number) => {
       // A newer glide has taken the camera.
       if (glide !== latestGlide) return done()
-      const t = Math.min(1, (now - start) / motion.duration), k = motion.ease(t)
+      const t = motion.duration > 0 ? Math.min(1, (now - start) / motion.duration) : 1, k = motion.ease(t)
       const zoom = from.zoom * (to.zoom / from.zoom) ** k
       // The point under the screen's top left moves with the zoom, so the offset follows it.
       const along = from.zoom === to.zoom ? k : (zoom - from.zoom) / (to.zoom - from.zoom)

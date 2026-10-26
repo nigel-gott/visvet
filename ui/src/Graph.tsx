@@ -207,7 +207,8 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const from = anchor.box
     anchor.box = null
     const at = from && absolute(graph.laid, from.id)
-    if (!from || !at) return void setViewport(target, same ? GLIDE : undefined)
+    // Through `glideCamera`, so this move takes over from any glide still running (e.g. a zoom's settling glide).
+    if (!from || !at) return void glideCamera(setViewport, getViewport(), target, same ? GLIDE : { duration: 0, ease: t => t })
     const zoom0 = from.w / at.width
     // A zoom out of a tour's journey glides at the journey's pace (see nestedZoom.tsx); anything else, the usual glide.
     const outward = nextOutwardGlide.motion
@@ -242,14 +243,14 @@ function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, gr
     })
     if (before.sel !== sel) {
       last.current.glideStart = Date.now()
-      return void setViewport(centred(vp.zoom), { duration: SELECT_GLIDE_TIME })
+      return void glideCamera(setViewport, vp, centred(vp.zoom), { duration: SELECT_GLIDE_TIME, ease: GLIDE.ease })
     }
     if (before.graph === graph || !before.place) return
     // A new layout for the same selection: keep the box where it is on screen, then finish any glide from there.
     const moved = { x: place.x - before.place.x, y: place.y - before.place.y }
-    setViewport({ x: vp.x - moved.x * vp.zoom, y: vp.y - moved.y * vp.zoom, zoom: vp.zoom })
+    const kept = { x: vp.x - moved.x * vp.zoom, y: vp.y - moved.y * vp.zoom, zoom: vp.zoom }
     const left = SELECT_GLIDE_TIME - (Date.now() - before.glideStart)
-    if (left > 0) setViewport(centred(vp.zoom), { duration: left })
+    void glideCamera(setViewport, kept, left > 0 ? centred(vp.zoom) : kept, { duration: Math.max(left, 0), ease: GLIDE.ease })
   }, [sel, graph])
 }
 
