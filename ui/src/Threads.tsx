@@ -1,6 +1,7 @@
 // Comment threads between the user and the AI: a chip on each box, a panel on the selected box, counts in the top bar.
 
 import { Fragment, useContext, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { post, type Item, type Thread, type ThreadMessage, type ThreadState } from './model'
 import { DebuffDetail } from './Debuffs'
 import { X, type Ctx } from './context'
@@ -80,6 +81,19 @@ function sender(x: Ctx, target: string) {
 }
 
 /**
+ * A button that starts a comment on box `target`, for touch screens with no keyboard to type into the map. The field
+ * is focused within the tap itself, so a phone opens its keyboard.
+ */
+export function StartComment({ target, label }: { target: string; label: string }) {
+  const x = useContext(X)
+  const start = () => {
+    flushSync(() => x.setDraft({ target, text: '' }))
+    document.querySelector<HTMLTextAreaElement>('textarea.say')?.focus()
+  }
+  return <button className="start-comment" onClick={e => { e.stopPropagation(); start() }}>💬 {label}</button>
+}
+
+/**
  * A small bubble over the map's corner with the selected box's latest message; clicking it opens the
  * whole conversation in the drawer. Typing with the box selected replies under it.
  */
@@ -96,7 +110,7 @@ export function Peek({ target }: { target: string }) {
         </div>
       )}
       {last && !onlyNotes(last) && <div className="state">{LABEL[last.state]}</div>}
-      {x.draft && <Say text={x.draft.text} focus placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} />}
+      {x.draft ? <Say text={x.draft.text} focus placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} /> : <StartComment target={target} label={live ? 'Reply' : 'Comment'} />}
     </div>
   )
 }

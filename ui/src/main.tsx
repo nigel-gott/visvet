@@ -9,7 +9,7 @@ import './style.css'
 import { flip, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph from './Graph'
 import { X, type Ctx } from './context'
-import { hasPanel, Inbox, Peek, ThreadCounts, ThreadPanel } from './Threads'
+import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -186,11 +186,12 @@ function useFocus(ix: Index | undefined, select: Ctx['select']) {
   }
 }
 
-/** The side drawer: the inbox, or the selected box's thread in full, or as a bubble with only its latest message. */
+/** The side drawer: the inbox, or the selected box's thread in full, or as a bubble with only its latest message, or for a box with no thread a button to start one. */
 function Drawer() {
   const x = useContext(X)
   if (x.inbox) return <aside className="drawer"><Inbox /></aside>
-  if (!x.sel || !hasPanel(x, x.sel)) return null
+  if (!x.sel) return null
+  if (!hasPanel(x, x.sel)) return <div className="peek"><StartComment target={x.sel} label="Comment" /></div>
   return x.full || x.detail ? <aside className="drawer"><ThreadPanel target={x.sel} /></aside> : <Peek target={x.sel} />
 }
 
