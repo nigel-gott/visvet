@@ -150,23 +150,32 @@ export function ThreadPanel({ target }: { target: string }) {
 /** How the top bar names each state, singular and plural. */
 const COUNT: Record<ThreadState, [string, string]> = { question: ['question for you', 'questions for you'], open: ['waiting for Claude', 'waiting for Claude'], working: ['in progress', 'in progress'], resolved: ['resolved', 'resolved'] }
 
-/** The unresolved threads, the ones waiting for the user first. */
-const unresolved = (threads: Thread[]) => threads.filter(t => t.state !== 'resolved').sort((a, b) => URGENCY.indexOf(a.state) - URGENCY.indexOf(b.state))
+/** When a thread last had a message. */
+const lastAt = (t: Thread) => t.messages.at(-1)?.at ?? 0
+/** The unresolved threads, the ones waiting for the user first, then the most recently active. */
+const unresolved = (threads: Thread[]) =>
+  threads.filter(t => t.state !== 'resolved').sort((a, b) => URGENCY.indexOf(a.state) - URGENCY.indexOf(b.state) || lastAt(b) - lastAt(a))
+/** The resolved conversations (not lone notes), most recently active first. */
+const resolved = (threads: Thread[]) => threads.filter(t => t.state === 'resolved' && !onlyNotes(t)).sort((a, b) => lastAt(b) - lastAt(a))
 
-/** The top bar's thread counts; clicking them opens the inbox in the drawer. */
+/** The top bar's thread counts, resolved ones included; clicking them opens the inbox in the drawer. */
 export function ThreadCounts() {
   const x = useContext(X)
-  const live = unresolved(x.threads)
-  if (!live.length) return null
+  const live = unresolved(x.threads), done = resolved(x.threads)
+  if (!live.length && !done.length) return null
   const counts = URGENCY.slice(0, 3).map(s => [s, live.filter(t => t.state === s).length] as const).filter(([, n]) => n)
   return (
-    <button className="counts" title="Show all open threads" onClick={() => x.setInbox(!x.inbox)}>
+    <button className="counts" title="Show all threads" onClick={() => x.setInbox(!x.inbox)}>
       {counts.map(([s, n]) => <span key={s} className={'talk ' + s}>{n} {COUNT[s][n === 1 ? 0 : 1]}</span>)}
+      {done.length > 0 && <span className="talk resolved">{done.length} resolved</span>}
     </button>
   )
 }
 
-/** Every unresolved thread: its box, state and last message. Clicking one shows its box among its siblings, with the whole thread open in the drawer. */
+/**
+ * Every thread: open ones first, then resolved ones, each with its box, state and last message, most recently active
+ * first. Clicking one shows its box among its siblings, with the whole thread open in the drawer.
+ */
 export function Inbox() {
   const x = useContext(X)
   const go = (t: Thread) => {
@@ -176,15 +185,19 @@ export function Inbox() {
     x.setFull(t.target)
     x.setInbox(false)
   }
+  const row = (t: Thread) => (
+    <button key={t.id} className={'inbox thread ' + t.state} onClick={() => go(t)}>
+      <b>{x.ix.items.get(t.target)?.name ?? t.target}</b><span className="state">{LABEL[t.state]}</span>
+      <p>{t.messages.at(-1)?.text.replace(/\*\*|`/g, '')}</p>
+    </button>
+  )
+  const done = resolved(x.threads)
   return (
     <div className="threads">
-      <div className="who">Open threads<button className="close" onClick={() => x.setInbox(false)}>✕</button></div>
-      {unresolved(x.threads).map(t => (
-        <button key={t.id} className={'inbox thread ' + t.state} onClick={() => go(t)}>
-          <b>{x.ix.items.get(t.target)?.name ?? t.target}</b><span className="state">{LABEL[t.state]}</span>
-          <p>{t.messages.at(-1)?.text.replace(/\*\*|`/g, '')}</p>
-        </button>
-      ))}
+      <div className="who">Threads<button className="close" onClick={() => x.setInbox(false)}>✕</button></div>
+      {unresolved(x.threads).map(row)}
+      {done.length > 0 && <div className="who">Resolved</div>}
+      {done.map(row)}
     </div>
   )
 }
