@@ -6,7 +6,7 @@ visvet is a multi-lens, visual way to review code changes at a higher level than
 - Reviews on a desktop with a mouse and a wide screen: the Claude desktop app's browser pane, or desktop Firefox.
 - Doesn't read Rust or serde. Names and doc comments must explain themselves to a non-Rust reader.
 - Reviews every line, so keep changes small, with as few lines as possible.
-- Code must document itself. Name every variable, field and function for what it holds or does: `level`, `from_box`, `dep`, never `k`, `a`, `b`, `e`, even in closures. Give magic numbers and indexes named constants. Put a compound condition in a named predicate or variable, e.g. `let in_a_cycle = ...`. Prefer a small named struct over a tuple.
+- Code must document itself. Name every variable, field and function for what it holds or does: `level`, `from_box`, `dep`, never `k`, `a`, `b`, `e`, even in closures. Give magic numbers and indexes named constants. Put a compound condition in a named predicate or variable, e.g. `let in_a_cycle = ...`. Prefer a small named struct over a tuple, and named fields over `.0`; only a micro type (below) wraps one unnamed field.
 - Wants small "micro types" for domain values instead of bare strings, for example `GitRef`, not `String`.
 - Never hold a file path as a string. In Rust a repo file is a `RepoPath`, anything else a `Path`/`PathBuf`; turn it into text only to print it or build a box id. Path helpers go on `RepoPath`.
 - Never run the `git` program or parse its output: read the repository through the git2 library (`src/git.rs`).
