@@ -254,12 +254,15 @@ function App() {
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
   /** The boxes a step opens: just its own box; the boxes beside it stay closed. */
   const openFor = (id: string) => new Set([id])
+  /** The open boxes that stay open for a step showing box `id`: those holding it or inside it, so moving between steps in one box only moves the bubble. */
+  const stayOpenFor = (id: string) => [...expanded].filter(open => within(ix.items.get(id), open) || within(ix.items.get(open), id))
   /** Shows box `id` as a tour step chooses (see `zoomedFor`, `openFor`), outlined and centred, in the current view. */
   const showBox = (id: string, view: StepView, replace = false) => {
     const to = zoomedFor(id, view)
     nav.show(id, to, [id], replace)
-    // Opened in the view being opened, since a new view starts with nothing open.
-    setWide({ view: to ?? WHOLE_MAP, ids: openFor(id) })
+    // Opened in the view being opened, since a new view starts with nothing open; in this view, related boxes stay open.
+    const staying = (to ?? WHOLE_MAP) === (scope ?? WHOLE_MAP) ? stayOpenFor(id) : []
+    setWide({ view: to ?? WHOLE_MAP, ids: new Set([...openFor(id), ...staying]) })
   }
   /** The box a step's view zooms into: the step's box itself when zoomed, else the box around it (null: the whole map). */
   const zoomedFor = (id: string, view: StepView) => (view === 'zoomed' ? id : ix.items.get(id)?.parent?.id ?? null)
@@ -293,9 +296,9 @@ function App() {
     }
     if (moves.byHand) {
       // The user makes the moves, following the cues (see `guide`); the step opens, bubble and all, once they reach it.
-      // Until then the boxes the step left open close again, except those holding the next step's box.
+      // Until then the boxes the step left open close again, except those holding the next step's box or inside it.
       setRoute(null)
-      setWide({ view, ids: new Set([...expanded].filter(id => within(ix.items.get(step.target), id))) })
+      setWide({ view, ids: new Set(stayOpenFor(step.target)) })
       return setHeading({ place, to })
     }
     setHeading(null)
