@@ -9,17 +9,15 @@ function face(t: Item) {
   return pub.length ? pub : t.kids
 }
 
-/** The most outside boxes a zoomed view links to and still shows them exactly; beyond this it shows their files. */
-const PEERS = 12
 /** The most boxes inside a zoomed view with their own arrows to the same outside box; beyond this, one arrow. */
 const BUNDLE = 4
 
 /** A link with the boxes a view draws its ends at: `a` for its `from`, `b` for its `to`. */
 type Placed = Dependency & { a: string; b: string }
 
-/** The boxes a view shows, besides outside ones: unzoomed, every box down to `level`; zoomed, the box and its children. */
-const viewBoxes = (ix: Index, top: Item | undefined, level: number) =>
-  !top ? ix.all.filter(it => it.depth <= level && !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
+/** The boxes a view shows, besides outside ones: unzoomed, the top folders and files; zoomed, the box and its children. */
+const viewBoxes = (ix: Index, top: Item | undefined) =>
+  !top ? ix.roots.filter(it => !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
 
 /** The box in the view (`ids`) that holds `id`: that box, or its nearest parent there; none if it is outside the view. */
 function lift(ix: Index, ids: Set<string>, id: string) {
@@ -28,22 +26,14 @@ function lift(ix: Index, ids: Set<string>, id: string) {
   return it
 }
 
-/** The file that holds `id`, e.g. src/types/boxes.rs. */
-function fileOf(ix: Index, id: string) {
-  let it = ix.items.get(id)
-  while (it?.parent && it.kind !== 'file') it = it.parent
-  return it
-}
-
 /**
- * Where a link's end outside the zoomed box is drawn: at its exact box with `exactPeers`, or when it sits in the
- * zoomed box's own file (e.g. the types next to a zoomed type), which has no other file to show. Otherwise at its
- * file, shown inside its folders or module files down to the zoomed box's depth, so you see where it goes without
- * zooming out.
+ * Where a link's end outside the zoomed box is drawn: at the box around it at the zoomed box's own level (zoomed into
+ * a file, another file), or, for a link of the selected box (`exact`), at its exact box, drawn inside that one.
  */
-function outsideEnd(ix: Index, top: Item | undefined, exactPeers: boolean, id: string) {
-  const home = top && fileOf(ix, top.id)
-  return exactPeers || (home && home !== top && fileOf(ix, id) === home) ? ix.items.get(id) : fileOf(ix, id)
+function outsideEnd(ix: Index, top: Item | undefined, exact: boolean, id: string) {
+  let it = ix.items.get(id)
+  while (!exact && top && it && it.depth > top.depth) it = it.parent
+  return it
 }
 
 /** Adds outside box `o` to `ext`, plus its parent boxes down to the zoomed box's depth (it can sit higher up). */
@@ -53,24 +43,24 @@ function addOutside(ext: Map<string, Item>, o: Item, top: Item | undefined, ids:
 
 /**
  * The links in `shown` that touch the view's boxes (`ids`), with the boxes their ends are drawn at, and the outside
- * boxes they bring in (`ext`). Arrows end at outside boxes exactly when there are at most `PEERS` of them.
+ * boxes they bring in (`ext`). Outside ends sit at the zoomed box's level, except for the selected box's (`sel`) links.
  */
-function linkEnds(ix: Index, shown: Dependency[], top: Item | undefined, ids: Set<string>) {
+function linkEnds(ix: Index, shown: Dependency[], top: Item | undefined, ids: Set<string>, sel: string | null) {
   const inView = (id: string) => lift(ix, ids, id)
-  const peers = new Set(shown.flatMap(e => (inView(e.from) || inView(e.to) ? [e.from, e.to].filter(id => !inView(id)) : [])))
-  const exactPeers = !!top && peers.size <= PEERS
+  /** Whether a link starts or ends in the selected box (not the zoomed box itself), so its outside end shows exactly. */
+  const ofSelected = (e: Dependency) => !!sel && sel !== top?.id && [e.from, e.to].some(id => within(ix.items.get(id), sel))
   const ext = new Map<string, Item>()
   const exact = shown.flatMap((e): Placed[] => {
     let a = inView(e.from), b = inView(e.to)
     if (!a && !b) return [] // wholly outside the zoomed box
-    a ??= outsideEnd(ix, top, exactPeers, e.from)
-    b ??= outsideEnd(ix, top, exactPeers, e.to)
+    a ??= outsideEnd(ix, top, ofSelected(e), e.from)
+    b ??= outsideEnd(ix, top, ofSelected(e), e.to)
     // Skip edges between a box and a box inside it: they'd loop onto the outer box.
     if (!a || !b || within(a, b.id) || within(b, a.id)) return []
     for (const o of [a, b]) addOutside(ext, o, top, ids)
     return [{ ...e, a: a.id, b: b.id }]
   })
-  return { exact, ext, exactPeers }
+  return { exact, ext }
 }
 
 const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
@@ -124,28 +114,26 @@ function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, ow
 
 /**
  * The boxes one map view shows, the edges (of the kinds `shows` lets through) lifted onto them, and each box's member
- * rows; a box in `expanded` also lists members not shown as boxes. Unzoomed: every box down to `level`, objects
+ * rows; a box in `expanded` also lists members not shown as boxes. Unzoomed: the top folders and files, objects
  * listing their members as rows. Zoomed: one level only, the box and its direct children (a type's public members),
- * each drawn compact. A link leaving the zoomed box ends at the exact box it leads to, e.g. a type in another file,
- * when there are at most `PEERS` of those; with more, it ends at that box's file, so a busy view stays readable.
- * Selection never changes the view, so boxes don't move as you click around.
+ * each drawn compact. A link leaving the zoomed box ends at the outside box at the zoomed box's level, e.g. another
+ * file; only the selected box's (`sel`) links end at their exact boxes, drawn inside those.
  */
-export function mapView(ix: Index, links: Dependency[], top: Item | undefined, level: number,
-  shows: (kind: string) => boolean, expanded: Set<string>) {
-  const inner = viewBoxes(ix, top, level)
+export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
+  shows: (kind: string) => boolean, expanded: Set<string>, sel: string | null) {
+  const inner = viewBoxes(ix, top)
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
   const ids = new Set(inner.map(it => it.id))
-  const { exact, ext, exactPeers } = linkEnds(ix, links.filter(e => shows(e.kind)), top, ids)
+  const { exact, ext } = linkEnds(ix, links.filter(e => shows(e.kind)), top, ids, sel)
   /**
-   * A box hands its arrows to its outermost box in this view (a child of the zoomed box, or with outside files rather
-   * than exact peers, the outermost box around them), so arrows connect only the top boxes; the selected box's own
-   * are drawn instead.
+   * A box hands its arrows to its outermost box in this view (a child of the zoomed box), so arrows connect only the
+   * top boxes; the selected box's own are drawn instead.
    */
   const owner = (id: string) => {
     let it = ix.items.get(id)
     if (!it) return id // e.g. a selected arrow
-    while (it.parent && it.parent !== top && (ids.has(it.parent.id) || (!exactPeers && ext.has(it.parent.id)))) it = it.parent
+    while (it.parent && it.parent !== top && ids.has(it.parent.id)) it = it.parent
     return it.id
   }
   const owned = exact.flatMap(e => {

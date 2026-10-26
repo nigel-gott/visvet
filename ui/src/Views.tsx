@@ -68,18 +68,18 @@ export function Outline() {
   const [f, setF] = useState(0)
   // Rows the user toggled since the map last changed view; every other row mirrors what the map shows.
   const [toggled, setToggled] = useState(new Map<string, boolean>())
-  const [view, setView] = useState(`${x.scope} ${x.level}`)
-  if (view !== `${x.scope} ${x.level}`) {
-    setView(`${x.scope} ${x.level}`)
+  const [view, setView] = useState(x.scope)
+  if (view !== x.scope) {
+    setView(x.scope)
     setToggled(new Map())
   }
   const filtering = q !== '' || f > 0
   const match = (it: Item): boolean => !it.ctx &&
     ((FILTERS[f][1](it, x) && `${it.id} ${it.doc}`.toLowerCase().includes(q.toLowerCase())) || it.kids.some(match))
   const scope = x.scope ? x.ix.items.get(x.scope) : undefined
-  /** Whether a row shows its children: zoomed in, the path to the zoomed box and the box's own children; else the map's level. */
+  /** Whether a row shows its children: zoomed in, the path to the zoomed box and the box's own children; else none. */
   const open = (it: Item) => (toggled.get(it.id) ??
-    (scope ? within(scope, it.id) || (within(it, scope.id) && it.depth <= scope.depth + 1) : it.depth < x.level))
+    (!!scope && (within(scope, it.id) || (within(it, scope.id) && it.depth <= scope.depth + 1))))
   /** Opens or closes a row. */
   const toggle = (it: Item) => setToggled(t => new Map(t).set(it.id, !open(it)))
   const tree = (items: Item[]): ReactNode => items.filter(match).map(it => (

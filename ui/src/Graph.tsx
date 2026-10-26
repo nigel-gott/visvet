@@ -12,7 +12,8 @@ import { mapView, type View } from './view'
 import { showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
-const LEVELS = ['Top level', '2 levels', '3 levels']
+/** The name of the unzoomed view, the whole map, among views named by their zoomed box. */
+export const WHOLE_MAP = 'map'
 /** ELK settings for every box: fewer crossings, straighter edges, source order kept, right-angle routes around boxes. */
 const LAYOUT = {
   'elk.algorithm': 'layered', 'elk.hierarchyHandling': 'INCLUDE_CHILDREN', 'elk.edgeRouting': 'ORTHOGONAL',
@@ -214,15 +215,9 @@ function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl:
     }))
 }
 
-/** Map options: the level chips when unzoomed, and Reset once boxes were dragged. */
-function MapPanel({ top, moved, reset }: { top?: Item; moved: boolean; reset: () => void }) {
-  const x = useContext(X)
-  return (
-    <Panel position="top-right" className="chips">
-      {!top && LEVELS.map((l, i) => <button key={l} className={i === x.level ? 'on' : ''} onClick={() => x.setLevel(i)}>{l}</button>)}
-      {moved && <button onClick={reset}>Reset</button>}
-    </Panel>
-  )
+/** Map options: Reset, once boxes were dragged. */
+function MapPanel({ moved, reset }: { moved: boolean; reset: () => void }) {
+  return <Panel position="top-right" className="chips">{moved && <button onClick={reset}>Reset</button>}</Panel>
 }
 
 const KINDS: DependencyKind[] = ['calls', 'creates', 'uses', 'implements', 'has', 'imports', 'generates', 'links']
@@ -244,8 +239,8 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const [kinds, setKinds] = useState<Record<string, boolean>>({})
   const top = x.scope ? x.ix.items.get(x.scope) : undefined
   const shows = showsIn(kinds, top)
-  const view = top ? top.id : String(x.level)
-  const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded)
+  const view = top ? top.id : WHOLE_MAP
+  const v = mapView(x.ix, x.model.dependencies, top, shows, x.expanded, x.sel)
   // A box showing its code doesn't also list what's inside it as rows.
   const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
   const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x))
@@ -295,12 +290,15 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     return node
   })
   // Until a new view is laid out, the last frame of the old one stays up, so the map never blanks or flashes.
-  const frame = useRef({ nodes, edges: [] as Edge[] })
-  if (ready) frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel) }
+  const frame = useRef({ nodes, edges: [] as Edge[], view: '' })
+  // A new layout of the same view (a selection, More) glides boxes and arrows to their new places; a new view doesn't.
+  const relayout = frame.current.view === view
+  if (ready) frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel), view }
   const shown = frame.current
   return (
     <ReactFlow
       ref={box}
+      className={relayout ? 'relayout' : undefined}
       nodes={shown.nodes}
       edges={shown.edges}
       onEdgeClick={(_, e) => x.select(e.id)}
@@ -318,7 +316,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
       // otherwise land in the next view's history entry. Leaving a view saves its viewport anyway (`push`).
       onMoveEnd={(e, vp) => { if (e) history.replaceState({ ...history.state, vp }, ''); reportView() }}
     >
-      <MapPanel top={top} moved={Object.keys(pos.moved).length > 0} reset={pos.reset} />
+      <MapPanel moved={Object.keys(pos.moved).length > 0} reset={pos.reset} />
       <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} />
     </ReactFlow>
   )

@@ -5,7 +5,7 @@
 import { useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { X, type Ctx } from './context'
-import { absolute, layOut, type Laid, type Layout } from './Graph'
+import { absolute, layOut, WHOLE_MAP, type Laid, type Layout } from './Graph'
 import { anchor } from './Card'
 import { Head, Notes } from './Views'
 import { height, showsCode, width } from './size'
@@ -33,9 +33,9 @@ export type ZoomPreview = {
 /** Lays out the view zoomed into `top` (the whole map when none), as the map would show it with nothing opened. */
 function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>) {
   const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: new Set() }
-  const v = mapView(x.ix, x.model.dependencies, top, x.level, showsIn(kinds, top), scoped.expanded)
+  const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null)
   const rowsOf = (it: Item) => (showsCode(it, scoped) ? [] : v.rowsOf(it))
-  return layOut(top?.id ?? String(x.level), v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped))
+  return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped))
 }
 
 /** What the map asks of a zoom: starts it, given the box to zoom into (or out to) and how to switch to that view at the end. */

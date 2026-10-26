@@ -8,7 +8,7 @@ import '@xyflow/react/dist/style.css'
 import './style.css'
 import type { StepView } from './contract'
 import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
-import Graph from './Graph'
+import Graph, { WHOLE_MAP } from './Graph'
 import { zoomer } from './nestedZoom'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
@@ -65,16 +65,16 @@ function useModel() {
   return { model, error, show }
 }
 
-/** The current history entry's state: {scope, map, level, hl (highlighted ids), vp (map viewport), scroll (of the asides)}. */
+/** The current history entry's state: {scope, map, hl (highlighted ids), vp (map viewport), scroll (of the asides)}. */
 const entry = () => history.state ?? {}
-/** A history entry's map state, with defaults for an entry that has none: {scope, map, level, hl}. */
-const viewOf = (s: { scope?: string | null; map?: boolean; level?: number; hl?: string[] }) =>
-  ({ scope: s.scope ?? null, map: s.map ?? false, level: s.level ?? 0, hl: s.hl ?? [] })
+/** A history entry's map state, with defaults for an entry that has none: {scope, map, hl}. */
+const viewOf = (s: { scope?: string | null; map?: boolean; hl?: string[] }) =>
+  ({ scope: s.scope ?? null, map: s.map ?? false, hl: s.hl ?? [] })
 /** The outline's and detail's scroll offsets. */
 const scrolls = () => [...document.querySelectorAll('aside')].map(a => a.scrollTop)
 
 /**
- * The selection, map zoom, level and mode, kept in browser history so Back (or Escape) and Forward restore each view,
+ * The selection, map zoom and mode, kept in browser history so Back (or Escape) and Forward restore each view,
  * down to the map's viewport and the asides' scroll. Only clicks push entries; restoring one never does.
  */
 function useNav() {
@@ -83,7 +83,6 @@ function useNav() {
   const [sel, setSel] = useState(hashSel)
   const [scope, setScope] = useState(start.scope)
   const [map, setMap] = useState(start.map)
-  const [level, setLevel] = useState(start.level)
   const [hl, setHl] = useState(start.hl)
   const [pop, setPop] = useState(0)
   const back = () => history.state && history.back()
@@ -92,7 +91,7 @@ function useNav() {
     const opts = { signal: ac.signal }
     addEventListener('popstate', () => {
       const s = entry(), v = viewOf(s)
-      setSel(hashSel()); setScope(v.scope); setMap(v.map); setLevel(v.level); setHl(v.hl); setPop(p => p + 1)
+      setSel(hashSel()); setScope(v.scope); setMap(v.map); setHl(v.hl); setPop(p => p + 1)
       requestAnimationFrame(() => document.querySelectorAll('aside').forEach((a, i) => { a.scrollTop = s.scroll?.[i] ?? 0 }))
     }, opts)
     addEventListener('keydown', e => e.key === 'Escape' && !(e.target as Element).matches('input, textarea') && back(), opts)
@@ -107,25 +106,23 @@ function useNav() {
   const select = (id: string, replace = false) => {
     if (id === sel) return
     if (replace) history.replaceState(history.state, '', '#' + encodeURIComponent(id))
-    else push({ scope, map, level, vp: getViewport() }, '#' + encodeURIComponent(id))
+    else push({ scope, map, vp: getViewport() }, '#' + encodeURIComponent(id))
     setSel(id); setHl([])
   }
   /** Opens a symbol with the map zoomed to `to` and boxes highlighted, in one new history entry, as `visvet show` asks. */
   const show = (id: string, to: string | null, ids: string[]) => {
-    push({ scope: to, map, level, hl: ids }, '#' + encodeURIComponent(id))
+    push({ scope: to, map, hl: ids }, '#' + encodeURIComponent(id))
     setSel(id); setScope(to); setHl(ids)
   }
   /** Zooms the map or switches map mode in a new history entry; zooming into a box also opens it, and a new zoom is fitted. */
   const go = (to: { scope: string | null; map: boolean }) => {
     const opens = to.scope !== null && to.scope !== scope
-    push({ ...to, level, vp: to.scope === scope ? getViewport() : undefined }, opens ? '#' + encodeURIComponent(to.scope!) : location.href)
+    push({ ...to, vp: to.scope === scope ? getViewport() : undefined }, opens ? '#' + encodeURIComponent(to.scope!) : location.href)
     setScope(to.scope)
     setMap(to.map)
     if (opens) { setSel(to.scope); setHl([]) }
   }
-  /** Changes the unzoomed map's level within the current entry. */
-  const pickLevel = (l: number) => { history.replaceState({ ...entry(), level: l, vp: undefined }, ''); setLevel(l) }
-  return { sel, scope, map, level, hl, setLevel: pickLevel, pop, back, select, show, go }
+  return { sel, scope, map, hl, pop, back, select, show, go }
 }
 
 /**
@@ -227,14 +224,15 @@ function Drawer() {
  */
 function App() {
   const { model, error, show } = useModel()
-  const { sel, scope, map, level, hl, setLevel, pop, back, select, go, ...nav } = useNav()
-  // Expanded map boxes belong to one view (zoomed box or level); another view starts with none.
-  const view = scope ?? String(level)
+  const { sel, scope, map, hl, pop, back, select, go, ...nav } = useNav()
+  // Expanded map boxes belong to one view (zoomed box or the whole map); another view starts with none.
+  const view = scope ?? WHOLE_MAP
   const [wide, setWide] = useState({ view, ids: new Set<string>() })
   if (wide.view !== view) setWide({ view, ids: new Set() })
   const expanded = wide.ids
   const ix = useMemo(() => model && index(model), [model])
-  useEffect(() => reportView({ scope, level, selected: sel, highlight: hl }))
+  // The map always shows its top level now; `level` stays in the report for `visvet view`.
+  useEffect(() => reportView({ scope, level: 0, selected: sel, highlight: hl }))
   const [detail, showDetail] = useState<{ id: string; kind: string } | null>(null)
   const [draft, setDraft] = useState<{ target: string; text: string } | null>(null)
   const [inbox, setInbox] = useState(false)
@@ -256,7 +254,7 @@ function App() {
     const open = view === 'zoomed' ? [id] : [id, ...(around?.kids ?? []).map(kid => kid.id)]
     nav.show(id, to, [id])
     // Opened in the view being opened, since a new view starts with nothing open.
-    setWide({ view: to ?? String(level), ids: new Set(open) })
+    setWide({ view: to ?? WHOLE_MAP, ids: new Set(open) })
   }
   /** The box a step's view zooms into: the step's box itself when zoomed, else the box around it (null: the whole map). */
   const zoomedFor = (id: string, view: StepView) => (view === 'zoomed' ? id : ix.items.get(id)?.parent?.id ?? null)
@@ -279,7 +277,7 @@ function App() {
     travel.current = setTimeout(() => showBox(step.target, step.view), TRAVEL_PAUSE)
   }
   const x: Ctx = {
-    model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })), level, setLevel,
+    model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     tour, showStep, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),

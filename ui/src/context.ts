@@ -28,9 +28,6 @@ export type Ctx = {
   expand: (id: string) => void
   /** Opens all these boxes, or closes them all when they are all open already. */
   expandAll: (ids: string[]) => void
-  /** How deep the unzoomed map shows boxes, from 0 (only the top folders and files). The outline opens to the same depth. */
-  level: number
-  setLevel: (level: number) => void
   back: () => void
   /** The debuff whose details show beside the selected box, if one was clicked; `showDetail` sets or clears it. */
   detail: { id: string; kind: string } | null
