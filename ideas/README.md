@@ -6,6 +6,7 @@ description: Ideas not yet ready to be issues: short notes that link to each oth
 Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 
 - [Tours](tours.md): a guided path through the code, in an order that builds understanding.
+- [Learning tours](learning-tours.md): tours that teach the language: annotated syntax, doc excerpts and koans.
 - [Overlays](overlays.md): what the AI adds on top of the map: layouts, notes, arrows, images.
 - [Live components](live-components.md): seeing, and one day playing with, UI components on their boxes.
 - [Dimensions](dimensions.md): other ways to look at the same project, e.g. its data instead of its code.

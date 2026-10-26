@@ -9,4 +9,4 @@ Two paths:
 
 This keeps visvet from tangling itself trying to extract everything from every codebase.
 
-Candidates for the recommended stack, to try only when a feature needs one: XState for front-end state machines (it already has visualisers), a state-machine crate for Rust, `schemars` for JSON schemas, migrations as the source of truth for databases, Playwright tests for UI flows.
+Candidates for the recommended stack, to try only when a feature needs one: XState for front-end state machines (it already has visualisers), a state-machine crate for Rust, `schemars` for JSON schemas, migrations as the source of truth for databases, Playwright tests for UI flows. And OpenTelemetry tracing by default: it helps debugging, and it produces the [flows](flows.md).

@@ -13,6 +13,15 @@ A test runs one path through the code. That makes flows derivable, not hand-writ
 
 So the behaviour-style [tests](tests.md) are both the checks and the flow definitions. No upkeep: when the code changes, the flow is re-derived.
 
+## Persisted and committed
+
+Running the tests with tracing on produces the flows; visvet saves them in the repo and they're committed.
+
+- A flow that changes shows up as a diff in review: "this request now also goes through X". Often that's the most useful thing to review.
+- A flow that breaks or vanishes unexpectedly is a bug, like a failing test.
+- Saved, not re-run on every view, so the map stays fast and works without running anything.
+- The [methodology](methodology.md) makes OpenTelemetry tracing a default: it helps debugging anyway, and it feeds the flows for free. The format: OpenTelemetry spans, trimmed to what the map needs (which box called which, in what order).
+
 ## What the AI adds
 
 Only meaning: a flow's name, and notes on its steps. These are anchored to boxes like threads, in `.visvet/`, not in the code. The path itself never needs maintaining by hand.
