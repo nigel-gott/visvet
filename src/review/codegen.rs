@@ -2,6 +2,7 @@
 //! manifest to its lock file, which parsing alone can't see. To support another generator, write a detector like
 //! `ts_rs` and add it to `DETECTORS`, or add a manifest to `LOCK_FILES`.
 use crate::review::parse::join;
+use std::path::Path;
 
 /// Given a type's file and its source text (attributes included), the repo file a code generator writes a type of
 /// the same name into, if it does.
@@ -26,8 +27,9 @@ const LOCK_FILES: &[(&str, &[&str])] = &[
 
 /// The lock files a package manager may write from manifest `file`, in its folder. The caller keeps those that exist.
 pub fn lock_files(file: &str) -> Vec<String> {
-    let (dir, name) = file.rsplit_once('/').unwrap_or(("", file));
-    LOCK_FILES.iter().filter(|(manifest, _)| *manifest == name).flat_map(|(_, locks)| locks.iter())
+    let path = Path::new(file);
+    let (name, dir) = (path.file_name().unwrap_or_default(), path.parent().unwrap_or(Path::new("")));
+    LOCK_FILES.iter().filter(|(manifest, _)| name == *manifest).flat_map(|(_, locks)| locks.iter())
         .map(|lock| join(dir, lock).to_string()).collect()
 }
 
