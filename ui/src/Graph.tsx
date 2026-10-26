@@ -9,7 +9,7 @@ import { STEP_BUBBLE, StepBubble, stepBubbleBox, type StepBubbleBox } from './To
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
 import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
-import { easeInOut, glideCamera, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
+import { easeInOut, glideCamera, moves, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
 /** How long the camera takes to glide to a selected box, in ms. */
@@ -260,6 +260,8 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     centred.current = c
     // A click clears the highlight; the map stays where it is.
     if (same && !c) return
+    // "You drive" leaves the camera to the user: a step's box is outlined where it is, never framed.
+    if (same && moves.byHand) return
     fitted.current = k
     const fit = fitOf(r, graph)
     // A saved viewport from before the layout changed can point at empty space; then fit instead.
@@ -276,7 +278,7 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, CLOSEST_FRAMING), fit.zoom)
     // Opening a view on a box centres it at full size. Within the view (a tour step's journey has just landed on its
     // fit), the camera closes in on the box and its bubble, as near as shows them whole.
-    const middle = hit && (same ? centredAt(framing!) : centredAt(1))
+    const middle = hit && !moves.byHand && (same ? centredAt(framing!) : centredAt(1))
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
@@ -316,6 +318,8 @@ function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, gr
       y: PANEL_CLEARANCE + Math.max((rect.height - PANEL_CLEARANCE - place.height * zoom) / 2, 0) - place.y * zoom, zoom,
     })
     if (before.sel !== sel) {
+      // "You drive" leaves the camera to the user: a click selects a box where it is.
+      if (moves.byHand) return
       last.current.glideStart = Date.now()
       return void glideCamera(setViewport, vp, centred(vp.zoom), { duration: SELECT_GLIDE_TIME, ease: GLIDE.ease })
     }
@@ -326,27 +330,6 @@ function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, gr
     const left = SELECT_GLIDE_TIME - (Date.now() - before.glideStart)
     void glideCamera(setViewport, kept, left > 0 ? centred(vp.zoom) : kept, { duration: Math.max(left, 0), ease: GLIDE.ease })
   }, [sel, graph])
-}
-
-/**
- * With "you drive" chosen, keeps the box the guide says to click or double-click next in view: if it isn't wholly on screen
- * once the view is laid out, the camera glides to centre it, at the zoom it is at.
- */
-function useShowCue(map: RefObject<HTMLDivElement | null>, graph: Layout, view: string, cue: string | undefined) {
-  const { getViewport, setViewport } = useReactFlow()
-  useEffect(() => {
-    const place = cue ? absolute(graph.laid, cue) : undefined, rect = map.current?.getBoundingClientRect()
-    if (!place || !rect || graph.view !== view) return
-    const vp = getViewport()
-    const onScreen = place.x * vp.zoom + vp.x >= 0 && (place.x + place.width) * vp.zoom + vp.x <= rect.width &&
-      place.y * vp.zoom + vp.y >= PANEL_CLEARANCE && (place.y + place.height) * vp.zoom + vp.y <= rect.height
-    if (onScreen) return
-    const centred = {
-      x: Math.max((rect.width - place.width * vp.zoom) / 2, GUTTER) - place.x * vp.zoom,
-      y: PANEL_CLEARANCE + Math.max((rect.height - PANEL_CLEARANCE - place.height * vp.zoom) / 2, 0) - place.y * vp.zoom, zoom: vp.zoom,
-    }
-    void glideCamera(setViewport, vp, centred, { duration: SELECT_GLIDE_TIME, ease: GLIDE.ease })
-  }, [cue, graph])
 }
 
 /** Where the user dragged boxes in a view with the boxes `sig`, loaded from and saved to this browser. */
@@ -421,7 +404,6 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   useCentreSelection(box, x.ix, graph, view, x.sel, x.scope, x.hl)
   const centre = [...x.hl][0]
   useFit(box, x.ix, graph, current, view, visible, pop, centre)
-  useShowCue(box, graph, view, x.guide && x.guide.move !== 'up' ? x.guide.next ?? undefined : undefined)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
