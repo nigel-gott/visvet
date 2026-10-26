@@ -8,7 +8,7 @@ impl Ex<'_> {
     /// Records the files of the crate modules a Rust `use crate::...` names.
     pub(super) fn rust_use(&mut self, n: Node) {
         let Some(a) = n.child_by_field_name("argument") else { return };
-        let krate = &self.path[..self.path.rfind("src/").map_or(dir(self.path).len(), |i| i + 3)];
+        let krate = &self.path[..self.path.rfind("src/").map_or(dir(self.path).as_os_str().len(), |i| i + 3)];
         let list = a.child_by_field_name("list").filter(|_| a.child_by_field_name("path").is_some_and(|p| self.t(p) == "crate"));
         let items: Vec<&str> = match list {
             Some(l) => l.named_children(&mut l.walk()).map(|c| self.t(c)).collect(),

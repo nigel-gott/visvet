@@ -79,9 +79,9 @@ pub fn parse(path: &str, src: &str) -> Vec<Obj> {
     x.objs
 }
 
-/// The directory part of a repo-relative path ("" at the root).
-pub fn dir(path: &str) -> &str {
-    path.rsplit_once('/').map_or("", |(d, _)| d)
+/// The folder a repo-relative file is in ("" at the root): Rust's `Path::parent`, which only lacks an answer for "".
+pub fn dir(path: &str) -> &Path {
+    Path::new(path).parent().unwrap_or(Path::new(""))
 }
 
 /// Joins a relative path, as written in a file (an import, a link), onto a repo-relative dir, resolving `.` and `..`
