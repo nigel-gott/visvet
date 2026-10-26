@@ -6,7 +6,7 @@ import { useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { X, type Ctx } from './context'
 import { absolute, layOut, WHOLE_MAP, type Laid, type Layout } from './Graph'
-import { anchor } from './Card'
+import { anchor, placeOf } from './Card'
 import { Head, Notes } from './Views'
 import { height, showsCode, width } from './size'
 import { mapView } from './view'
@@ -114,7 +114,8 @@ function copyOfMap(map: HTMLElement | null, origin: { x: number; y: number }) {
 
 /** Lays out the view zoomed into `top` (the whole map when none), as the map will show it with the boxes `opened` open. */
 function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>, opened: Set<string>, bubble = stepBubbleBox(x)) {
-  const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened }
+  // The step's box shows its code; a journey lays its views out for the step it is heading to.
+  const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened, stepBox: bubble?.target ?? x.stepBox }
   const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null)
   const rowsOf = (it: Item) => (showsCode(it, scoped) ? [] : v.rowsOf(it))
   return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped), bubble)
@@ -174,7 +175,9 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     const outer = await layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, opened, bubble ?? stepBubbleBox(x))
     const inOuter = from && outer.laid.find(n => n.id === from), box = from && absolute(graph.laid, from)
     if (!inOuter || !box) return switchView()
-    const snapshot = copyOfMap(map.current, box)
+    const snapshot = copyOfMap(map.current, box), leaving = getInternalNode(from)
+    // Where the box being left is on screen, measured before the switch: the outer view opens with it right there.
+    if (leaving) anchor.box = placeOf(from, leaving, getViewport())
     const preview = { box: from, inner: graph, scale: inOuter.width! / box.width, inward: false, snapshot }
     const settling = { ...preview, settling: true }
     setPreview(preview)

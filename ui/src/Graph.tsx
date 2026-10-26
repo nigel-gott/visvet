@@ -85,7 +85,8 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
     layoutOptions: { ...LAYOUT, 'elk.direction': 'RIGHT' },
   }
   for (const it of v.boxes) (nodes.get(v.up(it)?.id ?? '') || root).children!.push(nodes.get(it.id)!)
-  const target = bubble && v.boxes.find(it => it.id === bubble.target)
+  // Only beside the step's real box: not beside it drawn as an outside box of another view.
+  const target = bubble && !v.ext.has(bubble.target) ? v.boxes.find(it => it.id === bubble.target) : undefined
   if (bubble && target) {
     (nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height })
     root.edges!.push({ id: `${STEP_BUBBLE} -> ${target.id}`, sources: [STEP_BUBBLE], targets: [target.id] })
@@ -104,7 +105,7 @@ export type Layout = { view: string; width: number; height: number; laid: Laid[]
 
 /** Everything that shapes a view's layout: its name, each box and its size, its arrows, and a tour step's bubble in it. */
 const layoutKey = (view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox) => {
-  const bubbleHere = bubble && v.boxes.some(it => it.id === bubble.target) ? `${bubble.target} ${bubble.height}` : ''
+  const bubbleHere = bubble && v.boxes.some(it => it.id === bubble.target) && !v.ext.has(bubble.target) ? `${bubble.target} ${bubble.height}` : ''
   return [view, ...v.boxes.map(it => `${it.id} ${size(it)}x${wide(it)}`), ...v.edges.keys(), ...v.detail.keys(), bubbleHere].join('|')
 }
 
