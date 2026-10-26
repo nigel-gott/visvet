@@ -173,9 +173,22 @@ route: Same file: how the browser hears about changes.
 ### `let pushes = tokio_stream::once(Ok(RepoEvent::Changed)).chain(BroadcastStream::new(app.tx.subscribe()));`
 One `change` event straight away, then every event the watcher sends.
 
+## Tests live next to the code
+`src/server/watch.rs` is the file watcher, in `src/server/`, the folder of server.rs's own modules. First, how it ends: with its tests. Rust puts unit tests in the same file as the code, in a module that only test builds compile.
+route: Same view: the file watcher's file, and the tests at its end.
+
+### `#[cfg(test)]`
+Compile what follows only for `cargo test`. visvet's map leaves test modules out, so the map shows only the real code.
+
+### `use super::*;`
+`super` is the module around this one: the tests can use everything in the file, private items too.
+
+### `assert!(counts("src/main.rs") && counts(".visvet/threads/k3f9a2/1-ann.md") && counts(".git/HEAD"));`
+`assert!` fails the test when its condition is false. Being a macro, it sees the condition's source text, so a failure prints the expression itself, not just "false". `assert_eq!(a, b)`, used in other tests, prints both values.
+
 ## Watching the files
 `src/server/watch.rs::watch` uses the notify crate to hear about file changes, and collects each burst into one event.
-route: Into src/server, the folder of server.rs's own modules: the file watcher.
+route: Into watch.rs: the function that does the watching.
 
 ### `pub fn watch(repo_root: PathBuf, on: impl Fn(RepoEvent) + Send + 'static) -> notify::Result<notify::RecommendedWatcher> {`
 `on` is any function that takes a `RepoEvent`, with two promises: `Send` means it can move to another thread, and `'static` means it borrows nothing that could end first. With them, the compiler proves no other thread can see half-changed data.
@@ -188,19 +201,6 @@ A real operating-system thread, not an async task: it spends its life waiting fo
 
 ### `if paths.contains(&show) && let Ok(json) = std::fs::read_to_string(&show) {`
 `let` in a condition runs the block only if the file could be read, and names its text `json`.
-
-## Tests live next to the code
-`src/server/watch.rs` ends with its tests. Rust puts unit tests in the same file as the code, in a module that only test builds compile.
-route: Same folder, one level out: the whole file, where its tests are.
-
-### `#[cfg(test)]`
-Compile what follows only for `cargo test`. visvet's map leaves test modules out, so the map shows only the real code.
-
-### `use super::*;`
-`super` is the module around this one: the tests can use everything in the file, private items too.
-
-### `assert!(counts("src/main.rs") && counts(".visvet/threads/k3f9a2/1-ann.md") && counts(".git/HEAD"));`
-`assert!` fails the test when its condition is false. Being a macro, it sees the condition's source text, so a failure prints the expression itself, not just "false". `assert_eq!(a, b)`, used in other tests, prints both values.
 
 ## Building the review
 `src/review.rs::build_review` is the heart of visvet. It lists the files in the working tree and at the base, reads both versions of each, compares them, and finds the arrows between the boxes.
