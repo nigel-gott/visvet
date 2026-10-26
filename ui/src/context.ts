@@ -13,6 +13,8 @@ export type Ctx = {
   /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
   select: (id: string, replace?: boolean) => void
   focus: (id: string, replace?: boolean) => void
+  /** Zooms to the box holding `id`, opens it and outlines it, as `visvet show` does. */
+  showAt: (id: string) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
   scope: string | null
   zoom: (id: string | null) => void

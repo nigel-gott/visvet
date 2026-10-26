@@ -3,7 +3,7 @@
 import { Debuffs } from './Debuffs'
 import { X, type Ctx } from './context'
 import { Fragment, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { within, type DiffLine, type Item, type ChangeStatus } from './model'
+import { within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -19,12 +19,19 @@ export function Head({ it }: { it: Item }) {
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
       <span className={'badge k-' + kind} title={kind}>{!it.m && kind}</span>
       <span className={'name ' + it.status}>{it.m?.signature ?? it.name}</span>
+      <LineCounts count={it.diffCount} />
       {it.labels?.status && <span className={'tag ' + it.labels.status} title="status">{it.labels.status}</span>}
       <Debuffs it={it} />
     </>
   )
 }
 
+/** Lines added and removed, as "+12 −3"; nothing when neither. */
+export function LineCounts({ count }: { count: DiffCount }) {
+  return (count.added > 0 || count.removed > 0) && <span className="counts">
+    {count.added > 0 && <span className="plus">+{count.added}</span>}{count.removed > 0 && <span className="minus">−{count.removed}</span>}
+  </span>
+}
 
 /** An item's doc line. The AI's note on it is a message in its thread, in the side drawer. */
 export function Notes({ it }: { it: Item }) {

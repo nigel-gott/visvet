@@ -98,7 +98,7 @@ function Pills({ it, rows, click }: Part) {
 function Rows({ rows, click }: Part) {
   const x = useContext(X)
   return rows.map(k => (
-    <div key={k.id} className={x.sel === k.id ? 'mrow sel' : 'mrow'} title={k.m?.signature ?? k.name}
+    <div key={k.id} className={`mrow ${k.status} ${x.sel === k.id ? 'sel' : ''}`} title={k.m?.signature ?? k.name}
       onClick={e => { e.stopPropagation(); click(k) }}>
       <Head it={k} />
     </div>
@@ -120,7 +120,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   return (
     <>
       <Handle type="target" position={Position.Left} />
-      <div className={`card ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''}`}
+      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />
