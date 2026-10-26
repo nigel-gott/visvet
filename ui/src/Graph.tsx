@@ -9,7 +9,7 @@ import { STEP_BUBBLE, StepBubble, stepBubbleBox, useTourStep, type StepBubbleBox
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
 import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
-import { glideCamera, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
+import { easeInOut, glideCamera, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
 /** How long the camera takes to glide to a selected box, in ms. */
@@ -34,7 +34,7 @@ const save = (view: string, sig: string, pos: Record<string, XYPosition>) => {
   try { localStorage.setItem('visvet:pos2:' + view, JSON.stringify({ sig, pos })) } catch { /* private mode: positions just aren't kept */ }
 }
 /** Camera moves for zooming into a box: a straight path (not d3's zoom-out-then-in arc), eased in and out. */
-const GLIDE = { duration: 900, interpolate: 'linear' as const, ease: (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2) }
+const GLIDE = { duration: 900, interpolate: 'linear' as const, ease: easeInOut }
 const nodeTypes = { card: Card, stepBubble: () => <StepBubble /> }
 
 /** Follows ELK's route, which bends around boxes, while both ends are where ELK put them; a curve once one was dragged. */
@@ -115,7 +115,12 @@ const laidOut = new Map<string, Layout>()
 /** Lays view `view` (its boxes and arrows, `v`) out with ELK, with each box's height and width, or reuses that layout. */
 export async function layOut(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): Promise<Layout> {
   const key = layoutKey(view, v, size, wide, bubble), known = laidOut.get(key)
-  if (known) return known
+  if (known) {
+    // Used again: kept as the newest, so a long session drops it last.
+    laidOut.delete(key)
+    laidOut.set(key, known)
+    return known
+  }
   const turned = flipped(v)
   const g = await elk.layout(elkGraph(v, size, wide, bubble))
   const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
@@ -134,7 +139,8 @@ function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it:
   const [graph, setGraph] = useState<Layout>({ view: '', width: 0, height: 0, laid: [], routes: {} })
   const key = layoutKey(view, v, size, wide, bubble), known = laidOut.get(key)
   useEffect(() => {
-    if (known) return
+    // Even a layout made ahead becomes this view's, so a new layout still being made never shows another view's.
+    if (known) return void setGraph(known)
     let live = true
     layOut(view, v, size, wide, bubble).then(laid => live && setGraph(laid))
     return () => { live = false }
@@ -149,6 +155,17 @@ export function absolute(laid: Laid[], id: string) {
   const at = { x: 0, y: 0, width: n?.width ?? 0, height: n?.height ?? 0 }
   for (; n; n = n.parentId ? byId.get(n.parentId) : undefined) { at.x += n.position.x; at.y += n.position.y }
   return at.width ? at : undefined
+}
+
+/** Room kept at the map's top for its panel, and the least space beside a layout, in pixels. */
+const PANEL_CLEARANCE = 48, GUTTER = 16
+/** The narrowest zoom a layout is fitted at: text is still readable; a bigger layout starts at its top left. */
+const SMALLEST_FIT = 0.5
+
+/** The camera that fits layout `graph` in a map of size `rect`: centred, below the panel, at full size at most. */
+export function fitOf(rect: { width: number; height: number }, graph: { width: number; height: number }) {
+  const zoom = Math.max(Math.min(rect.width / graph.width, (rect.height - PANEL_CLEARANCE) / graph.height, 1), SMALLEST_FIT)
+  return { x: Math.max((rect.width - graph.width * zoom) / 2, GUTTER), y: PANEL_CLEARANCE, zoom }
 }
 
 /** A box's place grown to take in the tour step's bubble beside it, when the layout has one. */
@@ -194,15 +211,14 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     // A click clears the highlight; the map stays where it is.
     if (same && !c) return
     fitted.current = k
-    const zoom = Math.max(Math.min(r.width / graph.width, (r.height - 48) / graph.height, 1), 0.5)
-    const fit = { x: Math.max((r.width - graph.width * zoom) / 2, 16), y: 48, zoom }
+    const fit = fitOf(r, graph)
     // A saved viewport from before the layout changed can point at empty space; then fit instead.
     const vp = history.state?.vp
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
     // A highlighted box (from `visvet show` or a change step) is centred at full size, its top in view.
     const hit = c ? withBubble(graph.laid, absolute(graph.laid, c)) : undefined
     // Centred, a box too wide for the map starting at its left.
-    const middle = hit && { x: Math.max((r.width - hit.width) / 2, 16) - hit.x, y: 48 + Math.max((r.height - 48 - hit.height) / 2, 0) - hit.y, zoom: 1 }
+    const middle = hit && { x: Math.max((r.width - hit.width) / 2, GUTTER) - hit.x, y: PANEL_CLEARANCE + Math.max((r.height - PANEL_CLEARANCE - hit.height) / 2, 0) - hit.y, zoom: 1 }
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
@@ -238,8 +254,8 @@ function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, gr
     if (graph.view !== view || before.view !== view || !sel || sel === scope || hl.has(sel) || !place || !rect || it?.id === scope) return
     const vp = getViewport()
     const centred = (zoom: number) => ({
-      x: Math.max((rect.width - place.width * zoom) / 2, 16) - place.x * zoom,
-      y: 48 + Math.max((rect.height - 48 - place.height * zoom) / 2, 0) - place.y * zoom, zoom,
+      x: Math.max((rect.width - place.width * zoom) / 2, GUTTER) - place.x * zoom,
+      y: PANEL_CLEARANCE + Math.max((rect.height - PANEL_CLEARANCE - place.height * zoom) / 2, 0) - place.y * zoom, zoom,
     })
     if (before.sel !== sel) {
       last.current.glideStart = Date.now()

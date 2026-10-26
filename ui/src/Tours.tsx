@@ -14,13 +14,15 @@ const BUBBLE_WIDTH = 440, BUBBLE_MOST_HEIGHT = 380
 /** The step bubble as a box for the layout: the box it sits beside, and its size. */
 export type StepBubbleBox = { target: string; width: number; height: number }
 
-/**
- * How tall a step's bubble will be, worked out before it is drawn so the layout can make room for it: its step
- * number, title, Back and Next (180px with padding), and its text at about 46 characters a 22px line.
- */
+/** The step bubble's fixed parts (step number, title, Back and Next, padding), in pixels, besides its text. */
+const BUBBLE_FRAME_HEIGHT = 180
+/** About how many characters of a step's text fit on a line of its bubble, and how tall a line is, in pixels. */
+const BUBBLE_LINE_CHARS = 46, BUBBLE_LINE_HEIGHT = 22
+
+/** How tall a step's bubble will be, worked out before it is drawn so the layout can make room for it. */
 const bubbleHeight = (step: TourStep) => {
-  const lines = step.text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 46)), 0)
-  return Math.min(BUBBLE_MOST_HEIGHT, 180 + lines * 22)
+  const lines = step.text.split('\n').reduce((count, line) => count + Math.max(1, Math.ceil(line.length / BUBBLE_LINE_CHARS)), 0)
+  return Math.min(BUBBLE_MOST_HEIGHT, BUBBLE_FRAME_HEIGHT + lines * BUBBLE_LINE_HEIGHT)
 }
 
 /** A step's bubble, as a box for the layout, if the step's box still exists. */

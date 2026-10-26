@@ -7,14 +7,13 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
 import type { StepView } from './contract'
-import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
+import { ancestorsOf, flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
-import { journeyMotion, zoomer } from './nestedZoom'
-import { recordJourney } from './zoomDebug'
+import { journeyMotion, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
-import { bubbleBoxOf, STEP_BUBBLE, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Route, type TourPlace } from './Tours'
+import { bubbleBoxOf, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Route, type TourPlace } from './Tours'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -91,6 +90,8 @@ function useNav() {
     const ac = new AbortController()
     const opts = { signal: ac.signal }
     addEventListener('popstate', () => {
+      // Back and Forward take the map elsewhere: a zoom under way must not switch it back.
+      stopZooms()
       const s = entry(), v = viewOf(s)
       setSel(hashSel()); setScope(v.scope); setMap(v.map); setHl(v.hl); setPop(p => p + 1)
       requestAnimationFrame(() => document.querySelectorAll('aside').forEach((a, i) => { a.scrollTop = s.scroll?.[i] ?? 0 }))
@@ -103,6 +104,8 @@ function useNav() {
     history.replaceState({ ...entry(), vp: getViewport(), scroll: scrolls() }, '')
     history.pushState(s, '', url)
   }
+  /** Records a map state: in a new history entry, or with `replace`, in the current one (e.g. a tour journey's later levels). */
+  const record = (state: object, url: string, replace: boolean) => (replace ? history.replaceState(state, '', url) : push(state, url))
   /** Opens a symbol in a new history entry (the map stays where it is), or in the current one with `replace`. */
   const select = (id: string, replace = false) => {
     if (id === sel) return
@@ -111,14 +114,14 @@ function useNav() {
     setSel(id); setHl([])
   }
   /** Opens a symbol with the map zoomed to `to` and boxes highlighted, in one new history entry, as `visvet show` asks. */
-  const show = (id: string, to: string | null, ids: string[]) => {
-    push({ scope: to, map, hl: ids }, '#' + encodeURIComponent(id))
+  const show = (id: string, to: string | null, ids: string[], replace = false) => {
+    record({ scope: to, map, hl: ids }, '#' + encodeURIComponent(id), replace)
     setSel(id); setScope(to); setHl(ids)
   }
   /** Zooms the map or switches map mode in a new history entry; zooming into a box also opens it, and a new zoom is fitted. */
-  const go = (to: { scope: string | null; map: boolean }) => {
+  const go = (to: { scope: string | null; map: boolean }, replace = false) => {
     const opens = to.scope !== null && to.scope !== scope
-    push({ ...to, vp: to.scope === scope ? getViewport() : undefined }, opens ? '#' + encodeURIComponent(to.scope!) : location.href)
+    record({ ...to, vp: to.scope === scope ? getViewport() : undefined }, opens ? '#' + encodeURIComponent(to.scope!) : location.href, replace)
     setScope(to.scope)
     setMap(to.map)
     if (opens) { setSel(to.scope); setHl([]) }
@@ -243,17 +246,13 @@ function App() {
   useShow(show, ix, nav.show)
   const focus = useFocus(ix, select)
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
-  /**
-   * Shows box `id` as a tour step chooses: in `context`, zoomed into the box around it with every box there open;
-   * `zoomed`, zoomed into the box itself with its code open. Either way it is outlined.
-   */
   /** The boxes a step opens: in context, the step's box and every box beside it; zoomed, just the step's box. */
   const openFor = (id: string, view: StepView) =>
     new Set(view === 'zoomed' ? [id] : [id, ...(ix.items.get(id)?.parent?.kids ?? []).map(kid => kid.id)])
   /** Shows box `id` as a tour step chooses (see `zoomedFor`, `openFor`), outlined and centred, in the current view. */
-  const showBox = (id: string, view: StepView) => {
+  const showBox = (id: string, view: StepView, replace = false) => {
     const to = zoomedFor(id, view)
-    nav.show(id, to, [id])
+    nav.show(id, to, [id], replace)
     // Opened in the view being opened, since a new view starts with nothing open.
     setWide({ view: to ?? WHOLE_MAP, ids: openFor(id, view) })
   }
@@ -264,8 +263,7 @@ function App() {
    * double clicks would: out to the box holding both (null: the whole map), then in, ending with `to`.
    */
   const hopsBetween = (from: string | null, to: string | null): (string | null)[] => {
-    const outwards = (id: string | null) => { const ids: string[] = []; for (let it = id ? ix.items.get(id) : undefined; it; it = it.parent) ids.push(it.id); return ids }
-    const fromChain = outwards(from), toChain = outwards(to)
+    const fromChain = from ? ancestorsOf(ix, from) : [], toChain = to ? ancestorsOf(ix, to) : []
     const holdingBoth = toChain.find(id => fromChain.includes(id)) ?? null
     const out: (string | null)[] = holdingBoth === null ? [...fromChain.slice(1), ...(from === null ? [] : [null])] : fromChain.slice(1, fromChain.indexOf(holdingBoth) + 1)
     const into = (holdingBoth === null ? toChain : toChain.slice(0, toChain.indexOf(holdingBoth))).reverse()
@@ -279,36 +277,31 @@ function App() {
     const trip = ++journey.current
     const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
     if (!step) { setTour(place); return setRoute(null) }
-    const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to), bubble = bubbleBoxOf(step)
-    const openedAt = (hop: string | null) => (hop === to ? openFor(step.target, step.view) : new Set<string>())
-    /** The journey itself, one zoom level at a time. */
-    const travel = async () => {
-      // Every view on the way is laid out before setting off, so the camera never waits for one.
-      await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubble)
-      if (journey.current !== trip) return
-      for (const [level, hop] of hops.entries()) {
-        setRoute({ stops: [scope, ...hops], at: level + 1 })
-        // The step changes as its view takes over: until then the view being left keeps the old step, untouched.
-        const arriving = level === hops.length - 1
-        const enter = () => { if (arriving) setTour(place); go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: openedAt(hop) }) }
-        await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length), bubble) : enter())
-        // A newer step (a quick Next) takes over the journey.
-        if (journey.current !== trip) return
+    const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
+    // The views on the way show the step playing now (the default); the last one, the step it is heading to.
+    const setupOf = (hop: string | null): ViewSetup => (hop === to ? { opened: openFor(step.target, step.view), bubble: bubbleBoxOf(step) ?? null } : {})
+    // Every view on the way is laid out before setting off, so the camera never waits for one.
+    await zoomer.prepare?.(hops.map(hop => ({ to: hop, ...setupOf(hop) })))
+    if (journey.current !== trip) return
+    for (const [level, hop] of hops.entries()) {
+      setRoute({ stops: [scope, ...hops], at: level + 1 })
+      // The step changes as its view takes over: until then the view being left keeps the old step, untouched.
+      const arriving = level === hops.length - 1
+      // One Back step per journey: its first level adds a history entry, the rest replace it.
+      const enter = () => {
+        if (arriving) setTour(place)
+        go({ scope: hop, map }, level > 0)
+        setWide({ view: hop ?? WHOLE_MAP, ids: setupOf(hop).opened ?? new Set() })
       }
-      setTour(place)
-      setRoute(null)
-      showBox(step.target, step.view)
+      await (zoomer.run ? zoomer.run(hop, enter, setupOf(hop), journeyMotion(level, hops.length)) : enter())
+      // A newer step (a quick Next) takes over the journey.
+      if (journey.current !== trip) return
     }
-    // Debugging the journey's smoothness: every frame, where the starting box, the step's box, its parent and its bubble are.
-    let arrived = () => {}
-    const watched = [scope, to, step.target, STEP_BUBBLE].filter((id): id is string => !!id)
-    recordJourney(`to step ${place!.step + 1}`, () => watched, new Promise<void>(done => { arrived = done }))
-    try {
-      await travel()
-    } finally {
-      arrived()
-    }
+    setTour(place)
+    setRoute(null)
+    showBox(step.target, step.view, hops.length > 0)
   }
+
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     tour, showStep, route, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,

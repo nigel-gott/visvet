@@ -63,6 +63,13 @@ export const subtree = (it: Item): Item[] => [it, ...it.kids.flatMap(subtree)]
 /** Whether `it` is the item `id` or inside it. */
 export const within = (it: Item | undefined, id: string): boolean => !!it && (it.id === id || within(it.parent, id))
 
+/** Box `id` and every box around it, innermost first, out to its top folder or file; none for an unknown id. */
+export function ancestorsOf(ix: Index, id: string) {
+  const ids: string[] = []
+  for (let it = ix.items.get(id); it; it = it.parent) ids.push(it.id)
+  return ids
+}
+
 /** A copy of `set` with `id` added, or removed if it was there. */
 export const flip = (set: Set<string>, id: string) => { const n = new Set(set); if (!n.delete(id)) n.add(id); return n }
 /** A copy of `set` with all of `ids` added, or all removed when every one is in it already. */
