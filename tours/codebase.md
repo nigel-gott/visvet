@@ -96,8 +96,8 @@ A variant with named fields, like a small struct of its own.
 `src/cli.rs::run` reads the command line and runs the command. This is where you see Rust's two biggest ideas: ownership and `match`.
 route: Same file: the function that picks what to run.
 
-### `let top = git::git(&cli.repo, &["rev-parse", "--show-toplevel"])?;`
-Two new things. `&` lends a value: `git` borrows `cli.repo` to read, and `cli` still owns it. The `?` at the end means "if this is an `Err`, return it from `run` now; else take the value out of the `Ok`".
+### `let repo_root = git::top_folder(&cli.repo)?;`
+Two new things. `&` lends a value: `top_folder` borrows `cli.repo` to read, and `cli` still owns it. The `?` at the end means "if this is an `Err`, return it from `run` now; else take the value out of the `Ok`".
 
 ### `match cli.cmd.unwrap_or(Cmd::Serve(cli.serve)) {`
 `match` picks an arm by the value's shape, and must cover every variant, or the code doesn't compile. Each arm can take a variant apart and name its fields. `unwrap_or` gives the value inside an `Option`, or the default when it is `None`: no subcommand means serve.
@@ -204,30 +204,36 @@ A real operating-system thread, not an async task: it spends its life waiting fo
 `let` in a condition runs the block only if the file could be read, and names its text `json`.
 
 ## Asking git
-`src/git.rs::git` runs a git command and returns what it printed. visvet calls the `git` program instead of using a git library: what you see is what `git` says.
+`src/git.rs::GitRepo` is how visvet reads the repository: through git2, Rust bindings to libgit2, the C library many git tools are built on. It answers in types (trees, blobs, statuses), so visvet never runs the `git` program or parses its text.
 route: Over to src/git.rs: building a review starts by asking git which files there are.
 
-### `pub fn git(repo_root: &Path, args: &[&str]) -> anyhow::Result<Vec<u8>> {`
-`&[&str]` is a slice: a borrowed view of a list, of any length, here of borrowed strings. `Vec<u8>` is a growable list of bytes, because git's output may not be valid text.
+### `pub struct GitRepo(Repository);`
+A struct with one unnamed field: git2's `Repository`, opened once per review and asked every question, instead of opening it again for each.
 
-### `let out = Command::new("git").arg("-C").arg(repo_root).args(args).output()?;`
-`Command::new` uses `::` because `new` belongs to the type, like a static method; `.arg` uses `.` because it works on a value. Each call returns the builder, so they chain.
+### `options.include_untracked(true).recurse_untracked_dirs(true).include_ignored(false);`
+A builder: each setting returns the options again, so they chain. `StatusOptions::new()` above uses `::` because `new` belongs to the type, like a static method; these use `.` because they work on a value.
 
-### `anyhow::ensure!(out.status.success(), "git {}: {}", args.join(" "), err.trim());`
-If git failed, return an error built from this message and git's own error text. This is something only a macro can do: it expands to `if !condition { return Err(anyhow!(...)) }` right here, so its `return` leaves `git` itself. A function could only return from its own body.
+### `tree.walk(TreeWalkMode::PreOrder, |folder, entry| {`
+git2 calls this closure for every entry in the tree, with the folder it is in. The closure pushes onto `files` from around it, which is why it can collect the list.
+
+### `if entry.kind() == Some(ObjectType::Blob) && let Ok(name) = entry.name() {`
+Only blobs (file contents) are files; the rest are folders. `let Ok(name)` runs the block only when the name is valid text.
 
 ## Iterators
-`src/git.rs::paths` splits git's output into paths. It is one chain of iterator calls, which you will see everywhere in Rust.
-route: Same file: turning git's output into paths.
+`src/git.rs::GitRepo::current_files` lists the files in the working tree: the ones git tracks, plus new ones that aren't ignored. It is a chain of iterator calls, which you will see everywhere in Rust.
+route: Into GitRepo: the files as they are now.
 
-### `String::from_utf8_lossy(&out).split('\0').filter(|p| !p.is_empty()).map(|p| RepoPath(p.into())).collect()`
-Iterators are lazy: nothing runs until `collect` asks for the result, and then the compiler joins the steps into one loop, as fast as a hand-written one. `'\0'` is a `char`, written in single quotes, unlike a string.
+### `let untracked = statuses.iter().filter(|entry| entry.status().contains(Status::WT_NEW)).filter_map(|entry| repo_path(entry.path_bytes()));`
+Iterators are lazy: this line runs nothing yet. It only describes the steps: the new files, then each one's path. `filter_map` keeps the values a closure gives as `Some`, here the paths that are valid text.
+
+### `Ok(tracked.into_iter().chain(untracked).filter(|file| top.join(&file.0).is_file()).collect())`
+`collect` runs the whole chain at once, and the compiler joins the steps into one loop, as fast as a hand-written one. `chain` joins two iterators end to end.
 
 ## Building the review
 `src/review.rs::build_review` is the heart of visvet. It lists the files in the working tree and at the base, reads both versions of each, compares them, and finds the arrows between the boxes.
 route: Over to src/review.rs: with git's lists, it builds the review the request handler sends.
 
-### `let cur: HashSet<RepoPath> = git::current_files(repo_root)?.into_iter().collect();`
+### `let cur: HashSet<RepoPath> = repo.current_files()?.into_iter().collect();`
 `collect` builds whatever collection the variable's type asks for: here a `HashSet`. Rust infers types backwards from where a value goes, so one `collect` can build a list, a set or a map.
 
 ### `for f in cur.union(&old).filter(|f| !visvet_dir::holds(&f.0)).collect::<BTreeSet<_>>() {`

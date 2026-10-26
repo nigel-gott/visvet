@@ -145,7 +145,7 @@ fn new_id() -> ThreadId {
 fn message(repo_root: &Path, author: Author, text: String, kind: MessageKind, state: ThreadState) -> ThreadMessage {
     let name = match author {
         Author::Ai => "Claude".into(),
-        Author::User => git::git(repo_root, &["config", "user.name"]).map(|o| String::from_utf8_lossy(&o).trim().to_string()).unwrap_or_default(),
+        Author::User => git::user_name(repo_root).unwrap_or_default(),
     };
     let at = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
     ThreadMessage { author, name: if name.is_empty() { "you".into() } else { name }, text, kind, state, at }

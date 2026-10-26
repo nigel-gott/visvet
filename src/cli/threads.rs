@@ -106,9 +106,11 @@ mod tests {
         let r = std::env::temp_dir().join(format!("visvet-stranded-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&r);
         std::fs::create_dir_all(&r).unwrap();
-        crate::git::git(&r, &["init", "-q"]).unwrap();
+        let repo = git2::Repository::init(&r).unwrap();
         std::fs::write(r.join("a.rs"), "struct FileParser;\n").unwrap(); // was `Ex` when the thread was left
-        crate::git::git(&r, &["add", "a.rs"]).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(std::path::Path::new("a.rs")).unwrap();
+        index.write().unwrap();
         for (box_id, text) in [("a.rs::Ex", "bad name"), ("a.rs::FileParser", "better"), ("src/", "a folder")] {
             store::new_thread(&r, MapId(box_id.into()), text.into()).unwrap();
         }

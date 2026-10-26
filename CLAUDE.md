@@ -9,6 +9,7 @@ visvet is a multi-lens, visual way to review code changes at a higher level than
 - Code must document itself. Name every variable, field and function for what it holds or does: `level`, `from_box`, `dep`, never `k`, `a`, `b`, `e`, even in closures. Give magic numbers and indexes named constants. Put a compound condition in a named predicate or variable, e.g. `let in_a_cycle = ...`. Prefer a small named struct over a tuple.
 - Wants small "micro types" for domain values instead of bare strings, for example `GitRef`, not `String`.
 - Never hold a file path as a string. In Rust a repo file is a `RepoPath`, anything else a `Path`/`PathBuf`; turn it into text only to print it or build a box id. Path helpers go on `RepoPath`.
+- Never run the `git` program or parse its output: read the repository through the git2 library (`src/git.rs`).
 - Never parse file paths or URLs by hand (splitting on `/` or `.`, slicing, `strip_suffix(".rs")`). Use the standard library: `std::path::Path` in Rust (`file_name`, `parent`, `extension`, `starts_with`), `http::Uri` for URLs.
 - Always commit and push your work when a change is done, so nothing is lost.
 

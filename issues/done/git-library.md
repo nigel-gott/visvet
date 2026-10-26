@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: Read git through a Rust git library instead of running the git program and parsing its text.
 ---
 # Use a git library instead of running git
@@ -18,3 +18,5 @@ What to do:
 - Replace `current_files`, `base_files`, `changed` and `show` with the library's index, tree and status calls, keeping their signatures so callers don't change.
 - Keep the repository open once per review instead of starting a process per file.
 - Check that untracked, ignored, deleted and renamed files show as they do today, with a test per case.
+
+Done with git2: `src/git.rs::GitRepo`, tested in `files_now_and_at_the_base`.

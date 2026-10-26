@@ -105,8 +105,7 @@ enum Cmd {
 /// Reads the command line, finds the repository's top folder, then runs the chosen command.
 pub async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let top = git::git(&cli.repo, &["rev-parse", "--show-toplevel"])?;
-    let repo_root = PathBuf::from(String::from_utf8(top)?.trim()).canonicalize()?;
+    let repo_root = git::top_folder(&cli.repo)?;
     match cli.cmd.unwrap_or(Cmd::Serve(cli.serve)) {
         Cmd::Serve(s) => server::serve(repo_root, s.base, s.addr, !s.no_open).await,
         Cmd::Explain { symbol, why } => store::add_note(&repo_root, MapId(symbol), why.join(" ")),
