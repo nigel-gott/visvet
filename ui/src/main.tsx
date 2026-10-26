@@ -10,10 +10,11 @@ import type { StepView } from './contract'
 import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
 import { journeyMotion, zoomer } from './nestedZoom'
+import { recordJourney } from './zoomDebug'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
-import { bubbleBoxOf, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Route, type TourPlace } from './Tours'
+import { bubbleBoxOf, STEP_BUBBLE, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Route, type TourPlace } from './Tours'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -280,21 +281,33 @@ function App() {
     if (!step) { setTour(place); return setRoute(null) }
     const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to), bubble = bubbleBoxOf(step)
     const openedAt = (hop: string | null) => (hop === to ? openFor(step.target, step.view) : new Set<string>())
-    // Every view on the way is laid out before setting off, so the camera never waits for one.
-    await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubble)
-    if (journey.current !== trip) return
-    for (const [level, hop] of hops.entries()) {
-      setRoute({ stops: [scope, ...hops], at: level + 1 })
-      // The step changes as its view takes over: until then the view being left keeps the old step, untouched.
-      const arriving = level === hops.length - 1
-      const enter = () => { if (arriving) setTour(place); go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: openedAt(hop) }) }
-      await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length), bubble) : enter())
-      // A newer step (a quick Next) takes over the journey.
+    /** The journey itself, one zoom level at a time. */
+    const travel = async () => {
+      // Every view on the way is laid out before setting off, so the camera never waits for one.
+      await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubble)
       if (journey.current !== trip) return
+      for (const [level, hop] of hops.entries()) {
+        setRoute({ stops: [scope, ...hops], at: level + 1 })
+        // The step changes as its view takes over: until then the view being left keeps the old step, untouched.
+        const arriving = level === hops.length - 1
+        const enter = () => { if (arriving) setTour(place); go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: openedAt(hop) }) }
+        await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length), bubble) : enter())
+        // A newer step (a quick Next) takes over the journey.
+        if (journey.current !== trip) return
+      }
+      setTour(place)
+      setRoute(null)
+      showBox(step.target, step.view)
     }
-    setTour(place)
-    setRoute(null)
-    showBox(step.target, step.view)
+    // Debugging the journey's smoothness: every frame, where the starting box, the step's box, its parent and its bubble are.
+    let arrived = () => {}
+    const watched = [scope, to, step.target, STEP_BUBBLE].filter((id): id is string => !!id)
+    recordJourney(`to step ${place!.step + 1}`, () => watched, new Promise<void>(done => { arrived = done }))
+    try {
+      await travel()
+    } finally {
+      arrived()
+    }
   }
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
