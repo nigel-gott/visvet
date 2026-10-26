@@ -12,6 +12,8 @@ import { mapView, type View } from './view'
 import { showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
+/** How long boxes glide to their new places after a new layout of the same view, in ms (CSS `.relayout`). */
+const RELAYOUT_TIME = 600
 /** The name of the unzoomed view, the whole map, among views named by their zoomed box. */
 export const WHOLE_MAP = 'map'
 /** ELK settings for every box: fewer crossings, straighter edges, source order kept, right-angle routes around boxes. */
@@ -177,6 +179,29 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
   }, [graph, view, visible, pop])
 }
 
+/**
+ * Glides the camera, at its current zoom, to centre the selected box (or the box its selected row sits in), when the
+ * selection changes and again when the new layout it brings (its peers) arrives, so it never ends up off screen. A box
+ * too big for the map is centred from its top left. Zooming into a view, or a highlight, is `useFit`'s to place.
+ */
+function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, view: string, sel: string | null, scope: string | null, hl: Set<string>) {
+  const { getViewport, setViewport } = useReactFlow()
+  const lastView = useRef(view)
+  useEffect(() => {
+    const viewChanged = lastView.current !== view
+    if (graph.view === view) lastView.current = view
+    if (viewChanged || !sel || sel === scope || hl.has(sel) || graph.view !== view) return
+    let it = ix.items.get(sel), hit = it && absolute(graph.laid, it.id)
+    while (it && !hit) { it = it.parent; hit = it && absolute(graph.laid, it.id) }
+    const rect = map.current?.getBoundingClientRect()
+    if (!hit || !rect || it?.id === scope) return
+    const { zoom } = getViewport()
+    const x = Math.max((rect.width - hit.width * zoom) / 2, 16) - hit.x * zoom
+    const y = 48 + Math.max((rect.height - 48 - hit.height * zoom) / 2, 0) - hit.y * zoom
+    setViewport({ x, y, zoom }, { duration: RELAYOUT_TIME })
+  }, [sel, graph])
+}
+
 /** Where the user dragged boxes in a view with the boxes `sig`, loaded from and saved to this browser. */
 function useMoved(view: string, sig: string) {
   const [moved, setMoved] = useState<Record<string, XYPosition>>({})
@@ -245,6 +270,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
   const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x))
   const preview = useNestedZoom(box, graph, kinds)
+  useCentreSelection(box, x.ix, graph, view, x.sel, x.scope, x.hl)
   const centre = [...x.hl][0]
   const playing = useTourStep()
   const stepTarget = playing?.step.target
@@ -290,10 +316,15 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     return node
   })
   // Until a new view is laid out, the last frame of the old one stays up, so the map never blanks or flashes.
-  const frame = useRef({ nodes, edges: [] as Edge[], view: '' })
-  // A new layout of the same view (a selection, More) glides boxes and arrows to their new places; a new view doesn't.
-  const relayout = frame.current.view === view
-  if (ready) frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel), view }
+  const frame = useRef({ nodes, edges: [] as Edge[], view: '', graph: null as Layout | null, glideUntil: 0 })
+  if (ready) {
+    // A new layout of the same view (a selection, More) glides boxes and arrows to their new places for a moment;
+    // a new view's boxes go straight to theirs.
+    const relaidOut = frame.current.graph !== graph && frame.current.view === view
+    const glideUntil = frame.current.graph === graph ? frame.current.glideUntil : relaidOut ? Date.now() + RELAYOUT_TIME : 0
+    frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel), view, graph, glideUntil }
+  }
+  const relayout = Date.now() < frame.current.glideUntil
   const shown = frame.current
   return (
     <ReactFlow
