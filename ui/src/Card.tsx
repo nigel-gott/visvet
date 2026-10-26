@@ -136,7 +136,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
       {stepHere && <StepBubble />}
       {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
       <Handle type="target" position={Position.Left} />
-      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${data.zoomPreview ? (data.zoomPreview.inward ? 'zooming-in' : 'zooming-out') : ''}`}
+      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />

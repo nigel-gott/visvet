@@ -272,9 +272,9 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     const rows = rowsOf(it), position = clamp(n, pos.moved[n.id] ?? n.position)
     const notesHere = boxNotes.filter(note => drawnBoxOf(note.on_box!) === n.id)
     // A box a zoom passes through draws the view inside it, and is as tall as that view at its width.
-    const drawsInside = preview?.box === n.id && n.id !== x.scope ? preview : undefined
-    if (drawsInside && !drawsInside.settling) n = { ...n, height: absolute(drawsInside.inner.laid, n.id)!.height * drawsInside.scale }
-    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code), drawsInside?.inward, drawsInside?.settling, n.height].join('|')
+    const drawsInside = preview?.box === n.id ? preview : undefined
+    if (drawsInside && !drawsInside.settling && !drawsInside.landed) n = { ...n, height: absolute(drawsInside.inner.laid, n.id)!.height * drawsInside.scale }
+    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code), drawsInside?.inward, drawsInside?.settling, drawsInside?.landed, n.height].join('|')
     const old = made.current.boxes.get(n.id)
     if (old?.key === key) return old.node
     const data: CardData = {

@@ -302,7 +302,7 @@ main { grid-area: 2 / 1; min-height: 0 }
 /* A zoom between views (nestedZoom.tsx): the box it passes through draws the inner view inside it, scaled down.
    Zooming in, the box's own face fades out as the inner view fades in; zooming out, the reverse. */
 .react-flow__node:has(> .card.zooming-in), .react-flow__node:has(> .card.zooming-out) { transition: height .6s ease }
-.card.zooming-in, .card.zooming-out { position: relative }
+.card.zooming-in, .card.zooming-out, .card.zoom-landed { position: relative }
 .card.zooming-in > :not(.inner-preview) { animation: fade-away .6s ease forwards }
 .card.zooming-out > :not(.inner-preview) { animation: appear .8s ease .5s both }
 .inner-preview { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; background: var(--bg) }

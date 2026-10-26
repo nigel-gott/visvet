@@ -14,6 +14,8 @@ import type { Item } from './model'
 
 /** How long a zoom from one view into another takes, in ms: slow enough to see where you go. */
 export const ZOOM_TIME = 1400
+/** How long the drawing of a view stays behind its real boxes after a zoom into it, in ms, while they fade in. */
+const LANDING_TIME = 500
 /** The camera move of a zoom: eased in and out over `ZOOM_TIME`. */
 const ZOOM_GLIDE = { duration: ZOOM_TIME, interpolate: 'linear' as const, ease: (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2) }
 
@@ -28,6 +30,8 @@ export type ZoomPreview = {
   box: string; inner: Layout; scale: number; inward: boolean
   /** Zooming out, once the outer view is up: the box shrinks back from the inner view's height to its own. */
   settling?: boolean
+  /** Zooming in, once the inner view has taken over: the drawing stays behind its real boxes until they are in. */
+  landed?: boolean
 }
 
 /** Lays out the view zoomed into `top` (the whole map when none), as the map would show it with nothing opened. */
@@ -96,8 +100,13 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     }
     return () => { zoomer.run = null }
   })
-  // Zoomed in: once the inner view is laid out and on screen, it replaces the drawing of it.
-  useEffect(() => { if (preview?.inward && graph.view === preview.box) setPreview(null) }, [graph.view])
+  // Zoomed in: once the inner view is laid out and on screen, its real boxes fade in over the drawing, which then goes.
+  useEffect(() => {
+    if (!preview?.inward || graph.view !== preview.box) return
+    setPreview({ ...preview, scale: 1, landed: true })
+    const gone = setTimeout(() => setPreview(null), LANDING_TIME)
+    return () => clearTimeout(gone)
+  }, [graph.view])
   return preview
 }
 
@@ -126,7 +135,7 @@ export function InnerPreview({ preview }: { preview: ZoomPreview }) {
   const routes = Object.values(inner.routes).filter(points => points.every(within))
   const it = x.ix.items.get(box)
   return (
-    <div className={`inner-preview ${inward ? 'fading-in' : 'fading-out'}`} style={{ width: container.width, height: container.height, transform: `scale(${scale})` }}>
+    <div className={`inner-preview ${preview.landed ? 'landed' : inward ? 'fading-in' : 'fading-out'}`} style={{ width: container.width, height: container.height, transform: `scale(${scale})` }}>
       {it && <div className={`hdr ${it.status}`}><Head it={it} /></div>}
       <svg className="preview-arrows" width={container.width} height={container.height}>
         {routes.map((points, index) => <polyline key={index} points={points.map(p => `${p.x - container.x},${p.y - container.y}`).join(' ')} />)}
