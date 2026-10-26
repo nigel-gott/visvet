@@ -44,7 +44,7 @@ enum Cmd {
     Serve(ServeArgs),
     /// Attach a review note to a box or arrow
     Explain {
-        /// Unit, member or file id, a folder ending in "/", or a dependency arrow "<from> -> <to>"
+        /// Box, member or file id, a folder ending in "/", or a dependency arrow "<from> -> <to>"
         symbol: String,
         #[arg(required = true)]
         why: Vec<String>,

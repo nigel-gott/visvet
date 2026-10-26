@@ -34,7 +34,7 @@ export function reportView(v = view) {
   }, 500)
 }
 
-/** A reviewable folder, file, code unit or member. Edges are addressed as "<from> -> <to>" instead. */
+/** A reviewable folder, file, box or member. Edges are addressed as "<from> -> <to>" instead. */
 export type Item = {
   id: string; kind: string; name: string; doc: string; status: ChangeStatus; diff: DiffLine[]
   depth: number; kids: Item[]; parent?: Item; o?: MapBox; m?: Member
@@ -78,7 +78,7 @@ function measure(it: Item, file = ''): Set<string> {
 }
 
 /**
- * The code's own tree: folders hold files, files hold units, units hold members. A Rust file `x.rs` next to a folder
+ * The code's own tree: folders hold files, files hold boxes, boxes hold members. A Rust file `x.rs` next to a folder
  * `x/` is the module holding that folder's files, so they nest inside it, as in Rust. Top files and folders are the roots.
  */
 /** A box's code part (kind, members, implemented traits, coverage), or nothing for a document or plain file. */

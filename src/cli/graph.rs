@@ -1,5 +1,5 @@
 //! `visvet graph`: the review map as text, so the AI sees the coupling, cycles and complexity the user sees.
-use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, MapBox, ChangeStatus, MemberKind, UnitKind}};
+use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, MapBox, ChangeStatus, MemberKind, BoxKind}};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
@@ -52,7 +52,7 @@ fn paths<'a>(objs: &[&'a MapBox]) -> Paths<'a> {
     let mut path = HashMap::new();
     for o in objs {
         let f = vec![top_folder(o.file.as_str()), o.file.as_str()];
-        let p = if o.kind() == UnitKind::File { f.clone() } else { [&f[..], &[o.id.as_str()]].concat() };
+        let p = if o.kind() == BoxKind::File { f.clone() } else { [&f[..], &[o.id.as_str()]].concat() };
         for x in o.members().iter().filter(|x| x.status != ChangeStatus::Removed) {
             path.insert(x.id.as_str(), ([&p[..], &[x.id.as_str()]].concat(), x.kind.label()));
         }
@@ -106,7 +106,7 @@ fn report(objs: &[&MapBox], path: &Paths, t: &Tally) {
     let fns: Vec<&Member> = objs.iter().flat_map(|o| o.members()).filter(|x| path.contains_key(x.id.as_str()) && matches!(x.kind, MemberKind::Fn | MemberKind::Method)).collect();
     let files: BTreeSet<&str> = objs.iter().map(|o| o.file.as_str()).collect();
     let tops = objs.iter().map(|o| top_folder(o.file.as_str())).collect::<BTreeSet<_>>().len();
-    let types = objs.iter().filter(|o| o.kind() != UnitKind::File).count();
+    let types = objs.iter().filter(|o| o.kind() != BoxKind::File).count();
     println!("totals: {tops} top folders, {} files, {types} types, {} functions; links: {}", files.len(), fns.len(), list(&t.kinds));
     section("top-folder coupling (from -> to)", usize::MAX, t.pairs.iter().map(|((a, b), c)| (c.values().sum::<usize>(), format!("{a} -> {b}: {}", list(c)))));
     for (k, level) in [(1, "files"), (0, "top folders")] {

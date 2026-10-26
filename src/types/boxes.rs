@@ -1,13 +1,13 @@
 //! The boxes on the map and what they hold: code (types, files, their members), documents, or plain files.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{ChangeStatus, DiffLine, DocLabels, LineRange, MemberId, RepoPath, UnitId};
+use super::{ChangeStatus, DiffLine, DocLabels, LineRange, MemberId, RepoPath, BoxId};
 
-/// What a code unit is.
+/// What a box is.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 #[serde(rename_all = "lowercase")]
-pub enum UnitKind {
+pub enum BoxKind {
     Struct,
     Enum,
     Trait,
@@ -23,7 +23,7 @@ pub enum UnitKind {
     File,
 }
 
-impl UnitKind {
+impl BoxKind {
     /// The kind's name, as in JSON, e.g. "struct" or "type".
     pub fn label(self) -> &'static str {
         match self {
@@ -33,7 +33,7 @@ impl UnitKind {
     }
 }
 
-/// What a member of a code unit is.
+/// What a member of a box is.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 #[serde(rename_all = "lowercase")]
@@ -80,17 +80,17 @@ pub struct Member {
     pub diff: Vec<DiffLine>,
 }
 
-/// A trait, interface or base class a unit implements or extends. `unit` is set when it is defined in this repo.
+/// A trait, interface or base class a box implements or extends. `box_id` is set when it is defined in this repo.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct TraitRef { pub name: String, pub unit: Option<UnitId> }
+pub struct TraitRef { pub name: String, pub box_id: Option<BoxId> }
 
 /// One box on the map: a type, an impl or a whole file. Every box has these; what else it holds depends on what it
 /// is (`content`): code, a Markdown document, or any other file.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct MapBox {
-    pub id: UnitId,
+    pub id: BoxId,
     pub name: String,
     pub file: RepoPath,
     pub lines: LineRange,
@@ -109,7 +109,7 @@ pub struct MapBox {
 pub enum BoxContent {
     /// A type, an impl, or a source file holding its free functions.
     Code {
-        kind: UnitKind,
+        kind: BoxKind,
         members: Vec<Member>,
         implements: Vec<TraitRef>,
         /// Source files only, once `visvet coverage` has run.
@@ -123,8 +123,8 @@ pub enum BoxContent {
 
 impl MapBox {
     /// What the box is: a code box's own kind, else `File`.
-    pub fn kind(&self) -> UnitKind {
-        match self.content { BoxContent::Code { kind, .. } => kind, _ => UnitKind::File }
+    pub fn kind(&self) -> BoxKind {
+        match self.content { BoxContent::Code { kind, .. } => kind, _ => BoxKind::File }
     }
     /// A code box's members, else none.
     pub fn members(&self) -> &[Member] {

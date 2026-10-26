@@ -1,5 +1,5 @@
 //! Test coverage from `visvet coverage`: which lines the tests ran, saved by `cargo llvm-cov` in `.visvet/coverage.lcov`.
-use crate::types::{BoxContent, Coverage, LineRange, MemberKind, Review, UnitKind};
+use crate::types::{BoxContent, Coverage, LineRange, MemberKind, Review, BoxKind};
 use crate::state::visvet_dir::VisvetDir;
 use std::collections::HashMap;
 use std::path::Path;
@@ -20,7 +20,7 @@ pub fn add(repo_root: &Path, review: &mut Review) {
     let all = load(repo_root);
     for b in &mut review.boxes {
         let BoxContent::Code { kind, members, coverage, .. } = &mut b.content else { continue };
-        if *kind == UnitKind::File {
+        if *kind == BoxKind::File {
             *coverage = of(&all, b.file.as_str(), b.lines);
         }
         for m in members.iter_mut().filter(|m| matches!(m.kind, MemberKind::Fn | MemberKind::Method)) {

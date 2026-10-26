@@ -84,7 +84,7 @@ mod tests {
     fn a_thread_follows_its_renamed_box() {
         let r = std::env::temp_dir().join(format!("visvet-renames-{}", std::process::id()));
         let _ = fs::remove_dir_all(&r);
-        let body = "    pub source: String,\n    pub path: String,\n    pub units: Vec<Unit>,\n    pub broken: bool,\n}\n";
+        let body = "    pub source: String,\n    pub path: String,\n    pub boxes: Vec<Unit>,\n    pub broken: bool,\n}\n";
         store::new_thread(&r, MapId("a.rs::Ex".into()), "bad name".into()).unwrap();
         follow(&r, &review(&format!("/// Parses a file.\npub struct Ex {{\n{body}"))).unwrap(); // remembers the box
         follow(&r, &review(&format!("/// Parses one file.\npub struct FileParser {{\n{body}"))).unwrap(); // renamed, doc edited

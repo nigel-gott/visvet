@@ -1,4 +1,4 @@
-// The map: ELK lays out folder, file, code unit and member boxes; clicking selects a box, double-clicking zooms into it.
+// The map: ELK lays out folder, file, box and member boxes; clicking selects a box, double-clicking zooms into it.
 
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type XYPosition } from '@xyflow/react'

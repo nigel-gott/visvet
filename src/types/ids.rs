@@ -28,22 +28,23 @@ impl RepoPath {
 }
 
 /// A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox";
-/// for a file unit, just the path.
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
-#[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct UnitId(pub String);
-
-/// The id of a box an arrow starts or ends at: a code unit's or a member's id.
+/// for a file box, just the path.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct BoxId(pub String);
 
-/// A member's id: its unit's id, then "::" and its name, e.g. "src/types/boxes.rs::MapBox::lines".
+/// A member's id: its box's id, then "::" and its name, e.g. "src/types/boxes.rs::MapBox::lines".
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct MemberId(pub String);
 
-string_methods!(UnitId, BoxId, MemberId);
+/// Anything on the map: a box (`BoxId`), a member (`MemberId`), a folder ending in "/" (e.g. "src/types/"), or for
+/// selecting, an arrow "<from> -> <to>". Arrows start and end at one, and threads are on one.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct MapId(pub String);
+
+string_methods!(BoxId, MemberId, MapId);
 
 /// The first and last line of something in its file, 1-based, including its doc comment.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, TS)]

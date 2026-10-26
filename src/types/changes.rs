@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// How a unit, member or file differs from the version it is compared against.
+/// How a box, member or file differs from the version it is compared against.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 #[serde(rename_all = "lowercase")]

@@ -1,18 +1,18 @@
 //! Comparing a file's two versions: parses both, pairs old and new types and members by name, and diffs each pair,
 //! so every box knows whether it was added, changed, removed or is the same.
-use crate::review::parse::{ParsedMember, ParsedUnit, parse};
+use crate::review::parse::{ParsedMember, ParsedBox, parse};
 use super::{codegen, markdown};
-use crate::types::{BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, UnitId, UnitKind};
+use crate::types::{BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, BoxId, BoxKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::HashMap;
 
-/// A code unit as parsed, with the names it mentions before they are resolved into dependencies:
+/// A box as parsed, with the names it mentions before they are resolved into dependencies:
 /// type names it uses outside any member (a type alias, a tuple struct), type names per member as
 /// `(member id, kind, names)`, traits it implements, candidate files per import, and calls or
 /// constructions as `[from member id, qualifier, name]`, the ids of the types a code generator writes from it, and
 /// for a Markdown file, the boxes and files it names.
 pub struct Parsed {
-    pub unit: MapBox,
+    pub map_box: MapBox,
     pub types: Vec<String>,
     pub member_types: Vec<(String, MemberKind, Vec<String>)>,
     pub traits: Vec<String>,
@@ -36,15 +36,15 @@ pub fn compare_file(file: &RepoPath, new: Option<&[u8]>, old: Option<&[u8]>) -> 
     let (now, before) = (parsed(new), (new != old).then(|| parsed(old)));
     let (before, broken) = (before.as_ref().unwrap_or(&now), now.first().is_some_and(|f| f.broken));
     pair(&now, before, |o| &o.name).into_iter().filter(|(n, _)| n.is_some() || !broken)
-        .map(|(n, o)| compare_unit(file, n, o, broken, status(new, old)))
+        .map(|(n, o)| compare_box(file, n, o, broken, status(new, old)))
         .collect()
 }
 
-/// Compares one unit's two versions (either missing): its members, its status (`file_status` for the file's own box;
+/// Compares one box's two versions (either missing): its members, its status (`file_status` for the file's own box;
 /// changed if any member changed) and diff, and the names it mentions, for `find_dependencies`.
-fn compare_unit(file: &RepoPath, n: Option<&ParsedUnit>, o: Option<&ParsedUnit>, broken: bool, file_status: ChangeStatus) -> Parsed {
+fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, broken: bool, file_status: ChangeStatus) -> Parsed {
     let x = n.or(o).unwrap();
-    let id = UnitId(if x.kind == UnitKind::File { file.as_str().into() } else { format!("{}::{}", file.as_str(), x.name) });
+    let id = BoxId(if x.kind == BoxKind::File { file.as_str().into() } else { format!("{}::{}", file.as_str(), x.name) });
     let (mut calls, mut member_types) = (vec![], vec![]);
     let members: Vec<Member> = pair(n.map_or(&[][..], |n| &n.members[..]), o.map_or(&[][..], |o| &o.members[..]), |m| &m.name)
         .into_iter().filter(|(nm, _)| nm.is_some() || !broken)
@@ -57,13 +57,13 @@ fn compare_unit(file: &RepoPath, n: Option<&ParsedUnit>, o: Option<&ParsedUnit>,
         })
         .collect();
     let status = match status(n.map(|n| (&n.text, &n.impls)), o.map(|o| (&o.text, &o.impls))) {
-        _ if x.kind == UnitKind::File => file_status,
+        _ if x.kind == BoxKind::File => file_status,
         ChangeStatus::Same if members.iter().any(|m| m.status != ChangeStatus::Same) => ChangeStatus::Changed,
         st => st,
     };
-    let md = x.kind == UnitKind::File && file.as_str().ends_with(".md");
+    let md = x.kind == BoxKind::File && file.as_str().ends_with(".md");
     // A file box is code only for a language visvet parses; a type or impl always is.
-    let code = x.kind != UnitKind::File || matches!(file.as_str().rsplit('.').next(), Some("rs" | "ts" | "tsx"));
+    let code = x.kind != BoxKind::File || matches!(file.as_str().rsplit('.').next(), Some("rs" | "ts" | "tsx"));
     let content = if code {
         BoxContent::Code { kind: x.kind, members, implements: vec![], coverage: None }
     } else if md {
@@ -71,7 +71,7 @@ fn compare_unit(file: &RepoPath, n: Option<&ParsedUnit>, o: Option<&ParsedUnit>,
     } else {
         BoxContent::Plain
     };
-    let unit = MapBox {
+    let map_box = MapBox {
         id,
         name: x.name.clone(),
         file: file.clone(),
@@ -83,14 +83,14 @@ fn compare_unit(file: &RepoPath, n: Option<&ParsedUnit>, o: Option<&ParsedUnit>,
     };
     let generates = codegen::targets(file.as_str(), &x.text).into_iter().map(|f| format!("{f}::{}", x.name)).collect();
     let links = if md { markdown::links(file.as_str(), &x.text) } else { vec![] };
-    Parsed { unit, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates, links }
+    Parsed { map_box, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates, links }
 }
 
-/// Compares one member's two versions (either missing) of the unit `unit`.
-fn compare_member(unit: &UnitId, n: Option<&ParsedMember>, o: Option<&ParsedMember>) -> Member {
+/// Compares one member's two versions (either missing) of box `box_id`.
+fn compare_member(box_id: &BoxId, n: Option<&ParsedMember>, o: Option<&ParsedMember>) -> Member {
     let m = n.or(o).unwrap();
     Member {
-        id: MemberId(format!("{unit}::{}", m.name)),
+        id: MemberId(format!("{box_id}::{}", m.name)),
         name: m.name.clone(),
         kind: m.kind,
         signature: m.sig.clone(),
@@ -152,9 +152,9 @@ pub(crate) mod tests {
         let old = "struct S { a: u8 }\nimpl S {\n    fn keep(&self) {}\n    fn edit(&self) {\n        1;\n    }\n    fn gone(&self) {}\n}\nstruct Same;\n";
         let new = "struct S { a: u8 }\n\nimpl S {\n    fn keep(&self) {}\n    fn edit(&self) {\n        x?;\n    }\n    fn added(&self) {}\n}\nstruct Same;\n";
         let objs = cmp("a.rs", Some(new.as_bytes()), Some(old.as_bytes()));
-        let (f, s, same) = (&objs[0].unit, &objs[1].unit, &objs[2].unit);
+        let (f, s, same) = (&objs[0].map_box, &objs[1].map_box, &objs[2].map_box);
         let fd: Vec<_> = f.diff.iter().filter(|d| d.kind != DiffLineKind::Context).map(|d| (d.kind, d.line)).collect();
-        assert_eq!((f.id.as_str(), f.kind(), f.status, f.lines.first, fd), ("a.rs", UnitKind::File, Changed, 1, vec![(L::Added, 2), (L::Removed, 5), (L::Added, 6), (L::Removed, 7), (L::Added, 8)]));
+        assert_eq!((f.id.as_str(), f.kind(), f.status, f.lines.first, fd), ("a.rs", BoxKind::File, Changed, 1, vec![(L::Added, 2), (L::Removed, 5), (L::Added, 6), (L::Removed, 7), (L::Added, 8)]));
         assert_eq!((s.id.as_str(), s.status, same.status), ("a.rs::S", Changed, Same));
         let st: Vec<_> = s.members().iter().map(|m| (m.id.as_str(), m.status)).collect();
         assert_eq!(st, [("a.rs::S::a", Same), ("a.rs::S::keep", Same), ("a.rs::S::edit", Changed), ("a.rs::S::added", Added), ("a.rs::S::gone", Removed)]);
@@ -165,21 +165,21 @@ pub(crate) mod tests {
         // Complexity comes from the new version; closures count toward their fn.
         let rs = "fn f() { if let Some(_) = a && b || c { x?; } for _ in x {} while a {} loop {} match a { 1 => {} _ => {} } let g = || if a {}; }";
         let ts = "function f() { if (a && b || c) {} for (;;) {} for (x of a) {} while (a) {} do {} while (a); try {} catch {} switch (a) { case 1: default: } return a ?? (b ? 1 : 2) }";
-        let cx = |f: &str, s: &str| cmp(f, Some(s.as_bytes()), None)[0].unit.members()[0].complexity;
+        let cx = |f: &str, s: &str| cmp(f, Some(s.as_bytes()), None)[0].map_box.members()[0].complexity;
         assert_eq!((s.members()[0].complexity, s.members()[2].complexity, cx("d.rs", rs), cx("d.ts", ts)), (1, 1, 9, 12));
         let added = cmp("b.rs", Some(b"fn f() {}"), None);
-        assert_eq!((added[0].unit.id.as_str(), added[0].unit.status, added[0].unit.members()[0].id.as_str()), ("b.rs", Added, "b.rs::f"));
+        assert_eq!((added[0].map_box.id.as_str(), added[0].map_box.status, added[0].map_box.members()[0].id.as_str()), ("b.rs", Added, "b.rs::f"));
         let bin = cmp("a.png", Some(&[0xff, 1]), Some(&[0xff]));
-        assert_eq!((bin.len(), bin[0].unit.status, bin[0].unit.diff.len()), (1, Changed, 0));
-        let toml = &cmp("x.toml", Some(b"a = 1\nb = 2"), Some(b"a = 1"))[0].unit;
+        assert_eq!((bin.len(), bin[0].map_box.status, bin[0].map_box.diff.len()), (1, Changed, 0));
+        let toml = &cmp("x.toml", Some(b"a = 1\nb = 2"), Some(b"a = 1"))[0].map_box;
         let d: Vec<_> = toml.diff.iter().map(|d| (d.kind, d.line)).collect();
         assert_eq!((toml.status, toml.members().len(), d), (Changed, 0, vec![(L::Context, 1), (L::Added, 2)]));
-        assert_eq!(cmp("x.md", Some(b"same"), Some(b"same"))[0].unit.status, Same); // unchanged files stay on the map
+        assert_eq!(cmp("x.md", Some(b"same"), Some(b"same"))[0].map_box.status, Same); // unchanged files stay on the map
         // What a box holds depends on what it is: code, a Markdown document, or any other file.
         assert!(matches!(&toml.content, BoxContent::Plain));
-        let issue = &cmp("i.md", Some(b"---\nkind: issue\n---\n# Fix"), None)[0].unit;
+        let issue = &cmp("i.md", Some(b"---\nkind: issue\n---\n# Fix"), None)[0].map_box;
         assert!(matches!(&issue.content, BoxContent::Doc { labels } if labels.kind == Some(crate::types::DocKind::Issue)));
-        assert!(matches!(&s.content, BoxContent::Code { kind: UnitKind::Struct, .. }));
-        assert_eq!(cmp("c.rs", Some(b"#[derive(Debug)]\nstruct C;"), Some(b"struct C;"))[1].unit.status, Changed);
+        assert!(matches!(&s.content, BoxContent::Code { kind: BoxKind::Struct, .. }));
+        assert_eq!(cmp("c.rs", Some(b"#[derive(Debug)]\nstruct C;"), Some(b"struct C;"))[1].map_box.status, Changed);
     }
 }

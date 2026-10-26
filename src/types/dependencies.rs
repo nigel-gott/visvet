@@ -1,7 +1,7 @@
 //! The arrows between boxes.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::BoxId;
+use super::MapId;
 
 /// How `from` depends on `to`.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, TS)]
@@ -40,4 +40,4 @@ impl DependencyKind {
 /// `from` depends on `to`; one arrow on the map.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct Dependency { pub from: BoxId, pub to: BoxId, pub kind: DependencyKind }
+pub struct Dependency { pub from: MapId, pub to: MapId, pub kind: DependencyKind }

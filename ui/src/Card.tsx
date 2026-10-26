@@ -16,7 +16,7 @@ export const lastDrag = { endedAt: 0 }
 /** A folder box's summary: how many files and folders it holds. */
 const stats = (it: Item) => `${it.kids.length} inside`
 
-/** A field's type: its signature after the first ":", e.g. "BoxId" for "pub from: BoxId". */
+/** A field's type: its signature after the first ":", e.g. "MapId" for "pub from: MapId". */
 const typeOf = (f: Item) => f.m!.signature.split(':').slice(1).join(':').trim()
 
 /** What a box on the map is drawn from: its item, member rows, and whether it sits outside the zoomed box (`ext`). */

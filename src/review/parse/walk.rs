@@ -1,14 +1,14 @@
 //! Walking one file's syntax tree: each top-level item, the types it declares and their members.
-use super::{ParsedMember, ParsedUnit, clean};
-use crate::types::{MemberKind, UnitKind};
+use super::{ParsedMember, ParsedBox, clean};
+use crate::types::{MemberKind, BoxKind};
 use tree_sitter::Node;
 
-/// Parses one file into units: holds the file's source and path, and the units found so far. Each kind of
+/// Parses one file into boxes: holds the file's source and path, and the boxes found so far. Each kind of
 /// work is a block of methods in its own module: walking items (here), names (`names.rs`), Rust (`rust.rs`), TS (`ts.rs`).
 pub(super) struct FileParser<'a> {
     pub(super) src: &'a str,
     pub(super) path: &'a str,
-    pub(super) units: Vec<ParsedUnit>,
+    pub(super) boxes: Vec<ParsedBox>,
 }
 
 /// The node's 1-based start line.
@@ -21,15 +21,15 @@ pub(super) fn outer(n: Node) -> Node {
     n.parent().filter(|p| p.kind() == "export_statement").unwrap_or(n)
 }
 
-/// The unit kind of a type-declaring node kind, if it is one.
-pub(super) fn type_kind(k: &str) -> Option<UnitKind> {
+/// The box kind of a type-declaring node kind, if it is one.
+pub(super) fn type_kind(k: &str) -> Option<BoxKind> {
     Some(match k {
-        "struct_item" => UnitKind::Struct,
-        "enum_item" | "enum_declaration" => UnitKind::Enum,
-        "trait_item" => UnitKind::Trait,
-        "type_item" | "type_alias_declaration" => UnitKind::TypeAlias,
-        "class_declaration" | "abstract_class_declaration" => UnitKind::Class,
-        "interface_declaration" => UnitKind::Interface,
+        "struct_item" => BoxKind::Struct,
+        "enum_item" | "enum_declaration" => BoxKind::Enum,
+        "trait_item" => BoxKind::Trait,
+        "type_item" | "type_alias_declaration" => BoxKind::TypeAlias,
+        "class_declaration" | "abstract_class_declaration" => BoxKind::Class,
+        "interface_declaration" => BoxKind::Interface,
         _ => return None,
     })
 }
@@ -66,13 +66,13 @@ impl<'a> FileParser<'a> {
         (if lead(b).trim().is_empty() { b - lead(b).len() } else { b }, line(n), clean(&parts.join("\n")))
     }
 
-    /// Index of the unit named `name`, adding an "impl" unit when the type is declared elsewhere.
-    pub(super) fn unit_index(&mut self, name: &str, n: Node) -> usize {
-        if let Some(i) = self.units.iter().position(|o| o.name == name) {
+    /// Index of the box named `name`, adding an "impl" box when the type is declared elsewhere.
+    pub(super) fn box_index(&mut self, name: &str, n: Node) -> usize {
+        if let Some(i) = self.boxes.iter().position(|o| o.name == name) {
             return i;
         }
-        self.units.push(ParsedUnit { name: name.into(), kind: UnitKind::Impl, line: line(n), ..Default::default() });
-        self.units.len() - 1
+        self.boxes.push(ParsedBox { name: name.into(), kind: BoxKind::Impl, line: line(n), ..Default::default() });
+        self.boxes.len() - 1
     }
 
     /// Handles one top-level item: imports, types, impls and free functions.
@@ -93,23 +93,23 @@ impl<'a> FileParser<'a> {
     }
 
     /// Adds a struct, enum, trait, type alias, class or interface with its text, doc, heritage, type refs and members.
-    pub(super) fn type_item(&mut self, n: Node, kind: UnitKind) {
+    pub(super) fn type_item(&mut self, n: Node, kind: BoxKind) {
         let Some(name) = n.child_by_field_name("name") else { return };
-        let oi = self.unit_index(self.t(name), n);
+        let oi = self.box_index(self.t(name), n);
         let (start, line, doc) = self.head(n);
-        let o = &mut self.units[oi];
+        let o = &mut self.boxes[oi];
         (o.kind, o.line, o.text, o.doc) = (kind, line, self.src[start..n.end_byte()].into(), doc);
         self.heritage(oi, n);
         let body = n.child_by_field_name("body").or_else(|| n.child_by_field_name("value").filter(|v| v.kind() == "object_type"));
-        let whole = if kind == UnitKind::TypeAlias { Some(n) } else { body.filter(|b| b.kind() == "ordered_field_declaration_list") };
+        let whole = if kind == BoxKind::TypeAlias { Some(n) } else { body.filter(|b| b.kind() == "ordered_field_declaration_list") };
         if let Some(w) = whole {
             let names = self.type_names(w);
-            self.units[oi].refs.extend(names);
+            self.boxes[oi].refs.extend(names);
         }
         self.members(oi, n, body);
         if whole.is_some() {
             // A type alias's members are inside its whole text, whose names the alias already has.
-            self.units[oi].members.iter_mut().for_each(|m| m.types.clear());
+            self.boxes[oi].members.iter_mut().for_each(|m| m.types.clear());
         }
     }
 
@@ -136,7 +136,7 @@ impl<'a> FileParser<'a> {
         if let Some(tp) = owner.child_by_field_name("type_parameters") {
             for nm in tp.named_children(&mut tp.walk()).filter_map(|p| p.child_by_field_name("name")) {
                 let t = self.t(nm);
-                let o = &mut self.units[oi];
+                let o = &mut self.boxes[oi];
                 o.refs.remove(t);
                 o.members.iter_mut().for_each(|m| { m.types.remove(t); });
             }
@@ -154,6 +154,6 @@ impl<'a> FileParser<'a> {
         let complexity = 1 + body.map_or(0, |b| self.calls(oi, b, &mut calls));
         let text = self.src[start..n.end_byte()].into();
         let types = if matches!(kind, MemberKind::Fn | MemberKind::Method) { self.unpacked(n).into_iter().chain(body.map(|b| self.uses(b)).unwrap_or_default()).collect() } else { self.type_names(n) };
-        self.units[oi].members.push(ParsedMember { name: name.into(), kind, sig, text, doc, line, calls, complexity, types });
+        self.boxes[oi].members.push(ParsedMember { name: name.into(), kind, sig, text, doc, line, calls, complexity, types });
     }
 }

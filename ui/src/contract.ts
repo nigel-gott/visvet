@@ -8,19 +8,25 @@ export type Author = "user" | "ai";
 /**
  * What a box holds besides what every box has, by what it is.
  */
-export type BoxContent = { "type": "code", kind: UnitKind, members: Array<Member>, implements: Array<TraitRef>, 
+export type BoxContent = { "type": "code", kind: BoxKind, members: Array<Member>, implements: Array<TraitRef>, 
 /**
  * Source files only, once `visvet coverage` has run.
  */
 coverage: Coverage | null, } | { "type": "doc", labels: DocLabels, } | { "type": "plain" };
 
 /**
- * The id of a box an arrow starts or ends at: a code unit's or a member's id.
+ * A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox";
+ * for a file box, just the path.
  */
 export type BoxId = string;
 
 /**
- * How a unit, member or file differs from the version it is compared against.
+ * What a box is.
+ */
+export type BoxKind = "struct" | "enum" | "trait" | "class" | "interface" | "type" | "impl" | "file";
+
+/**
+ * How a box, member or file differs from the version it is compared against.
  */
 export type ChangeStatus = "same" | "added" | "removed" | "changed";
 
@@ -32,7 +38,7 @@ export type Coverage = { covered: number, coverable: number, };
 /**
  * `from` depends on `to`; one arrow on the map.
  */
-export type Dependency = { from: BoxId, to: BoxId, kind: DependencyKind, };
+export type Dependency = { from: MapId, to: MapId, kind: DependencyKind, };
 
 /**
  * How `from` depends on `to`.
@@ -73,7 +79,7 @@ export type LineRange = { first: number, last: number, };
  * One box on the map: a type, an impl or a whole file. Every box has these; what else it holds depends on what it
  * is (`content`): code, a Markdown document, or any other file.
  */
-export type MapBox = { id: UnitId, name: string, file: RepoPath, lines: LineRange, 
+export type MapBox = { id: BoxId, name: string, file: RepoPath, lines: LineRange, 
 /**
  * First paragraph of the doc comment, or of a file's leading comment, or "".
  */
@@ -84,8 +90,8 @@ doc: string, status: ChangeStatus,
 diff: Array<DiffLine>, content: BoxContent, };
 
 /**
- * Anything on the map the user can select or zoom into: a box id (see `BoxId`), a folder ending in "/"
- * (e.g. "src/types/"), or an arrow "<from> -> <to>".
+ * Anything on the map: a box (`BoxId`), a member (`MemberId`), a folder ending in "/" (e.g. "src/types/"), or for
+ * selecting, an arrow "<from> -> <to>". Arrows start and end at one, and threads are on one.
  */
 export type MapId = string;
 
@@ -116,12 +122,12 @@ coverage: Coverage | null,
 diff: Array<DiffLine>, };
 
 /**
- * A member's id: its unit's id, then "::" and its name, e.g. "src/types/boxes.rs::MapBox::lines".
+ * A member's id: its box's id, then "::" and its name, e.g. "src/types/boxes.rs::MapBox::lines".
  */
 export type MemberId = string;
 
 /**
- * What a member of a code unit is.
+ * What a member of a box is.
  */
 export type MemberKind = "field" | "method" | "variant" | "fn";
 
@@ -192,20 +198,9 @@ at: number, };
 export type ThreadState = "open" | "working" | "question" | "resolved";
 
 /**
- * A trait, interface or base class a unit implements or extends. `unit` is set when it is defined in this repo.
+ * A trait, interface or base class a box implements or extends. `box_id` is set when it is defined in this repo.
  */
-export type TraitRef = { name: string, unit: UnitId | null, };
-
-/**
- * A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox";
- * for a file unit, just the path.
- */
-export type UnitId = string;
-
-/**
- * What a code unit is.
- */
-export type UnitKind = "struct" | "enum" | "trait" | "class" | "interface" | "type" | "impl" | "file";
+export type TraitRef = { name: string, box_id: BoxId | null, };
 
 /**
  * What the user is looking at in the UI. The UI posts it on every change; `visvet view` prints it.

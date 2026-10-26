@@ -12,7 +12,7 @@ impl FileParser<'_> {
         let spec = self.t(s).trim_matches(['\'', '"']);
         if spec.starts_with('.') {
             let p = join(dir(self.path), spec);
-            self.units[0].uses.push(["", ".ts", ".tsx", "/index.ts", "/index.tsx"].map(|e| format!("{p}{e}")).into());
+            self.boxes[0].uses.push(["", ".ts", ".tsx", "/index.ts", "/index.tsx"].map(|e| format!("{p}{e}")).into());
         }
     }
 
@@ -34,7 +34,7 @@ impl FileParser<'_> {
                 "extends_clause" | "implements_clause" | "extends_type_clause" => {
                     for t in c.named_children(&mut c.walk()).filter(|t| t.kind() != "type_arguments") {
                         let t = base(self.t(t));
-                        self.units[oi].impls.insert(t);
+                        self.boxes[oi].impls.insert(t);
                     }
                 }
                 _ => {}

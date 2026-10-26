@@ -51,7 +51,7 @@ const FILTERS: [string, (it: Item, x: Ctx) => boolean][] = [
   ['Has threads', (it, x) => x.threads.some(t => t.target === it.id)],
 ]
 
-/** The review outline: search, filters and the folder → file → unit → member tree. */
+/** The review outline: search, filters and the folder → file → box → member tree. */
 export function Outline() {
   const x = useContext(X)
   const [q, setQ] = useState('')
