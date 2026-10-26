@@ -228,12 +228,11 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
       x: Math.max((r.width - hit.width * zoom) / 2, GUTTER) - hit.x * zoom,
       y: PANEL_CLEARANCE + Math.max((r.height - PANEL_CLEARANCE - hit.height * zoom) / 2, 0) - hit.y * zoom, zoom,
     }
-    /** Whether the highlighted box is wholly on screen with camera `camera`. */
-    const wholly = (camera: typeof fit) => !!hit && hit.x * camera.zoom + camera.x >= 0 && (hit.x + hit.width) * camera.zoom + camera.x <= r.width &&
-      hit.y * camera.zoom + camera.y >= PANEL_CLEARANCE && (hit.y + hit.height) * camera.zoom + camera.y <= r.height
+    /** The closest zoom that shows the highlighted box and its bubble whole, at full size at most and never further out than the fit. */
+    const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, 1), fit.zoom)
     // Opening a view on a box centres it at full size. Within the view (a tour step's journey has just landed on its
-    // fit), the camera keeps the fit's zoom, and only moves if the box isn't wholly in view.
-    const middle = hit && (same ? (wholly(fit) ? fit : centredAt(fit.zoom)) : centredAt(1))
+    // fit), the camera closes in on the box and its bubble, as near as shows them whole.
+    const middle = hit && (same ? centredAt(framing!) : centredAt(1))
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null

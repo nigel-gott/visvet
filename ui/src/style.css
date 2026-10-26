@@ -2,7 +2,7 @@
 
 :root {
   --bg: #fff; --fg: #1f2328; --muted: #656d76; --line: #d0d7de; --panel: #f6f8fa; --sel: #0969da; --sel-bg: #ddf4ff; --hl: #bf8700;
-  --add: #1a7f37; --add-bg: #dafbe1; --chg: #9a6700; --del: #cf222e; --del-bg: #ffebe9; --ai: #8250df;
+  --add: #1a7f37; --add-bg: #dafbe1; --chg: #9a6700; --del: #cf222e; --del-bg: #ffebe9; --ai: #8250df; --tour-bg: #f6f0ff;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --k-folder: #8250df; --k-file: #57606a; --k-struct: #0969da; --k-class: #1b7c83; --k-enum: #bc4c00; --k-trait: #1a7f37;
   --k-type: #9a6700; --k-fn: #bf3989; --k-field: #0550ae;
@@ -11,7 +11,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --line: #30363d; --panel: #161b22; --sel: #4493f8; --sel-bg: #172c4a; --hl: #d29922;
-    --add: #3fb950; --add-bg: #12261e; --chg: #d29922; --del: #f85149; --del-bg: #2d1214; --ai: #a371f7;
+    --add: #3fb950; --add-bg: #12261e; --chg: #d29922; --del: #f85149; --del-bg: #2d1214; --ai: #a371f7; --tour-bg: #261a3d;
     --k-folder: #a371f7; --k-file: #8d96a0; --k-struct: #4493f8; --k-class: #39c5cf; --k-enum: #f0883e; --k-trait: #3fb950;
     --k-type: #d29922; --k-fn: #db61a2; --k-field: #79c0ff;
   }
@@ -276,7 +276,12 @@ main { grid-area: 2 / 1; min-height: 0 }
 .bubble p { margin: 0 0 8px }
 /* The step bubble is a box of its own in the layout, left of the step's box, pointing right at it; its text scrolls
    when the layout's room for it (worked out in Tours.tsx) is too small. */
-.step-bubble { display: flex; flex-direction: column; border-top: 3px solid var(--ai) }
+/* Tour bubbles and notes are in the tour's own colour, purple, with a tinted background and a glow, so they stand out
+   from the change colours around them. */
+.step-bubble, .box-bubble { border: 2px solid var(--ai); background: var(--tour-bg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ai) 25%, transparent), 0 10px 30px rgb(0 0 0 / .35) }
+.step-bubble::after, .box-bubble::after { background: var(--tour-bg); border-color: var(--ai) !important; border-width: 2px !important }
+.step-bubble { display: flex; flex-direction: column }
+.react-flow__node .card.tour-step { outline: 3px solid var(--ai); outline-offset: 2px; box-shadow: 0 0 0 8px color-mix(in srgb, var(--ai) 22%, transparent) }
 .step-bubble.in-layout { position: relative; bottom: auto; left: auto; width: 100%; height: 100% }
 .step-bubble.in-layout::after { left: auto; right: -8px; bottom: auto; top: 28px; border: 0; border-top: 1px solid var(--line); border-right: 1px solid var(--line) }
 .preview-bubble { position: absolute; width: auto; padding: 0 }
@@ -285,7 +290,6 @@ main { grid-area: 2 / 1; min-height: 0 }
 .step-bubble.floating::after { display: none }
 .bubble-kicker { color: var(--ai); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em }
 .bubble h3 { margin: 2px 0 8px; font-size: 17px }
-.box-bubble { border-top: 3px solid var(--hl) }
 .bubble-nav { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line) }
 .bubble-nav > button { padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font-size: 13px; cursor: pointer }
 .bubble-nav > button:disabled { opacity: .35; cursor: default }
@@ -294,11 +298,11 @@ main { grid-area: 2 / 1; min-height: 0 }
 .dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; background: var(--line); cursor: pointer }
 .dot.here { background: var(--ai); transform: scale(1.4) }
 /* A tour note on code: its lines get a band in the highlight colour, and the note sits right under them. */
-.ln.noted { background: color-mix(in srgb, var(--hl) 20%, transparent); box-shadow: inset 3px 0 var(--hl) }
-.code-bubble { position: relative; margin: 6px 12px 10px calc(8px + 5ch); padding: 8px 12px; border: 1px solid var(--hl); border-radius: 10px;
-  background: var(--bg); font: 13px/1.5 system-ui, sans-serif; white-space: normal; text-indent: 0 }
-.code-bubble::before { content: ''; position: absolute; left: 18px; top: -7px; width: 12px; height: 12px; background: var(--bg);
-  border-left: 1px solid var(--hl); border-top: 1px solid var(--hl); transform: rotate(45deg) }
+.ln.noted { background: color-mix(in srgb, var(--ai) 22%, transparent); box-shadow: inset 4px 0 var(--ai) }
+.code-bubble { position: relative; margin: 6px 12px 10px calc(8px + 5ch); padding: 8px 12px; border: 2px solid var(--ai); border-radius: 10px;
+  background: var(--tour-bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; white-space: normal; text-indent: 0 }
+.code-bubble::before { content: ''; position: absolute; left: 18px; top: -8px; width: 12px; height: 12px; background: var(--tour-bg);
+  border-left: 2px solid var(--ai); border-top: 2px solid var(--ai); transform: rotate(45deg) }
 .code-bubble p { margin: 0 0 6px }
 .code-bubble p:last-child, .bubble p:last-child { margin-bottom: 0 }
 .stale { color: var(--del) }
