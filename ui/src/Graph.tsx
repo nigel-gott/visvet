@@ -67,7 +67,7 @@ const flipped = (v: View) => new Set([...v.edges, ...v.detail].filter(([, d]) =>
 function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): ElkNode {
   // Each box starts at its place in source order, far enough apart that box heights can't change it; the interactive
   // crossing step keeps that order down each column.
-  const nodes = new Map(v.boxes.map((it, i) => [it.id, {
+  const nodes = new Map<string, ElkNode>(v.boxes.map((it, i) => [it.id, {
     id: it.id, width: wide(it), height: size(it), x: 0, y: i * 10_000, children: [] as ElkNode[],
     layoutOptions: {
       ...LAYOUT, 'elk.padding': `[top=${size(it) + 12},left=12,bottom=12,right=12]`,
@@ -92,6 +92,10 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
     const besideTarget = nodes.get(target.id)!.y
     ;(nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height, x: 0, y: besideTarget })
     root.edges!.push({ id: `${STEP_BUBBLE} -> ${target.id}`, sources: [STEP_BUBBLE], targets: [target.id] })
+    // ELK centres a box in its column, which a wider box beside it can make far wider; the step's box keeps to the
+    // column's left edge instead, next to its bubble.
+    const targetNode = nodes.get(target.id)!
+    targetNode.layoutOptions = { ...targetNode.layoutOptions, 'elk.alignment': 'LEFT' }
   }
   return root
 }
