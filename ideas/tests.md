@@ -12,3 +12,10 @@ On the map:
 - Writing tests this way should push the code towards clear public interfaces and private insides, which the map then shows.
 
 This may really be its own dimension: the [behaviour dimension](behaviour-dimension.md).
+
+## Possible steps
+
+1. **Ports first, without tests:** a box's ports are the members something outside calls or uses; the rest is private. The map already knows which arrows cross a box's edge, so this can show today, and flags boxes with a messy surface (many things called from outside).
+2. **Behaviours from a convention:** each test block names the box it tests, and each test's name is a behaviour, e.g. `describe(Store) → it("hands a user reply back to the AI")`. visvet lists behaviours per box with pass/fail.
+3. **Black-box check:** flag tests that reach past a box's ports into its insides.
+4. Then a separate [behaviour dimension](behaviour-dimension.md) view.

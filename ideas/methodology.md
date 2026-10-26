@@ -8,3 +8,5 @@ Two paths:
 2. **Secondary path:** any other project. The AI fills the gaps: it declares state machines, patches up what tools can't read, and explains through [overlays](overlays.md).
 
 This keeps visvet from tangling itself trying to extract everything from every codebase.
+
+Candidates for the recommended stack, to try only when a feature needs one: XState for front-end state machines (it already has visualisers), a state-machine crate for Rust, `schemars` for JSON schemas, migrations as the source of truth for databases, Playwright tests for UI flows.
