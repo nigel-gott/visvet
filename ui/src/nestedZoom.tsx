@@ -16,28 +16,35 @@ import type { CodeNote } from './contract'
 
 /** The speeds the map's zooms and camera moves can run at, by name: how many times faster than normal (1×). */
 export const SPEEDS = { 'instant': Infinity, '1×': 1, '2×': 2, '4×': 4, '6×': 6 }
-/** The speed every zoom and camera glide runs at, chosen in the top bar (see `SpeedPicker`). */
-const speed = { factor: speedSaved() }
-
-/** The speed chosen last in this browser, or normal. */
-function speedSaved() {
-  try { return SPEEDS[localStorage.getItem('visvet:zoom-speed') as keyof typeof SPEEDS] ?? 1 } catch { return 1 }
+/** The speed menu's choice for moving between tour steps yourself, following cues; your own zooms then run at 1×. */
+export const YOU_DRIVE = 'you drive'
+/** The speed menu's choice made last in this browser, or 1×. */
+function choiceSaved() {
+  try { return localStorage.getItem('visvet:zoom-speed') ?? '1×' } catch { return '1×' }
 }
+/** The speed every zoom and camera glide runs at, chosen in the top bar (see `SpeedPicker`). */
+const speed = { factor: SPEEDS[choiceSaved() as keyof typeof SPEEDS] ?? 1 }
+/** Whether moves between tour steps are left to the user, who follows the tour's cues (see `SpeedPicker`). */
+export const moves = { byHand: choiceSaved() === YOU_DRIVE }
 
 /** A time at the chosen speed: `ms` divided by it, or none at all when instant. */
 const paced = (ms: number) => (speed.factor === Infinity ? 0 : ms / speed.factor)
 
-/** In the top bar: how fast zooms and camera moves run, from instant to 6× normal, kept in this browser. */
+/**
+ * In the top bar: how fast zooms and camera moves run, from instant to 6× normal, or "you drive": a tour then leaves
+ * the moves between its steps to the user, with cues. Kept in this browser.
+ */
 export function SpeedPicker() {
-  const [chosen, setChosen] = useState(() => Object.entries(SPEEDS).find(([, factor]) => factor === speed.factor)?.[0] ?? '1×')
+  const [chosen, setChosen] = useState(() => (moves.byHand || choiceSaved() in SPEEDS ? choiceSaved() : '1×'))
   const choose = (name: string) => {
     setChosen(name)
-    speed.factor = SPEEDS[name as keyof typeof SPEEDS]
+    speed.factor = SPEEDS[name as keyof typeof SPEEDS] ?? 1
+    moves.byHand = name === YOU_DRIVE
     try { localStorage.setItem('visvet:zoom-speed', name) } catch { /* private mode: not kept */ }
   }
   return (
     <label className="speed-pick" title="How fast zooms and camera moves run">
-      Speed <select value={chosen} onChange={e => choose(e.target.value)}>{Object.keys(SPEEDS).map(name => <option key={name}>{name}</option>)}</select>
+      Speed <select value={chosen} onChange={e => choose(e.target.value)}>{[...Object.keys(SPEEDS), YOU_DRIVE].map(name => <option key={name}>{name}</option>)}</select>
     </label>
   )
 }

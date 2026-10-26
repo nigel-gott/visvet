@@ -9,11 +9,11 @@ import './style.css'
 import type { StepView } from './contract'
 import { ancestorsOf, flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
-import { journeyMotion, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
+import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
-import { bubbleBoxOf, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Route, type TourPlace } from './Tours'
+import { bubbleBoxOf, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -144,7 +144,7 @@ function Header({ error }: { error?: string }) {
       <nav className="steps">
         <button title="Back" onClick={() => history.back()}>←</button>
         <button title="Forward" onClick={() => history.forward()}>→</button>
-        <button title="Up to the box this one is in" disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>
+        <button title="Up to the box this one is in" className={x.guide?.up ? 'cue' : ''} disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>
       </nav>
       <nav className="path">
         <a className={x.scope ? '' : 'here'} onClick={() => to(null)}>Map</a>
@@ -243,6 +243,11 @@ function App() {
   const journey = useRef(0)
   /** The route of the move between tour steps under way, shown over the map; null when none is. */
   const [route, setRoute] = useState<Route | null>(null)
+  /** With "you drive" chosen, the tour step the user is making their way to, and the view it opens in (null: the whole map). */
+  const [heading, setHeading] = useState<{ place: TourPlace; to: string | null } | null>(null)
+  /** Opens that step once the user reaches its view (set below, where the step's boxes are known). */
+  const arrive = useRef(() => {})
+  useEffect(() => { if (heading && scope === heading.to) arrive.current() }, [scope, heading])
   useTypeToComment(sel, setDraft)
   useShow(show, ix, nav.show)
   const focus = useFocus(ix, select)
@@ -277,8 +282,15 @@ function App() {
   const showStep = async (place: TourPlace | null) => {
     const trip = ++journey.current
     const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
-    if (!step) { setTour(place); return setRoute(null) }
+    if (!step) { setTour(place); setHeading(null); return setRoute(null) }
     const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
+    if (moves.byHand) {
+      // The user makes the moves, following the cues (see `guide`); the step opens once they reach its view.
+      setTour(place)
+      setRoute(null)
+      return setHeading({ place, to })
+    }
+    setHeading(null)
     // The views on the way show the step playing now (the default); the last one, the step it is heading to.
     const setupOf = (hop: string | null): ViewSetup => (hop === to ? { opened: openFor(step.target, step.view), bubble: bubbleBoxOf(step) ?? null, notes: step.code_notes } : {})
     // Every view on the way is laid out before setting off, so the camera never waits for one.
@@ -303,10 +315,21 @@ function App() {
     showBox(step.target, step.view, hops.length > 0)
   }
 
+  arrive.current = () => {
+    const step = heading && stepTarget(model.tours.find(t => t.file === heading.place.file), heading.place.step)
+    setHeading(null)
+    if (step) showBox(step.target, step.view)
+  }
+  /** With "you drive" chosen, the way to the step the user is heading for, and the move to make next. */
+  const headingStep = heading && stepTarget(model.tours.find(t => t.file === heading.place.file), heading.place.step)
+  const way = heading ? hopsBetween(scope, heading.to) : []
+  const guide: Guide | null = headingStep && way.length ? {
+    stops: [scope, ...way], next: way[0], up: way[0] === null || ancestorsOf(ix, scope ?? '').includes(way[0]), title: headingStep.title, note: headingStep.route,
+  } : null
   const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
-    tour, showStep, route, stepBox: playingStep?.target, stepNotes: playingStep?.code_notes ?? [],
+    tour, showStep, route, guide, stepBox: playingStep?.target, stepNotes: playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,

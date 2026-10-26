@@ -39,11 +39,34 @@ export const stepBubbleBox = (x: Ctx) => bubbleBoxOf(x.tour ? x.model.tours.find
  */
 export type Route = { stops: (string | null)[]; at: number; note: string }
 
+/**
+ * The way to a tour step the user drives to themselves: the views from where they are to the step's (null: the whole
+ * map), the next of them, whether that is a move up (else a double click into a box), and the step's title and route note.
+ */
+export type Guide = { stops: (string | null)[]; next: string | null; up: boolean; title: string; note: string }
+
+/** Over the map while the user drives to a tour step: the way there, from where they are, the step's note, and what to do next. */
+function GuideOverlay({ guide, name }: { guide: Guide; name: (stop: string | null) => string }) {
+  return (
+    <div className="route guide">
+      <ol>
+        {guide.stops.map((stop, index) => <li key={index} className={index === 0 ? 'passed' : index === 1 ? 'heading' : ''}>{name(stop)}</li>)}
+      </ol>
+      <p className="guide-next">Next: <b>{guide.title}</b></p>
+      {guide.note && <p className="route-note">{guide.note}</p>}
+      <p className="guide-do">{guide.up
+        ? <>Press <kbd>↑</kbd> at the top left to go up to <b>{name(guide.next)}</b></>
+        : <>Double-click <b>{name(guide.next)}</b> to go into it</>}</p>
+    </div>
+  )
+}
+
 /** Over the map during a move between tour steps: its route as a line of stops filled in up to where the camera is, and the step's note on why. */
 export function RouteOverlay() {
   const x = useContext(X)
-  if (!x.route) return null
   const name = (stop: string | null) => (stop ? x.ix.items.get(stop)?.name ?? stop : 'Map')
+  if (x.guide) return <GuideOverlay guide={x.guide} name={name} />
+  if (!x.route) return null
   return (
     <div className="route">
       <ol>

@@ -328,6 +328,27 @@ function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, gr
   }, [sel, graph])
 }
 
+/**
+ * With "you drive" chosen, keeps the box the guide says to double-click next in view: if it isn't wholly on screen
+ * once the view is laid out, the camera glides to centre it, at the zoom it is at.
+ */
+function useShowCue(map: RefObject<HTMLDivElement | null>, graph: Layout, view: string, cue: string | undefined) {
+  const { getViewport, setViewport } = useReactFlow()
+  useEffect(() => {
+    const place = cue ? absolute(graph.laid, cue) : undefined, rect = map.current?.getBoundingClientRect()
+    if (!place || !rect || graph.view !== view) return
+    const vp = getViewport()
+    const onScreen = place.x * vp.zoom + vp.x >= 0 && (place.x + place.width) * vp.zoom + vp.x <= rect.width &&
+      place.y * vp.zoom + vp.y >= PANEL_CLEARANCE && (place.y + place.height) * vp.zoom + vp.y <= rect.height
+    if (onScreen) return
+    const centred = {
+      x: Math.max((rect.width - place.width * vp.zoom) / 2, GUTTER) - place.x * vp.zoom,
+      y: PANEL_CLEARANCE + Math.max((rect.height - PANEL_CLEARANCE - place.height * vp.zoom) / 2, 0) - place.y * vp.zoom, zoom: vp.zoom,
+    }
+    void glideCamera(setViewport, vp, centred, { duration: SELECT_GLIDE_TIME, ease: GLIDE.ease })
+  }, [cue, graph])
+}
+
 /** Where the user dragged boxes in a view with the boxes `sig`, loaded from and saved to this browser. */
 function useMoved(view: string, sig: string) {
   const [moved, setMoved] = useState<Record<string, XYPosition>>({})
@@ -401,6 +422,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const centre = [...x.hl][0]
   const playing = useTourStep()
   useFit(box, x.ix, graph, current, view, visible, pop, centre)
+  useShowCue(box, graph, view, x.guide && !x.guide.up ? x.guide.next ?? undefined : undefined)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))

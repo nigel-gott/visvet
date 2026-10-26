@@ -3,7 +3,7 @@
 import { createContext } from 'react'
 import type { Index, Review, Thread } from './model'
 import type { CodeNote } from './contract'
-import type { Route, TourPlace } from './Tours'
+import type { Guide, Route, TourPlace } from './Tours'
 
 /** What every view reads: the model, the item index, the selection, navigation and review state. */
 export type Ctx = {
@@ -19,6 +19,8 @@ export type Ctx = {
   tour: TourPlace | null
   /** The route of a move between tour steps under way, if one is. */
   route: Route | null
+  /** With "you drive" chosen, the way to the tour step the user is heading for, and their next move; null when not heading anywhere. */
+  guide: Guide | null
   /** The box the playing tour's current step shows, if a tour is playing. */
   stepBox?: string
   /** The notes on the code of that step's box, which its code makes room for. */

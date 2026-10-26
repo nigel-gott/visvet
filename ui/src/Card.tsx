@@ -131,11 +131,14 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   const playing = useTourStep()
   const stepHere = playing?.step.target === it.id
   const codeNotes = stepHere ? playing!.step.code_notes.filter(note => note.span) : []
+  // With "you drive" chosen: the box to double-click next on the way to the tour's next step.
+  const isCue = !!x.guide && !x.guide.up && x.guide.next === it.id && !ext
   return (
     <>
       {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
+      {isCue && <span className="cue-label">Double-click to go in</span>}
       <Handle type="target" position={Position.Left} />
-      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${stepHere ? 'tour-step' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
+      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${stepHere ? 'tour-step' : ''} ${isCue ? 'tour-cue' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />
