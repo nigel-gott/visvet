@@ -11,8 +11,8 @@ Likely contents (still vague):
 
 - **Black boxes** with their [ports](../tests-and-flows/ports.md).
 - **Behaviours** of each box, [from test names](../tests-and-flows/behaviours-from-test-names.md), with whether they pass.
-- **[State machines](state-machines.md)**, e.g. a thread going open → working → resolved.
+- **[State machines](state-machines/state-machines.md)**, e.g. a thread going open → working → resolved.
 - **[Flows](../tests-and-flows/flows.md)** through a UI.
-- Maybe the [data models](data-dimension.md) a box reads and writes.
+- Maybe the [data models](data/data-dimension.md) a box reads and writes.
 
 More abstract than the code dimension, and probably where visvet should head. How it works isn't known: it hangs on a testing convention, and needs several experiments.

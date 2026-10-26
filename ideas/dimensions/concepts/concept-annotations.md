@@ -12,4 +12,4 @@ Docs that describe code go stale. So the [concept dimension](concept-dimension.m
 - **Docs** only for what has no home in code: how concepts relate.
 - **Tests:** maybe a concept's behaviours are the tests that name it. Unclear.
 
-Same pattern as [state machine annotations](state-machine-annotations.md); both should share a syntax and a drift check.
+Same pattern as [state machine annotations](../state-machines/state-machine-annotations.md); both should share a syntax and a drift check.

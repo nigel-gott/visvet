@@ -17,4 +17,4 @@ Keeping them honest:
 - The marked function must really touch the state type (tree-sitter can check).
 - A function that writes the state with no mark is flagged: a transition missing from the diagram.
 
-First step: annotate visvet's thread lifecycle by hand. Shares its syntax with [concept annotations](concept-annotations.md).
+First step: annotate visvet's thread lifecycle by hand. Shares its syntax with [concept annotations](../concepts/concept-annotations.md).

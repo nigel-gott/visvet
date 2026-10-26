@@ -16,7 +16,7 @@ Jagged edges for one thing and animation for another would turn into noise. Rule
 | Edge fill | familiarity ([fog of war](fog-of-war.md)) |
 | Avatars in the corner | people ([ownership](ownership.md), [live agents](../ai/live-agents.md)) |
 | Coloured stripes on the edge | open pull requests ([PR stripes](pr-stripes.md)) |
-| Card shape behind the box | other dimensions ([stacked cards](../dimensions/stacked-cards.md)) |
+| Card shape behind the box | other dimensions ([stacked cards](../dimensions/switching/stacked-cards.md)) |
 
 Free ones, and a suggested use:
 

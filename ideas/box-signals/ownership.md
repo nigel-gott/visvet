@@ -12,4 +12,4 @@ Not "who created it". A score per person per box:
 
 Gives a debuff: **knowledge at risk**, when the main owner has gone quiet or only one person knows the box (bus factor 1).
 
-Shown as avatars in the box's corner, plain for owners ([visual channels](visual-channels.md)). Teams come from the same data ([C4 model](../dimensions/c4-model.md)).
+Shown as avatars in the box's corner, plain for owners ([visual channels](visual-channels.md)). Teams come from the same data ([C4 model](../dimensions/architecture/c4-model.md)).

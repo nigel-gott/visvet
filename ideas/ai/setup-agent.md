@@ -4,7 +4,7 @@ description: An agent prepares a codebase for visvet, and repeats as others chan
 ---
 # Setup agent
 
-An agent works through a project and prepares it for visvet: doc comments, [state machine](../dimensions/state-machine-annotations.md) and [concept](../dimensions/concept-annotations.md) annotations, [tours](../guided-reading/tours.md).
+An agent works through a project and prepares it for visvet: doc comments, [state machine](../dimensions/state-machines/state-machine-annotations.md) and [concept](../dimensions/concepts/concept-annotations.md) annotations, [tours](../guided-reading/tours.md).
 
 - Others on the team may not use visvet, so it repeats as the code changes.
 - A skill run in a normal session, on the subscription; not the [runtime model](runtime-model.md) with API pricing.
