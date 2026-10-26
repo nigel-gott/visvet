@@ -314,6 +314,10 @@ main { grid-area: 2 / 1; min-height: 0 }
 .inner-preview.fading-out { animation: fade-away .8s ease .4s both }
 .inner-preview > .hdr { height: 34px }
 .preview-box { position: absolute; overflow: hidden }
+.inner-preview:has(> .map-copy) { overflow: hidden }
+.map-copy { position: absolute; left: 0; top: 0; transform-origin: 0 0 }
+/* The copy's boxes are already on screen: they don't fade in again. */
+.map-copy .react-flow__node { animation: none }
 .preview-arrows { position: absolute; left: 0; top: 0; overflow: visible }
 .preview-arrows polyline { fill: none; stroke: var(--muted); stroke-width: 1.5; opacity: .6 }
 @keyframes fade-away { to { opacity: 0 } }

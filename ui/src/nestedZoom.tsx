@@ -90,6 +90,26 @@ export type ZoomPreview = {
   settling?: boolean
   /** Zooming in, once the inner view has taken over: the drawing stays behind its real boxes until they are in. */
   landed?: boolean
+  /**
+   * Zooming out: an exact copy of the view being left, as it was on screen (code, notes, bubble and arrows), drawn
+   * in place of a simplified one, so nothing in it changes as the zoom starts.
+   */
+  snapshot?: HTMLElement
+}
+
+/**
+ * A copy of the map's boxes and arrows as they are on screen, to draw inside a box: placed so the box at `origin` (in
+ * map coordinates) sits at the copy's top left, at full size, and stripped of what marks the real boxes.
+ */
+function copyOfMap(map: HTMLElement | null, origin: { x: number; y: number }) {
+  const original = map?.querySelector('.react-flow__viewport'), copy = original?.cloneNode(true) as HTMLElement | undefined
+  if (!original || !copy) return undefined
+  // Scrolled code isn't copied with the page's elements; it is put back once the copy is shown (see `MapCopy`).
+  copy.dataset.scrolls = JSON.stringify([...original.querySelectorAll('.code')].map(code => code.scrollTop))
+  copy.querySelectorAll('[data-id], [data-testid]').forEach(el => { el.removeAttribute('data-id'); el.removeAttribute('data-testid') })
+  copy.className = 'map-copy'
+  copy.style.transform = `translate(${-origin.x}px, ${-origin.y}px)`
+  return copy
 }
 
 /** Lays out the view zoomed into `top` (the whole map when none), as the map will show it with the boxes `opened` open. */
@@ -154,7 +174,8 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     const outer = await layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, opened, bubble ?? stepBubbleBox(x))
     const inOuter = from && outer.laid.find(n => n.id === from), box = from && absolute(graph.laid, from)
     if (!inOuter || !box) return switchView()
-    const preview = { box: from, inner: graph, scale: inOuter.width! / box.width, inward: false }
+    const snapshot = copyOfMap(map.current, box)
+    const preview = { box: from, inner: graph, scale: inOuter.width! / box.width, inward: false, snapshot }
     const settling = { ...preview, settling: true }
     setPreview(preview)
     nextOutwardGlide.motion = motion
@@ -193,6 +214,19 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
   return preview
 }
 
+/** The exact copy of a view being zoomed out of (see `ZoomPreview.snapshot`), scaled into its box, fading away. */
+function MapCopy({ preview, width, height }: { preview: ZoomPreview; width: number; height: number }) {
+  const holder = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const copy = preview.snapshot!
+    holder.current?.appendChild(copy)
+    const scrolls: number[] = JSON.parse(copy.dataset.scrolls ?? '[]')
+    copy.querySelectorAll('.code').forEach((code, index) => { code.scrollTop = scrolls[index] ?? 0 })
+    return () => copy.remove()
+  }, [preview.snapshot])
+  return <div ref={holder} className="inner-preview fading-out" style={{ width, height, transform: `scale(${preview.scale})` }} />
+}
+
 /** A box's place inside the box it is drawn in (`inside`), from their places in the layout. */
 const placeIn = (laid: Laid[], id: string, inside: { x: number; y: number }) => {
   const at = absolute(laid, id)!
@@ -211,8 +245,9 @@ const isInside = (laid: Map<string, Laid>, id: string, box: string) => {
  */
 export function InnerPreview({ preview }: { preview: ZoomPreview }) {
   const x = useContext(X)
-  const { inner, box, scale, inward } = preview
+  const { inner, box, scale, inward, snapshot } = preview
   const container = absolute(inner.laid, box)!, byId = new Map(inner.laid.map(n => [n.id, n]))
+  if (snapshot) return <MapCopy preview={preview} width={container.width} height={container.height} />
   const boxes = inner.laid.filter(n => isInside(byId, n.id, box))
   const within = (p: { x: number; y: number }) => p.x >= container.x && p.x <= container.x + container.width && p.y >= container.y && p.y <= container.y + container.height
   const routes = Object.values(inner.routes).filter(points => points.every(within))
