@@ -21,6 +21,8 @@ export type Ctx = {
   route: Route | null
   /** With "you drive" chosen, the way to the tour step the user is heading for, and their next move; null when not heading anywhere. */
   guide: Guide | null
+  /** With "you drive" chosen, the tour step the user is heading for, before they reach it; null when not heading anywhere. */
+  headingFor: TourPlace | null
   /** The box the playing tour's current step shows, if a tour is playing. */
   stepBox?: string
   /** The notes on the code of that step's box, which its code makes room for. */

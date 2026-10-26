@@ -88,10 +88,18 @@ export function useTourStep() {
   return tour && step ? { tour, step, number: x.tour!.step } : undefined
 }
 
+/** The tour being taken and its step: the step showing, or with "you drive", the step the user is heading for. */
+function useTourPlace() {
+  const x = useContext(X)
+  const place = x.headingFor ?? x.tour
+  const tour = place && x.model.tours.find(t => t.file === place.file)
+  return tour && place && tour.steps[place.step] ? { tour, number: place.step } : undefined
+}
+
 /** Steps through the playing tour with the ← and → keys, unless the user is typing. */
 function useArrowKeys() {
   const x = useContext(X)
-  const playing = useTourStep()
+  const playing = useTourPlace()
   useEffect(() => {
     if (!playing) return
     const press = (e: KeyboardEvent) => {
@@ -132,7 +140,7 @@ function useClosesOnClickOutside(box: RefObject<HTMLElement | null>, open: boole
  */
 export function TourBar() {
   const x = useContext(X)
-  const playing = useTourStep()
+  const playing = useTourPlace()
   const [menu, setMenu] = useState(false)
   const bar = useRef<HTMLDivElement>(null)
   useClosesOnClickOutside(bar, menu, () => setMenu(false))
