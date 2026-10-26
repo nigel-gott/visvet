@@ -14,4 +14,5 @@ A tour is a Markdown file here with `kind: tour` in its front matter. The UI ste
 
 Tours:
 
+- [visvet from end to end](codebase.md): the whole codebase, teaching the Rust, TypeScript and React it uses, for an engineer who knows JavaScript and Vue.
 - [The tour feature](tour-feature.md): a review of the tours work, by touring it.

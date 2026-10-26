@@ -163,8 +163,8 @@ After each line, the notes whose code ends on it. `!` tells TypeScript "this can
 route: To Graph.tsx: how the layout makes room for this bubble.
 view: zoomed
 
-### `(nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height })`
-The bubble goes in beside the step's box. Its height is worked out from its text before it is drawn (`stepBubbleBox`), since the layout needs every size up front.
+### `;(nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height, x: 0, y: besideTarget })`
+The bubble goes in beside the step's box. Its height is worked out from its text before it is drawn (`stepBubbleBox`), since the layout needs every size up front. It starts at its box's place in the order (`besideTarget`), so it sits level with its box, not at the top of the column.
 
 ### `sources: [STEP_BUBBLE], targets: [target.id]`
 An edge from the bubble to its box, which ELK puts left to right: so the bubble always lands just left of the box, pointing at it.

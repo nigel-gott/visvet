@@ -11,7 +11,7 @@ Built in this order, each reviewed before the next:
 2. [Tour files](../done/tours/tour-files.md) (done)
 3. [Tour player](../done/tours/tour-player.md) (done)
 4. [Code annotations](../done/tours/code-annotations.md) (done)
-5. [Beginner tours of visvet](beginner-tours.md)
+5. [Beginner tours of visvet](../done/tours/beginner-tours.md) (done, in review)
 
 Alongside: [the tour feature](../../tours/tour-feature.md), a tour of this work that grows with each step, to review it by.
 

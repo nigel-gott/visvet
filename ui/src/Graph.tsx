@@ -88,7 +88,9 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
   // Only beside the step's real box: not beside it drawn as an outside box of another view.
   const target = bubble && !v.ext.has(bubble.target) ? v.boxes.find(it => it.id === bubble.target) : undefined
   if (bubble && target) {
-    (nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height })
+    // Starting at its box's place in the order puts it level with its box, not at the top of its column.
+    const besideTarget = nodes.get(target.id)!.y
+    ;(nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height, x: 0, y: besideTarget })
     root.edges!.push({ id: `${STEP_BUBBLE} -> ${target.id}`, sources: [STEP_BUBBLE], targets: [target.id] })
   }
   return root
@@ -134,7 +136,10 @@ export async function layOut(view: string, v: View, size: (it: Item) => number, 
   return layout
 }
 
-/** Lays a view out with ELK again whenever its boxes, their sizes, its edges or the tour step's bubble change. */
+/**
+ * Lays a view out with ELK again whenever its boxes, their sizes, its edges or the tour step's bubble change. Until
+ * ELK finishes, the last layout stays on screen; `current` says whether the layout is the one for what is shown now.
+ */
 function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox) {
   const [graph, setGraph] = useState<Layout>({ view: '', width: 0, height: 0, laid: [], routes: {} })
   const key = layoutKey(view, v, size, wide, bubble), known = laidOut.get(key)
@@ -145,7 +150,7 @@ function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it:
     layOut(view, v, size, wide, bubble).then(laid => live && setGraph(laid))
     return () => { live = false }
   }, [key])
-  return known ?? graph
+  return { layout: known ?? graph, current: known !== undefined }
 }
 
 /** A laid-out box's position on the whole map (ELK gives positions inside the parent box) and width. */
@@ -182,9 +187,10 @@ function withBubble(laid: Laid[], place: ReturnType<typeof absolute>) {
  * layout; 48px clears the panel. Fitting never zooms out past half size,
  * where text is still readable: a bigger layout starts at its top left instead. When the view changes, the new one
  * opens with the box it zooms into (or out of) exactly where that box was on screen, then glides to the fit or the
- * restored viewport, so zooming in, Up, Back and Forward are each one continuous move.
+ * restored viewport, so zooming in, Up, Back and Forward are each one continuous move. It waits for the layout to be
+ * `current`: the last one may have the tour step's bubble beside another box.
  */
-function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, view: string, visible: boolean, pop: number, centre?: string) {
+function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, current: boolean, view: string, visible: boolean, pop: number, centre?: string) {
   const { setViewport, getViewport, getInternalNode } = useReactFlow()
   const fitted = useRef(''), centred = useRef('')
   // While the old view is still on screen, note where the box being zoomed into (or out of) is.
@@ -206,7 +212,7 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const r = box.current?.getBoundingClientRect()
     const k = `${graph.view} ${visible} ${pop}`
     const same = fitted.current === k, c = centre ?? ''
-    if (!r?.width || !visible || graph.view !== view || (same && centred.current === c)) return
+    if (!r?.width || !visible || !current || graph.view !== view || (same && centred.current === c)) return
     centred.current = c
     // A click clears the highlight; the map stays where it is.
     if (same && !c) return
@@ -241,7 +247,7 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const start = { x: from.x - at.x * zoom0, y: from.y - at.y * zoom0, zoom: zoom0 }
     setViewport(start)
     void glideCamera(setViewport, start, target, outward ?? GLIDE)
-  }, [graph, view, visible, pop, centre])
+  }, [graph, current, view, visible, pop, centre])
 }
 
 /**
@@ -346,12 +352,12 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const v = mapView(x.ix, x.model.dependencies, top, shows, x.expanded, x.sel && !x.hl.has(x.sel) ? x.sel : null)
   // A box showing its code doesn't also list what's inside it as rows.
   const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
-  const graph = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x), stepBubbleBox(x))
+  const { layout: graph, current } = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x), stepBubbleBox(x))
   const preview = useNestedZoom(box, graph, kinds)
   useCentreSelection(box, x.ix, graph, view, x.sel, x.scope, x.hl)
   const centre = [...x.hl][0]
   const playing = useTourStep()
-  useFit(box, x.ix, graph, view, visible, pop, centre)
+  useFit(box, x.ix, graph, current, view, visible, pop, centre)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
