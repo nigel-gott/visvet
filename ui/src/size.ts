@@ -2,6 +2,7 @@
 
 import type { Ctx } from './context'
 import { codeOf, type Item } from './model'
+import type { CodeNote } from './contract'
 
 const pen = document.createElement('canvas').getContext('2d')!
 /** The width of `text` in `font`, in pixels. */
@@ -50,8 +51,23 @@ export function allLines(it: Item) {
 const cols = (it: Item) => Math.min(CODE_COLS, Math.max(...allLines(it).map(l => l.text.length)))
 /** An expanded box is as wide as its code (plus line numbers), but never narrower than a box. */
 const codeWidth = (it: Item) => Math.max(320, measure('m'.repeat(cols(it)), '12px ui-monospace, SFMono-Regular, Menlo, monospace') + 64)
-/** The height of an expanded box's code: up to 30 rows of 16px (a wrapped line takes several), scrolling beyond that. */
-export const codeHeight = (it: Item) => Math.min(allLines(it).reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / cols(it))), 0), 30) * 16 + 8
+/** Most rows of code an expanded box shows before it scrolls; the tour step's box, the one being read, shows more. */
+const CODE_ROWS = 30, STEP_CODE_ROWS = 60
+const NOTE_FONT = '13px system-ui, sans-serif'
+/** A tour note under a line of code: its padding, border and margins, the room its text loses beside it, and a text line's height. */
+const NOTE_FRAME_HEIGHT = 36, NOTE_SIDE_ROOM = 90, NOTE_LINE_HEIGHT = 20
+/** How tall the tour's notes on code `w` wide are, each a bubble of wrapped text under its lines. */
+const notesHeight = (notes: CodeNote[], w: number) => notes.reduce((total, note) => total + NOTE_FRAME_HEIGHT +
+  note.note.split('\n').filter(line => line.trim()).reduce((lines, line) => lines + Math.ceil(measure(line, NOTE_FONT) * 1.1 / (w - NOTE_SIDE_ROOM)), 0) * NOTE_LINE_HEIGHT, 0)
+/**
+ * The height of an expanded box's code: up to 30 rows of 16px (a wrapped line takes several), scrolling beyond that.
+ * The tour step's box shows up to 60, plus room for the step's notes, so it can be read whole.
+ */
+export const codeHeight = (it: Item, x: Ctx) => {
+  const isStep = it.id === x.stepBox
+  const rows = Math.min(allLines(it).reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / cols(it))), 0), isStep ? STEP_CODE_ROWS : CODE_ROWS)
+  return rows * 16 + 8 + (isStep ? notesHeight(x.stepNotes.filter(note => note.span), codeWidth(it)) : 0)
+}
 /** An enum's values, shown as pills when its box lists no member rows and it has fewer than 20. */
 export const pills = (it: Item, rows: Item[]) => {
   const values = it.kind === 'enum' && !rows.length ? it.kids.filter(k => k.kind === 'variant') : []
@@ -82,6 +98,6 @@ export function height(it: Item, x: Ctx, rows: Item[]) {
   return 36 + wraps(it.m?.signature ?? it.name, HEAD_FONT, w) + (it.doc ? block(it.doc, w) : 0) + pillsHeight(pills(it, rows), w) +
     (table ? 18 * table + 6 : 0) +
     rows.reduce((h, r) => h + 22 + wraps(r.m?.signature ?? r.name, ROW_FONT, w), 0) + (it.kind === 'folder' || codeOf(it.o)?.implements.length ? 22 : 0) +
-    (showsCode(it, x) ? codeHeight(it) : 0)
+    (showsCode(it, x) ? codeHeight(it, x) : 0)
 }
 

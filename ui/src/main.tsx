@@ -280,7 +280,7 @@ function App() {
     if (!step) { setTour(place); return setRoute(null) }
     const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
     // The views on the way show the step playing now (the default); the last one, the step it is heading to.
-    const setupOf = (hop: string | null): ViewSetup => (hop === to ? { opened: openFor(step.target, step.view), bubble: bubbleBoxOf(step) ?? null } : {})
+    const setupOf = (hop: string | null): ViewSetup => (hop === to ? { opened: openFor(step.target, step.view), bubble: bubbleBoxOf(step) ?? null, notes: step.code_notes } : {})
     // Every view on the way is laid out before setting off, so the camera never waits for one.
     await zoomer.prepare?.(hops.map(hop => ({ to: hop, ...setupOf(hop) })))
     if (journey.current !== trip) return
@@ -303,9 +303,10 @@ function App() {
     showBox(step.target, step.view, hops.length > 0)
   }
 
+  const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
-    tour, showStep, route, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,
+    tour, showStep, route, stepBox: playingStep?.target, stepNotes: playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,

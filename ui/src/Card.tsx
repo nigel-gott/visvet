@@ -152,7 +152,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <Rows it={it} rows={rows} click={click} />
         {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
         {showsCode(it, x) &&
-          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} /></div>}
+          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it, x) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} /></div>}
         {data.zoomPreview && <InnerPreview preview={data.zoomPreview} />}
       </div>
       <Handle type="source" position={Position.Right} />

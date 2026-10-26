@@ -12,6 +12,7 @@ import { height, showsCode, width } from './size'
 import { mapView } from './view'
 import { STEP_BUBBLE, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { ancestorsOf, type Item } from './model'
+import type { CodeNote } from './contract'
 
 /** The speeds the map's zooms and camera moves can run at, by name: how many times faster than normal (1×). */
 export const SPEEDS = { 'instant': Infinity, '1×': 1, '2×': 2, '4×': 4, '6×': 6 }
@@ -152,11 +153,11 @@ function copyOfMap(map: HTMLElement | null, origin: { x: number; y: number }) {
 
 /**
  * Lays out the view zoomed into `top` (the whole map when none), as the map will show it with the boxes `opened` open
- * and the tour step whose bubble is `bubble` (none when no step shows a box).
+ * and the tour step whose bubble is `bubble` (none when no step shows a box) and whose notes on its box's code are `notes`.
  */
-function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>, opened: Set<string>, bubble: StepBubbleBox | undefined) {
-  // The step's box shows its code.
-  const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened, stepBox: bubble?.target ?? x.stepBox }
+function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>, opened: Set<string>, bubble: StepBubbleBox | undefined, notes: CodeNote[] | undefined) {
+  // The step's box shows its code, with room for the step's notes on it.
+  const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened, stepBox: bubble?.target ?? x.stepBox, stepNotes: notes ?? x.stepNotes }
   const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null)
   const rowsOf = (it: Item) => (showsCode(it, scoped) ? [] : v.rowsOf(it))
   return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped), bubble)
@@ -166,7 +167,7 @@ function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean
  * How a view on a zoom's way is shown: the boxes it opens, and the tour step it shows (its bubble; null for none,
  * left out for the step playing now).
  */
-export type ViewSetup = { opened?: Set<string>; bubble?: StepBubbleBox | null }
+export type ViewSetup = { opened?: Set<string>; bubble?: StepBubbleBox | null; notes?: CodeNote[] }
 
 /**
  * What the map asks of a zoom: runs it, given the box to zoom into (or out to), how to switch to that view at the right
@@ -203,7 +204,7 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
   /** Lays out view `to` as `setup` says. */
   const layOutSetUp = (to: string | null, setup: ViewSetup) => {
     const { x, kinds } = latest.current
-    return layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, setup.opened ?? new Set(), bubbleOf(setup))
+    return layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, setup.opened ?? new Set(), bubbleOf(setup), setup.notes)
   }
   /** Switches views and waits until the new one has placed its boxes, unless zoom `zoom` was stopped first. */
   const switchAt = async (zoom: number, switchView: () => void) => {

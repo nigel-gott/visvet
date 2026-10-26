@@ -2,6 +2,7 @@
 
 import { createContext } from 'react'
 import type { Index, Review, Thread } from './model'
+import type { CodeNote } from './contract'
 import type { Route, TourPlace } from './Tours'
 
 /** What every view reads: the model, the item index, the selection, navigation and review state. */
@@ -20,6 +21,8 @@ export type Ctx = {
   route: Route | null
   /** The box the playing tour's current step shows, if a tour is playing. */
   stepBox?: string
+  /** The notes on the code of that step's box, which its code makes room for. */
+  stepNotes: CodeNote[]
   /** Shows a tour's step, zooming into its box; null leaves the tour. */
   showStep: (place: TourPlace | null) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */

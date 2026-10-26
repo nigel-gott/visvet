@@ -166,6 +166,8 @@ export function absolute(laid: Laid[], id: string) {
 const PANEL_CLEARANCE = 48, GUTTER = 16
 /** The narrowest zoom a layout is fitted at: text is still readable; a bigger layout starts at its top left. */
 const SMALLEST_FIT = 0.5
+/** The closest a tour step's box and bubble are framed: past full size, so a small box fills the screen and reads easily. */
+const CLOSEST_FRAMING = 1.6
 
 /** The camera that fits layout `graph` in a map of size `rect`: centred, below the panel, at full size at most. */
 export function fitOf(rect: { width: number; height: number }, graph: { width: number; height: number }) {
@@ -228,8 +230,8 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
       x: Math.max((r.width - hit.width * zoom) / 2, GUTTER) - hit.x * zoom,
       y: PANEL_CLEARANCE + Math.max((r.height - PANEL_CLEARANCE - hit.height * zoom) / 2, 0) - hit.y * zoom, zoom,
     }
-    /** The closest zoom that shows the highlighted box and its bubble whole, at full size at most and never further out than the fit. */
-    const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, 1), fit.zoom)
+    /** The closest zoom that shows the highlighted box and its bubble whole, up to `CLOSEST_FRAMING` and never further out than the fit. */
+    const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, CLOSEST_FRAMING), fit.zoom)
     // Opening a view on a box centres it at full size. Within the view (a tour step's journey has just landed on its
     // fit), the camera closes in on the box and its bubble, as near as shows them whole.
     const middle = hit && (same ? centredAt(framing!) : centredAt(1))
