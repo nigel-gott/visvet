@@ -103,7 +103,8 @@ impl<'a> Tally<'a> {
 
 /// Whether `file` sits in the submodule folder of `parent`, like `src/review/parse.rs` in `src/review.rs`.
 fn in_submodule(file: &str, parent: &str) -> bool {
-    parent.strip_suffix(".rs").is_some_and(|folder| file.strip_prefix(folder).is_some_and(|rest| rest.starts_with('/')))
+    let parent = Path::new(parent);
+    parent.extension().is_some_and(|ext| ext == "rs") && Path::new(file).starts_with(parent.with_extension(""))
 }
 
 /// Prints the sections from the tallies.
