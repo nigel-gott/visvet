@@ -12,6 +12,11 @@ type Graph<'a> = BTreeMap<&'a str, BTreeSet<&'a str>>;
 #[derive(Default)]
 struct Zoom<'a> { linked: BTreeSet<&'a str>, peers: BTreeSet<&'a str>, boxes: BTreeSet<&'a str>, links: [usize; 2] }
 
+/// Where top folders are in a box's list of the boxes it sits in.
+const TOP_FOLDERS: usize = 0;
+/// Where files are in a box's list of the boxes it sits in.
+const FILES: usize = 1;
+
 /// Each box's kind and the boxes it sits in, outermost first: top folder, file, type or free fn, member.
 type Paths<'a> = HashMap<&'a str, (Vec<&'a str>, &'a str)>;
 
@@ -61,30 +66,39 @@ fn paths<'a>(objs: &[&'a MapBox]) -> Paths<'a> {
 }
 
 impl<'a> Tally<'a> {
-    /// Counts edge `e` whose ends have these paths.
-    fn add(&mut self, e: &'a Dependency, ends: [&(Vec<&'a str>, &'a str); 2]) {
-        *self.kinds.entry(e.kind.label()).or_default() += 1;
-        if e.kind == DependencyKind::Calls {
-            self.calls[0].entry(e.from.as_str()).or_default().insert(e.to.as_str());
-            self.calls[1].entry(e.to.as_str()).or_default().insert(e.from.as_str());
+    /// Counts dependency `dep`, given the boxes each of its two ends (from, to) sits in.
+    fn add(&mut self, dep: &'a Dependency, ends: [&(Vec<&'a str>, &'a str); 2]) {
+        *self.kinds.entry(dep.kind.label()).or_default() += 1;
+        if dep.kind == DependencyKind::Calls {
+            self.calls[0].entry(dep.from.as_str()).or_default().insert(dep.to.as_str());
+            self.calls[1].entry(dep.to.as_str()).or_default().insert(dep.from.as_str());
         }
-        // Level 0 is top folders, 1 is files.
-        for k in 0..2 {
-            let (a, b) = (ends[0].0[k], ends[1].0[k]);
-            if a == b {
+        for level in [TOP_FOLDERS, FILES] {
+            let (from_box, to_box) = (ends[0].0[level], ends[1].0[level]);
+            // Both ends in one box: at this level it links nothing.
+            if from_box == to_box {
                 continue;
             }
-            let submodule = |file: &str, parent: &str| self.files[file].in_submodule_of(self.files[parent]);
-            if e.kind.counts_for_cycles() && !(k == 1 && (submodule(a, b) || submodule(b, a))) {
-                self.deps[k].entry(a).or_default().insert(b);
+            if self.can_cycle(dep.kind, level, from_box, to_box) {
+                self.deps[level].entry(from_box).or_default().insert(to_box);
             }
-            if k == 0 {
-                *self.pairs.entry((a, b)).or_default().entry(e.kind.label()).or_default() += 1;
-                self.cross.entry(ends[0].0[1]).or_default()[0] += 1;
-                self.cross.entry(ends[1].0[1]).or_default()[1] += 1;
+            if level == TOP_FOLDERS {
+                *self.pairs.entry((from_box, to_box)).or_default().entry(dep.kind.label()).or_default() += 1;
+                self.cross.entry(ends[0].0[FILES]).or_default()[0] += 1;
+                self.cross.entry(ends[1].0[FILES]).or_default()[1] += 1;
             }
-            self.add_zoom(k, ends);
+            self.add_zoom(level, ends);
         }
+    }
+
+    /// Whether a link of `kind` between two boxes at `level` can be part of a cycle a reader must untangle: it is a
+    /// code link, and not one between a Rust module file and a file in its own folder.
+    fn can_cycle(&self, kind: DependencyKind, level: usize, from_box: &str, to_box: &str) -> bool {
+        let module_and_own_file = level == FILES && {
+            let (from, to) = (self.files[from_box], self.files[to_box]);
+            from.in_submodule_of(to) || to.in_submodule_of(from)
+        };
+        kind.counts_for_cycles() && !module_and_own_file
     }
 
     /// Zoomed into either end's level-`k` box, the other end shows as its box at the same depth, inside that box's parent.
