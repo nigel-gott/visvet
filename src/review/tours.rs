@@ -66,7 +66,8 @@ fn parse_tour(file: &RepoPath, description: &str, text: &str, code: &CodeById) -
     Tour { file: file.clone(), title: title.into(), description: description.into(), steps: steps.into_iter().map(|step| check_step(step, code)).collect() }
 }
 
-/// Checks a written step against the code: whether its box exists, and where each note's code is in it.
+/// Checks a written step against the code: whether its box exists, and where each note's code is in it, or which
+/// box a note names.
 fn check_step(step: WrittenStep, code: &CodeById) -> TourStep {
     let text = step.text.join("\n").trim().to_string();
     // The step's box is the first name in backticks in its text.
@@ -74,7 +75,9 @@ fn check_step(step: WrittenStep, code: &CodeById) -> TourStep {
     let lines = code.0.get(target.as_str());
     let code_notes = step.code_notes.into_iter().map(|(heading, note)| {
         let note_code = heading.trim_matches('`').trim();
-        CodeNote { code: note_code.into(), note: note.join("\n").trim().into(), span: lines.and_then(|lines| find_code(lines, note_code)) }
+        let on_box = code.0.contains_key(note_code).then(|| MapId(note_code.into()));
+        let span = lines.filter(|_| on_box.is_none()).and_then(|lines| find_code(lines, note_code));
+        CodeNote { code: note_code.into(), note: note.join("\n").trim().into(), span, on_box }
     }).collect();
     TourStep { title: step.title.into(), target_found: lines.is_some(), target, text, code_notes }
 }
@@ -104,7 +107,7 @@ mod tests {
     use super::*;
     use crate::review::compare::tests::cmp;
 
-    const TOUR: &str = "---\nkind: tour\ndescription: A look.\n---\n# First look\n\n## The command line\nStart at `src/a.rs::Cli`.\n\n### `#[derive(Parser)]`\nclap reads this.\n\n### `missing()`\nGone.\n\n## Gone\nSee `src/a.rs::Old`.\n```toml\n# not a heading\n```\n";
+    const TOUR: &str = "---\nkind: tour\ndescription: A look.\n---\n# First look\n\n## The command line\nStart at `src/a.rs::Cli`.\n\n### `#[derive(Parser)]`\nclap reads this.\n\n### `missing()`\nGone.\n\n### `src/a.rs`\nThe file.\n\n## Gone\nSee `src/a.rs::Old`.\n```toml\n# not a heading\n```\n";
 
     #[test]
     fn steps_find_their_box_and_code() {
@@ -116,6 +119,7 @@ mod tests {
         let span = first.code_notes[0].span.unwrap();
         assert_eq!((span.start, span.end), (TextPosition { line: 2, column: 0 }, TextPosition { line: 2, column: 17 }));
         assert_eq!((first.code_notes[0].note.as_str(), first.code_notes[1].span), ("clap reads this.", None));
+        assert_eq!((first.code_notes[2].on_box.as_ref().map(MapId::as_str), first.code_notes[2].span), (Some("src/a.rs"), None));
         assert!(!tour.steps[1].target_found);
         assert!(tour.steps[1].text.ends_with("# not a heading\n```"));
     }

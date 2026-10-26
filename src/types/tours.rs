@@ -31,7 +31,8 @@ pub struct TourStep {
     pub code_notes: Vec<CodeNote>,
 }
 
-/// A note on an exact piece of a step's code: a `### ` heading holding that code in backticks, then the note.
+/// A note on an exact piece of a step's code, or on another box: a `### ` heading holding that code or box id in
+/// backticks, then the note.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct CodeNote {
@@ -40,6 +41,9 @@ pub struct CodeNote {
     pub note: String,
     /// Where that code is in the step's box, the first time it appears; none when it isn't there any more (stale).
     pub span: Option<CodeSpan>,
+    /// When the heading names a box (e.g. `src/cli.rs::Cmd`) rather than code: that box, which shows the note in a
+    /// bubble beside it.
+    pub on_box: Option<MapId>,
 }
 
 /// Where a piece of code is in its file: from `start` up to `end`.

@@ -29,8 +29,6 @@ header { grid-area: 1 / 1; display: flex; flex-wrap: wrap; align-items: center; 
 .steps { display: flex; gap: 4px }
 .steps button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 18px; line-height: 1; cursor: pointer }
 .steps button:disabled { opacity: .35; cursor: default }
-.changes { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap }
-.changes button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 16px; cursor: pointer }
 .path { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; white-space: nowrap; font-weight: 600 }
 .path a { color: var(--sel); cursor: pointer }
 .path a.here { color: var(--fg); cursor: default }
@@ -261,13 +259,40 @@ main { grid-area: 2 / 1; min-height: 0 }
 .thread .state button { padding: 3px 10px; border: 1px solid var(--line); border-radius: 12px; background: none; color: var(--muted); font: 500 11px system-ui, sans-serif; letter-spacing: 0; text-transform: none; cursor: pointer }
 .thread .state button:hover { border-color: var(--add); color: var(--add) }
 .inbox p { grid-column: 1 / -1; margin: 0; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
-/* The tour player: its picker and steps in the top bar, and the current step in a panel over the map's left edge. */
-.tour-pick { height: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 12px }
-.changes button:disabled { opacity: .35; cursor: default }
-aside.tour { grid-area: 2 / 1; justify-self: start; z-index: 5; width: min(420px, 36vw); min-height: 0; padding: 14px 18px; overflow: auto;
-  border-right: 1px solid var(--line); background: var(--bg); box-shadow: 6px 0 20px rgb(0 0 0 / .15); font-size: 14px; line-height: 1.5 }
-.tour-title { margin: 0; color: var(--muted); font-size: 12px }
-aside.tour h3 { margin: 4px 0 8px }
-.code-note { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line) }
-.code-note > code { font-weight: 600 }
+/* The tour player. In the top bar: a picker, or while playing, the tour's name, progress and ✕. */
+.tour-pick { height: 30px; padding: 0 10px; border: 1px solid var(--ai); border-radius: 15px; background: var(--bg); color: var(--ai); font-size: 13px; font-weight: 600; cursor: pointer }
+.tour-playing { display: flex; align-items: center; gap: 10px; font-size: 13px; white-space: nowrap }
+.tour-name { font-weight: 600; color: var(--ai) }
+.tour-playing progress { width: 140px; height: 6px; accent-color: var(--ai) }
+.tour-playing button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); color: var(--fg); cursor: pointer }
+/* Bubbles on the map: a step's text above its box, and notes above other boxes, each pointing down at its box. */
+.react-flow__node:has(> .bubble) { z-index: 1000 !important }
+.bubble { position: absolute; bottom: calc(100% + 16px); left: 0; z-index: 10; width: 340px; padding: 12px 16px; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--bg); box-shadow: 0 10px 30px rgb(0 0 0 / .18); font-size: 14px; line-height: 1.5; cursor: auto; user-select: text }
+.bubble::after { content: ''; position: absolute; left: 28px; bottom: -8px; width: 14px; height: 14px; background: var(--bg);
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg) }
+.bubble p { margin: 0 0 8px }
+/* At most 316px tall, so the map can keep a fixed room above the box (STEP_BUBBLE_ROOM in Tours.tsx); longer text scrolls. */
+.step-bubble { display: flex; flex-direction: column; width: 560px; max-height: 316px; border-top: 3px solid var(--ai) }
+.step-bubble .step-text { flex: 1; min-height: 0; overflow: auto }
+.step-bubble.floating { position: relative; bottom: auto; grid-area: 2 / 1; align-self: start; justify-self: center; margin-top: 24px; z-index: 6 }
+.step-bubble.floating::after { display: none }
+.bubble-kicker { color: var(--ai); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em }
+.bubble h3 { margin: 2px 0 8px; font-size: 17px }
+.box-bubble { border-top: 3px solid var(--hl) }
+.bubble-nav { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line) }
+.bubble-nav > button { padding: 6px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); font-size: 13px; cursor: pointer }
+.bubble-nav > button:disabled { opacity: .35; cursor: default }
+.bubble-nav > button.primary { border-color: var(--ai); background: var(--ai); color: #fff; font-weight: 600 }
+.dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px }
+.dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; background: var(--line); cursor: pointer }
+.dot.here { background: var(--ai); transform: scale(1.4) }
+/* A tour note on code: its lines get a band in the highlight colour, and the note sits right under them. */
+.ln.noted { background: color-mix(in srgb, var(--hl) 20%, transparent); box-shadow: inset 3px 0 var(--hl) }
+.code-bubble { position: relative; margin: 6px 12px 10px calc(8px + 5ch); padding: 8px 12px; border: 1px solid var(--hl); border-radius: 10px;
+  background: var(--bg); font: 13px/1.5 system-ui, sans-serif; white-space: normal; text-indent: 0 }
+.code-bubble::before { content: ''; position: absolute; left: 18px; top: -7px; width: 12px; height: 12px; background: var(--bg);
+  border-left: 1px solid var(--hl); border-top: 1px solid var(--hl); transform: rotate(45deg) }
+.code-bubble p { margin: 0 0 6px }
+.code-bubble p:last-child, .bubble p:last-child { margin-bottom: 0 }
 .stale { color: var(--del) }

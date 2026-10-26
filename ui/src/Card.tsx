@@ -3,10 +3,12 @@
 import { useContext, useMemo } from 'react'
 import { Handle, Position, useReactFlow, type InternalNode, type Node, type NodeProps, type Viewport } from '@xyflow/react'
 import { codeOf, type Item } from './model'
+import type { CodeNote } from './contract'
 import { X } from './context'
 import { DiffView, Head, Notes } from './Views'
 import { languageOf } from './highlight'
 import { ThreadChip } from './Threads'
+import { BoxBubble, StepBubble, useTourStep } from './Tours'
 import { allLines, codeHeight, fieldTable, pills, showsCode } from './size'
 
 /** Where a box was on screen as the view changed, so the next view can open with that box in the same place (see `useFit` in Graph.tsx). */
@@ -27,6 +29,8 @@ export type CardData = {
   expands: boolean
   /** On the zoomed box, its children that have More, for its Open all button; empty on other boxes. */
   openAll: string[]
+  /** Tour notes on this box, or on boxes inside it that the view doesn't draw, shown in bubbles above it. */
+  boxNotes: CodeNote[]
 }
 
 /** The last click on a box, so a second click on it within 300ms counts as a double click. */
@@ -120,8 +124,14 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   const implemented = codeOf(it.o)?.implements ?? []
   // Made once per box, so its syntax colours are worked out once, not on every render.
   const code = useMemo(() => allLines(it), [it])
+  // While a tour plays: its step's bubble on the step's box, with its notes on code.
+  const playing = useTourStep()
+  const stepHere = playing?.step.target === it.id
+  const codeNotes = stepHere ? playing!.step.code_notes.filter(note => note.span) : []
   return (
     <>
+      {stepHere && <StepBubble />}
+      {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
       <Handle type="target" position={Position.Left} />
       <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''}`}
         onClick={() => click(it)}>
@@ -140,7 +150,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <Rows it={it} rows={rows} click={click} />
         {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
         {showsCode(it, x) &&
-          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} /></div>}
+          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} /></div>}
       </div>
       <Handle type="source" position={Position.Right} />
     </>

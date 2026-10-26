@@ -2,10 +2,11 @@
 
 import { Debuffs } from './Debuffs'
 import { X, type Ctx } from './context'
-import { Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
-import type { Language } from './contract'
+import type { CodeNote, Language } from './contract'
+import { CodeBubble } from './Tours'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -104,18 +105,38 @@ export function Outline() {
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 
 /** The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. */
-export function DiffView({ diff, language }: { diff: DiffLine[]; language: Language }) {
+export function DiffView({ diff, language, notes = [] }: { diff: DiffLine[]; language: Language; notes?: CodeNote[] }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
+  const view = useRef<HTMLDivElement>(null)
+  useScrollToFirstNote(view, notes)
   const highlighter = useHighlighter()
   const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])
   // Long unchanged runs fold only around a change; unchanged code shows whole.
-  const changed = diff.some(l => l.kind !== 'ctx')
+  // Folding never hides a tour's noted lines.
+  const changed = diff.some(l => l.kind !== 'ctx') && !notes.length
   const runs: { start: number; lines: DiffLine[] }[] = []
   diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
   const rows = runs.flatMap(({ start, lines }) => changed && lines.length > 8 && !unfolded.has(start)
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
-    : lines.map((l, k) => <div key={start + k} className={'ln ' + l.kind}><span className="no">{l.line}</span>{colouredText(l, coloured?.[start + k])}</div>))
-  return <div className="diff">{rows}</div>
+    : lines.map((l, k) => (
+      <Fragment key={start + k}>
+        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`}><span className="no">{l.line}</span>{colouredText(l, coloured?.[start + k])}</div>
+        {l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map((note, index) => <CodeBubble key={index} note={note} />)}
+      </Fragment>
+    )))
+  return <div className="diff" ref={view}>{rows}</div>
+}
+
+/** Whether a line of the current code is inside the code one of `notes` is about. */
+const isNoted = (line: DiffLine, notes: CodeNote[]) =>
+  line.kind !== 'del' && notes.some(note => line.line >= note.span!.start.line && line.line <= note.span!.end.line)
+
+/** Scrolls the code so its first noted line sits near the top, when the notes change. */
+function useScrollToFirstNote(view: RefObject<HTMLDivElement | null>, notes: CodeNote[]) {
+  useEffect(() => {
+    const scroller = view.current?.parentElement, first = view.current?.querySelector('.noted')
+    if (scroller && first) scroller.scrollTop += first.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24
+  }, [notes.map(note => note.code).join()])
 }
 
 /** A line's text, in its syntax colours once they are known. */

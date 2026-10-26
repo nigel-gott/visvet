@@ -5,6 +5,7 @@ import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, us
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
 import { reportView, type DependencyKind, type Item } from './model'
 import { X } from './context'
+import { STEP_BUBBLE_ROOM, useTourStep } from './Tours'
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
 import { height, width } from './size'
 import { mapView, type View } from './view'
@@ -118,12 +119,13 @@ function absolute(laid: Laid[], id: string) {
 
 /**
  * For each new view, each Back or Forward (`pop`) and whenever the map becomes visible, restores the history entry's
- * viewport, or centres the highlighted box `centre`, or fits the whole layout; 48px clears the panel. Fitting never zooms out past half size,
+ * viewport, or centres the highlighted box `centre` (below its tour step's bubble, with `bubbleAbove`), or fits the whole
+ * layout; 48px clears the panel. Fitting never zooms out past half size,
  * where text is still readable: a bigger layout starts at its top left instead. When the view changes, the new one
  * opens with the box it zooms into (or out of) exactly where that box was on screen, then glides to the fit or the
  * restored viewport, so zooming in, Up, Back and Forward are each one continuous move.
  */
-function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: string, visible: boolean, pop: number, centre?: string) {
+function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: string, visible: boolean, pop: number, centre?: string, bubbleAbove = false) {
   const { setViewport, getViewport, getInternalNode } = useReactFlow()
   const fitted = useRef(''), centred = useRef('')
   // While the old view is still on screen, note where the box being zoomed into (or out of) is.
@@ -152,9 +154,9 @@ function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: stri
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
     // A highlighted box (from `visvet show` or a change step) is centred at full size, its top in view.
     const hit = c ? absolute(graph.laid, c) : undefined
-    // Centred in the map's visible part, right of the tour panel while a tour plays; a box too wide for it starts at its left.
-    const covered = document.querySelector('aside.tour')?.clientWidth ?? 0
-    const middle = hit && { x: covered + Math.max((r.width - covered - hit.width) / 2, 16) - hit.x, y: 48 + Math.max((r.height - 48 - hit.height) / 2, 0) - hit.y, zoom: 1 }
+    // Centred, a box too wide for the map starting at its left; room is kept above it for a tour step's bubble.
+    const top = 48 + (bubbleAbove ? STEP_BUBBLE_ROOM : 0)
+    const middle = hit && { x: Math.max((r.width - hit.width) / 2, 16) - hit.x, y: top + Math.max((r.height - top - hit.height) / 2, 0) - hit.y, zoom: 1 }
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null
@@ -236,7 +238,10 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const view = top ? top.id : String(x.level)
   const v = mapView(x.ix, x.model.dependencies, top, x.level, shows, x.expanded)
   const graph = useLayout(view, v, it => height(it, x, v.rowsOf(it)), it => width(it, v.rowsOf(it), x))
-  useFit(box, graph, view, visible, pop, [...x.hl][0])
+  const centre = [...x.hl][0]
+  const playing = useTourStep()
+  const stepTarget = playing?.step.target
+  useFit(box, graph, view, visible, pop, centre, centre !== undefined && centre === stepTarget)
   const pos = useMoved(view, v.boxes.map(b => b.id).join('|'))
   const byId = new Map(v.boxes.map(b => [b.id, b]))
   const laid = new Map(graph.laid.map(n => [n.id, n]))
@@ -251,15 +256,19 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   // does, it hides the box's arrows, so rebuilding them all on each mouse move of a drag made every arrow vanish.
   const made = useRef({ graph, boxes: new Map<string, { key: string; node: Node<CardData> }>() })
   if (made.current.graph !== graph) made.current = { graph, boxes: new Map() }
+  // A tour note on a box goes on that box, or on the nearest box around it that this view draws.
+  const drawnBoxOf = (id: string) => { let it = x.ix.items.get(id); while (it && !byId.has(it.id)) it = it.parent; return it?.id }
+  const boxNotes = (playing?.step.code_notes ?? []).filter(note => note.on_box && note.on_box !== playing!.step.target)
   const nodes = graph.laid.filter(n => byId.has(n.id)).map(n => {
     const it = byId.get(n.id)!
     const rows = v.rowsOf(it), position = clamp(n, pos.moved[n.id] ?? n.position)
-    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope].join('|')
+    const notesHere = boxNotes.filter(note => drawnBoxOf(note.on_box!) === n.id)
+    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code)].join('|')
     const old = made.current.boxes.get(n.id)
     if (old?.key === key) return old.node
     const data: CardData = {
       it, rows, ext: v.ext.has(n.id),
-      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [],
+      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere,
     }
     const extent = n.parentId ? 'parent' as const : undefined
     // Where arrows attach (mid left in, mid right out), given up front so a box being dragged keeps its arrows.

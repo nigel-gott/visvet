@@ -15,7 +15,11 @@ pub fn print(repo_root: &Path) -> anyhow::Result<()> {
             let missing = if step.target_found { "" } else { "  STALE: no such box" };
             println!("  {}. {} -> {}{missing}", number + 1, step.title, step.target);
             for note in &step.code_notes {
-                let place = note.span.map_or("STALE: code not found".into(), |span| format!("line {}", span.start.line));
+                let place = match (&note.on_box, note.span) {
+                    (Some(map_box), _) => format!("note on box {map_box}"),
+                    (None, Some(span)) => format!("line {}", span.start.line),
+                    (None, None) => "STALE: code not found".into(),
+                };
                 println!("       `{}`: {place}", note.code);
             }
         }

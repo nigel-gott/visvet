@@ -1,10 +1,11 @@
 // Comment threads between the user and the AI: a chip on each box, a panel on the selected box, counts in the top bar.
 
-import { Fragment, useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { post, type Index, type Item, type Thread, type ThreadMessage, type ThreadState } from './model'
 import { DebuffDetail } from './Debuffs'
 import { X, type Ctx } from './context'
+import { Rich } from './Rich'
 
 /** The threads on box `id` or anything inside it (a folder id ends in "/"). */
 export const threadsIn = (id: string, threads: Thread[]) =>
@@ -50,20 +51,6 @@ function Say({ text: start, focus, placeholder, send, done }: { text: string; fo
       <button className="send" title="Send (Enter)" disabled={!text.trim()} onClick={submit}>➤</button>
     </div>
   )
-}
-
-/** Inline `code` and **bold** in a line of a message. */
-const inline = (s: string) => s.split(/(`[^`]+`|\*\*[^*]+\*\*)/).map((p, i) =>
-  p.startsWith('`') ? <code key={i}>{p.slice(1, -1)}</code> : p.startsWith('**') ? <b key={i}>{p.slice(2, -2)}</b> : p)
-
-/** A message with light markdown: blank lines split paragraphs, "- " and "1. " lines make lists, `code` and **bold** inline. */
-export function Rich({ text }: { text: string }) {
-  return text.split(/\n\s*\n/).map((block, i) => {
-    const lines = block.split('\n')
-    if (lines.every(l => /^\s*[-*] /.test(l))) return <ul key={i}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*[-*] /, ''))}</li>)}</ul>
-    if (lines.every(l => /^\s*\d+[.)] /.test(l))) return <ol key={i}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*\d+[.)] /, ''))}</li>)}</ol>
-    return <p key={i}>{lines.map((l, j) => <Fragment key={j}>{j > 0 && <br />}{inline(l)}</Fragment>)}</p>
-  })
 }
 
 /** Who wrote a message, as a chat avatar. */

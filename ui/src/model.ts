@@ -132,8 +132,5 @@ export function index(model: Review) {
   for (const it of items.values()) if (it.name === 'README.md' && it.parent?.kind === 'folder' && it.labels?.kind) it.parent.labels = it.labels
   roots.forEach(r => measure(r))
   const all = roots.flatMap(subtree)
-  const order = all.filter(it => !it.ctx)
-  /** The changes to step through, in review order: each added item whole, else changed items with nothing changed inside. */
-  const changes = order.filter(it => it.parent?.status !== 'added' && (it.status === 'added' || !it.kids.some(k => !k.ctx)))
-  return { items, roots, all, order, changes }
+  return { items, roots, all, order: all.filter(it => !it.ctx) }
 }

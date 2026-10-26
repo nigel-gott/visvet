@@ -31,7 +31,8 @@ export type BoxKind = "struct" | "enum" | "trait" | "class" | "interface" | "typ
 export type ChangeStatus = "same" | "added" | "removed" | "changed";
 
 /**
- * A note on an exact piece of a step's code: a `### ` heading holding that code in backticks, then the note.
+ * A note on an exact piece of a step's code, or on another box: a `### ` heading holding that code or box id in
+ * backticks, then the note.
  */
 export type CodeNote = { 
 /**
@@ -41,7 +42,12 @@ code: string, note: string,
 /**
  * Where that code is in the step's box, the first time it appears; none when it isn't there any more (stale).
  */
-span: CodeSpan | null, };
+span: CodeSpan | null, 
+/**
+ * When the heading names a box (e.g. `src/cli.rs::Cmd`) rather than code: that box, which shows the note in a
+ * bubble beside it.
+ */
+on_box: MapId | null, };
 
 /**
  * Where a piece of code is in its file: from `start` up to `end`.

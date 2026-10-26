@@ -11,7 +11,7 @@ import Graph from './Graph'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
-import { stepTarget, TourBar, TourPanel, type TourPlace } from './Tours'
+import { StepBubble, stepTarget, TourBar, useTourStep, type TourPlace } from './Tours'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -147,8 +147,8 @@ function Header({ error }: { error?: string }) {
         <a className={x.scope ? '' : 'here'} onClick={() => to(null)}>Map</a>
         {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
       </nav>
-      <ChangeSteps />
       <TourBar />
+      <ChangeTotals />
       <ThreadCounts />
       <span className="vs">vs <code>{x.model.compared_against}</code></span>
       {error && <span className="err">Refresh failed: {error}</span>}
@@ -156,25 +156,17 @@ function Header({ error }: { error?: string }) {
   )
 }
 
-/** Steps through the changes one at a time, in review order, with the lines the whole change added and removed. */
-function ChangeSteps() {
+/** A step whose box is gone has nowhere to sit, so its bubble floats over the map instead. */
+function LostStep() {
+  const playing = useTourStep()
+  return playing && !playing.step.target_found ? <StepBubble floating /> : null
+}
+
+/** The lines the whole change added and removed, e.g. "+152 −31". */
+function ChangeTotals() {
   const x = useContext(X)
-  const { changes } = x.ix, at = changes.findIndex(it => it.id === x.sel)
-  if (!changes.length) return null
-  /** Shows the change `by` steps on, wrapping round; from no change, the first or last one. */
-  const step = (by: number) => {
-    const from = at < 0 ? (by > 0 ? -1 : 0) : at
-    x.zoomTo(changes[(from + by + changes.length) % changes.length].id)
-  }
   const total = { added: x.ix.roots.reduce((n, r) => n + r.diffCount.added, 0), removed: x.ix.roots.reduce((n, r) => n + r.diffCount.removed, 0) }
-  return (
-    <nav className="changes">
-      <button title="Previous change" onClick={() => step(-1)}>‹</button>
-      <span>change {at < 0 ? '–' : at + 1} of {changes.length}</span>
-      <button title="Next change" onClick={() => step(1)}>›</button>
-      <LineCounts count={total} />
-    </nav>
-  )
+  return <LineCounts count={total} />
 }
 
 /** Typing a character with a box selected (and no field focused) starts a comment on it with that character. */
@@ -270,7 +262,7 @@ function App() {
       <div className="app">
         <Header error={error} />
         <main><Graph visible pop={pop} /></main>
-        <TourPanel />
+        <LostStep />
         <Drawer />
       </div>
     </X.Provider>
