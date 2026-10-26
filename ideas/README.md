@@ -21,6 +21,8 @@ Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 - [AI helpers](ai-helpers.md): an orchestrator with sub-agents, and a cheap background model.
 - [Activity](activity.md): who's working on what: agents, open PRs and ownership, as avatars and stripes.
 - [Claude integration](claude-integration.md): use artifacts, canvases and the browser pane instead of rebuilding them.
+- [Widgets](widgets.md): boxes with custom insides (live components, media, small apps), with an API.
+- [Extending visvet](extending-visvet.md): settings, plugins as programs, WebAssembly, a scripting language.
 - [Voice](voice.md): talk at the boxes: click and talk.
 - [Fog of war](fog-of-war.md): the map shows where you haven't looked or understood, without a checklist.
 - [Node signals](node-signals.md): churn, hotspots, dead code, and which visual channel shows what.
