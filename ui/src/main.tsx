@@ -7,7 +7,7 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
 import type { StepView } from './contract'
-import { ancestorsOf, flip, flipAll, getReview, index, reportView, type Index, type Item, type Review, type Show } from './model'
+import { ancestorsOf, flip, flipAll, within, getReview, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
 import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
@@ -293,9 +293,9 @@ function App() {
     }
     if (moves.byHand) {
       // The user makes the moves, following the cues (see `guide`); the step opens, bubble and all, once they reach it.
-      // Until then the boxes the step left open close again.
+      // Until then the boxes the step left open close again, except those holding the next step's box.
       setRoute(null)
-      setWide({ view, ids: new Set() })
+      setWide({ view, ids: new Set([...expanded].filter(id => within(ix.items.get(step.target), id))) })
       return setHeading({ place, to })
     }
     setHeading(null)

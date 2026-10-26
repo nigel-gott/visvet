@@ -175,7 +175,8 @@ One `change` event straight away, then every event the watcher sends.
 
 ## Tests live next to the code
 `src/server/watch.rs` is the file watcher, in `src/server/`, the folder of server.rs's own modules. First, how it ends: with its tests. Rust puts unit tests in the same file as the code, in a module that only test builds compile.
-route: Same view: the file watcher's file, and the tests at its end.
+view: zoomed
+route: Into src/server/watch.rs: the file watcher, and the tests at its end.
 
 ### `#[cfg(test)]`
 Compile what follows only for `cargo test`. visvet's map leaves test modules out, so the map shows only the real code.
@@ -188,7 +189,7 @@ Compile what follows only for `cargo test`. visvet's map leaves test modules out
 
 ## Watching the files
 `src/server/watch.rs::watch` uses the notify crate to hear about file changes, and collects each burst into one event.
-route: Into watch.rs: the function that does the watching.
+route: Same file: the function that does the watching.
 
 ### `pub fn watch(repo_root: PathBuf, on: impl Fn(RepoEvent) + Send + 'static) -> notify::Result<notify::RecommendedWatcher> {`
 `on` is any function that takes a `RepoEvent`, with two promises: `Send` means it can move to another thread, and `'static` means it borrows nothing that could end first. With them, the compiler proves no other thread can see half-changed data.
