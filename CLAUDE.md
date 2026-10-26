@@ -28,4 +28,4 @@ caffeinate -is visvet serve --no-open --port 7880
 - `visvet coverage` runs the Rust tests under `cargo llvm-cov`; boxes then show a 🧪 low-coverage debuff. Rerun it after changing tests.
 
 ## Comment threads
-See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`. When idle, keep `visvet wait` running in the background so new comments wake you.
+See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`, and only there: don't repeat thread answers in the chat. When idle, keep `visvet wait` running in the background so new comments wake you.
