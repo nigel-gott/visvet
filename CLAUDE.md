@@ -12,7 +12,7 @@ visvet is a multi-lens, visual way to review code changes at a higher level than
 ## Run it
 ```bash
 cd ui && npm run build && cd .. && cargo install --path . --locked
-caffeinate -is visvet serve --no-open --port 7880
+caffeinate -is visvet serve --no-open --port 7880 --url https://nigels-macbook-pro.tailbc3ea9.ts.net
 ```
 - The map always shows the whole project as it is now; only uncommitted edits are highlighted. The user wants this view, not a diff against `main`.
 - Run the server in the background. Restart it after every change: `pkill -f "visvet serve --no-open --port 7880"`.
