@@ -1,12 +1,13 @@
 // The map: ELK lays out folder, file, code unit and member boxes; clicking selects a box, double-clicking zooms into it.
 
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import { ReactFlow, BaseEdge, Handle, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type InternalNode, type Node, type NodeChange, type NodeProps, type Viewport, type XYPosition } from '@xyflow/react'
+import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type XYPosition } from '@xyflow/react'
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
-import { codeOf, flip, reportView, within, type Dependency, type DependencyKind, type Index, type Item } from './model'
-import { DiffView, Head, Notes } from './Views'
-import { X, type Ctx } from './context'
-import { ThreadChip } from './Threads'
+import { reportView, type DependencyKind, type Item } from './model'
+import { X } from './context'
+import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
+import { height, width } from './size'
+import { mapView, type View } from './view'
 
 const elk = new ELK()
 const LEVELS = ['Top level', '2 levels', '3 levels']
@@ -29,206 +30,6 @@ const save = (view: string, sig: string, pos: Record<string, XYPosition>) => {
 }
 /** Camera moves for zooming into a box: a straight path (not d3's zoom-out-then-in arc), eased in and out. */
 const GLIDE = { duration: 900, interpolate: 'linear' as const, ease: (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2) }
-/** Where a box was on screen as the view changed, so the next view can open with that box in the same place. */
-let anchor: { id: string; x: number; y: number; w: number } | null = null
-/** When the last drag ended, so the click that ends a drag doesn't also zoom or open the box. */
-let draggedAt = 0
-const pen = document.createElement('canvas').getContext('2d')!
-/** The width of `text` in `font`, in pixels. */
-const measure = (text: string, font: string) => { pen.font = font; return pen.measureText(text).width }
-const HEAD_FONT = '600 13px system-ui, sans-serif', ROW_FONT = '13px ui-monospace, SFMono-Regular, Menlo, monospace'
-/** Room a header or member row needs besides its name: padding, border, kind badge, size bar and More button. */
-const CHROME = 170
-/**
- * A box's width: enough to show its name (or signature) and its member rows' signatures in full, from 320px up
- * to 640px. Anything longer wraps onto more lines (see `wraps`) instead of being cut off.
- */
-const width = (it: Item, rows: Item[], x: Ctx) => showsCode(it, x) ? codeWidth(it) : Math.min(640, Math.max(320, CHROME + measure(it.m?.signature ?? it.name, HEAD_FONT),
-  ...rows.map(r => CHROME + measure(r.m?.signature ?? r.name, ROW_FONT))))
-/** Extra height for a name that wraps in a box `w` wide: 18px per line after the first. */
-const wraps = (text: string, font: string, w: number) => 18 * (Math.ceil(measure(text, font) / (w - CHROME)) - 1)
-/** The height of a card's doc or note block: 16px per line `text` wraps to, word by word, in a box `w` wide. */
-function block(text: string, w: number) {
-  const room = w - 22
-  pen.font = '12px system-ui, sans-serif'
-  let n = 1, at = 0
-  for (const word of text.split(/(?<= )/)) {
-    const ww = pen.measureText(word.trimEnd()).width
-    if (at > 0 && at + ww > room) { n++; at = 0 }
-    n += Math.floor(ww / room) // a word wider than the card breaks anywhere
-    at += pen.measureText(word).width % room
-  }
-  return 16 * n + 2
-}
-/**
- * Whether a box shows its code: when expanded and it holds nothing else (a function or method), or it is the zoomed
- * box, whose insides are already boxes. Otherwise More lists what is inside it.
- */
-const showsCode = (it: Item, x: Ctx) => x.expanded.has(it.id) && it.diff.length > 0 && (!it.kids.length || it.id === x.scope)
-/** An expanded box's code wraps lines longer than 140 characters. */
-const CODE_COLS = 140
-/** How many characters wide an expanded box's code is: its longest line, up to CODE_COLS. */
-const cols = (it: Item) => Math.min(CODE_COLS, Math.max(...it.diff.map(l => l.text.length)))
-/** An expanded box is as wide as its code (plus line numbers), but never narrower than a box. */
-const codeWidth = (it: Item) => Math.max(320, measure('m'.repeat(cols(it)), '12px ui-monospace, SFMono-Regular, Menlo, monospace') + 64)
-/** The height of an expanded box's code: up to 30 rows of 16px (a wrapped line takes several), scrolling beyond that. */
-const codeHeight = (it: Item) => Math.min(it.diff.reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / cols(it))), 0), 30) * 16 + 8
-/** An enum's values, shown as pills when its box lists no member rows and it has fewer than 20. */
-const pills = (it: Item, rows: Item[]) => {
-  const values = it.kind === 'enum' && !rows.length ? it.kids.filter(k => k.kind === 'variant') : []
-  return values.length < 20 ? values : []
-}
-/** A small type's fields, shown as a name/type table when its box lists no member rows and it has at most 10. */
-const fieldTable = (it: Item, rows: Item[]) => {
-  const fields = it.kind !== 'enum' && !rows.length ? it.kids.filter(k => k.kind === 'field') : []
-  return fields.length <= 10 ? fields : []
-}
-/** A field's type: its signature after the first ":", e.g. "BoxId" for "pub from: BoxId". */
-const typeOf = (f: Item) => f.m!.signature.split(':').slice(1).join(':').trim()
-const PILL_FONT = '11px ui-monospace, SFMono-Regular, Menlo, monospace'
-/** The height of a row of pills wrapped in a box `w` wide: 22px per line, each pill its text plus 16px of padding and gap. */
-function pillsHeight(values: Item[], w: number) {
-  if (!values.length) return 0
-  let lines = 1, at = 0
-  for (const v of values) {
-    const pw = measure(v.name, PILL_FONT) + 16
-    if (at > 0 && at + pw > w - 16) { lines++; at = 0 }
-    at += pw
-  }
-  return 22 * lines + 6
-}
-
-/** A box's height: header, the full doc and note, enum value pills or a field table, member rows, and its code when expanded. */
-function height(it: Item, x: Ctx, rows: Item[]) {
-  const w = width(it, rows, x)
-  const table = fieldTable(it, rows).length
-  return 36 + wraps(it.m?.signature ?? it.name, HEAD_FONT, w) + (it.doc ? block(it.doc, w) : 0) + pillsHeight(pills(it, rows), w) +
-    (table ? 18 * table + 6 : 0) +
-    rows.reduce((h, r) => h + 22 + wraps(r.m?.signature ?? r.name, ROW_FONT, w), 0) + (it.kind === 'folder' || codeOf(it.o)?.implements.length ? 22 : 0) +
-    (showsCode(it, x) ? codeHeight(it) : 0)
-}
-
-/** A folder box's summary: how many files and folders it holds. */
-const stats = (it: Item) => `${it.kids.length} inside`
-
-type CardData = {
-  it: Item; rows: Item[]; ext: boolean
-  /** Whether the box has the expand button: it has members or code to show. */
-  expands: boolean
-}
-
-/** The last click on a box, so a second click on it within 300ms counts as a double click. */
-let lastClick = { id: '', at: 0 }
-/** Whether a click on `id` is the second of a double click; remembers it for the next one. */
-function isDouble(id: string) {
-  const double = lastClick.id === id && Date.now() - lastClick.at < 300
-  lastClick = { id, at: Date.now() }
-  return double
-}
-
-/** Where box node `n` is on screen in viewport `vp`, saved under `id` so the next view can open it from there. */
-const placeOf = (id: string, n: InternalNode, vp: Viewport) =>
-  ({ id, x: n.internals.positionAbsolute.x * vp.zoom + vp.x, y: n.internals.positionAbsolute.y * vp.zoom + vp.y, w: (n.measured.width ?? 320) * vp.zoom })
-
-/** The box a double click on `t` (box `it`, or one of its rows) zooms into: `t` itself, or for a member, the box it lives in. */
-const diveTo = (it: Item, t: Item, zoomable: boolean) =>
-  t === it ? (zoomable ? it.id : it.parent?.id) : !t.m && t.kids.length ? t.id : t.parent?.id
-
-/**
- * Handles a click on box `it`, or on one of its rows, pills or field rows (`t`): selects it; a double click zooms the
- * map into it, or for a member, into the box it lives in, and selects it. A box in view that can't be zoomed into (a
- * function) opens or closes its More instead.
- */
-function useClick(it: Item, ext: boolean) {
-  const x = useContext(X)
-  const { getViewport, getInternalNode } = useReactFlow()
-  const zoomable = it.id !== x.scope && !it.m && it.kids.length > 0
-  const dive = (t: Item) => {
-    if (t === it && !zoomable && !ext) return x.expand(it.id)
-    const to = diveTo(it, t, zoomable)
-    if (!to || to === x.scope) return
-    // The new view opens with `to` (or this box) where this box is now, then glides to its fit (see `useFit`).
-    const n = getInternalNode(it.id)
-    if (n) anchor = placeOf(to === t.id && t !== it ? to : it.id, n, getViewport())
-    x.zoom(to)
-    if (to !== t.id) x.select(t.id, true)
-  }
-  return (t: Item) => {
-    if (Date.now() - draggedAt < 300) return
-    if (isDouble(t.id)) dive(t)
-    else x.select(t.id, true)
-  }
-}
-
-/** What a part of a card shows, and what a click on one of its rows does. */
-type Part = { it: Item; rows: Item[]; click: (t: Item) => void }
-
-/** A small type's fields as a name/type table (see `fieldTable`), unless it is the zoomed box. */
-function Fields({ it, rows, click }: Part) {
-  const x = useContext(X)
-  const fields = fieldTable(it, rows)
-  if (it.id === x.scope || !fields.length) return null
-  return <table className="fields"><tbody>{fields.map(f => (
-    <tr key={f.id} className={`${f.status} ${x.sel === f.id ? 'sel' : ''}`} onClick={e => { e.stopPropagation(); click(f) }}><td>{f.name}</td><td>{typeOf(f)}</td></tr>
-  ))}</tbody></table>
-}
-
-/** An enum's values as pills (see `pills`). */
-function Pills({ it, rows, click }: Part) {
-  const x = useContext(X)
-  const values = pills(it, rows)
-  if (!values.length) return null
-  return <div className="pills">{values.map(k => (
-    <span key={k.id} className={`pill ${k.status} ${x.sel === k.id ? 'sel' : ''}`} title={k.m!.signature} onClick={e => { e.stopPropagation(); click(k) }}>{k.name}</span>
-  ))}</div>
-}
-
-/** A card's member rows. */
-function Rows({ rows, click }: Part) {
-  const x = useContext(X)
-  return rows.map(k => (
-    <div key={k.id} className={x.sel === k.id ? 'mrow sel' : 'mrow'} title={k.m?.signature ?? k.name}
-      onClick={e => { e.stopPropagation(); click(k) }}>
-      <Head it={k} />
-    </div>
-  ))
-}
-
-/**
- * Clicking a box selects it, so the user can talk to the AI about it.
- * Double-clicking a folder, file or type box glides the camera into it, then zooms the map into it; double-clicking a
- * function opens or closes its More.
- * The More button expands the box in place, downwards: one level in, as rows, or a function's code. Drag a box by its header.
- */
-function Card({ data }: NodeProps<Node<CardData>>) {
-  const { it, rows, ext } = data
-  const x = useContext(X)
-  const click = useClick(it, ext)
-  const implemented = codeOf(it.o)?.implements ?? []
-  return (
-    <>
-      <Handle type="target" position={Position.Left} />
-      <div className={`card ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''}`}
-        onClick={() => click(it)}>
-        <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
-          <Head it={it} />
-          <ThreadChip it={it} />
-          {data.expands && <button className="grow" onClick={e => { e.stopPropagation(); x.expand(it.id) }}>{x.expanded.has(it.id) ? 'Less' : 'More'}</button>}
-        </div>
-        <Notes it={it} />
-        <Fields it={it} rows={rows} click={click} />
-        <Pills it={it} rows={rows} click={click} />
-        {it.kind === 'folder' && <div className="meta">{stats(it)}</div>}
-        {implemented.length > 0 && <div className="meta">impl {implemented.map(t => t.name).join(', ')}</div>}
-        <Rows it={it} rows={rows} click={click} />
-        {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
-        {showsCode(it, x) &&
-          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={it.diff} /></div>}
-      </div>
-      <Handle type="source" position={Position.Right} />
-    </>
-  )
-}
 const nodeTypes = { card: Card }
 
 /** Follows ELK's route, which bends around boxes, while both ends are where ELK put them; a curve once one was dragged. */
@@ -246,165 +47,6 @@ const edgeTypes = { routed: Routed }
 /** A node placed by ELK, in xyflow's shape. */
 type Laid = Pick<Node, 'id' | 'parentId' | 'position' | 'width' | 'height'>
 
-/** A zoomed type's members to show: its public interface, or every member if none is public. */
-function face(t: Item) {
-  const rust = t.o!.file.endsWith('.rs')
-  const pub = t.kids.filter(k => (rust ? k.m!.signature.startsWith('pub') : !/^(private|protected)\b|^#/.test(k.m!.signature)))
-  return pub.length ? pub : t.kids
-}
-
-/** The most outside boxes a zoomed view links to and still shows them exactly; beyond this it shows their files. */
-const PEERS = 12
-/** The most boxes inside a zoomed view with their own arrows to the same outside box; beyond this, one arrow. */
-const BUNDLE = 4
-
-/** A link with the boxes a view draws its ends at: `a` for its `from`, `b` for its `to`. */
-type Placed = Dependency & { a: string; b: string }
-
-/** The boxes a view shows, besides outside ones: unzoomed, every box down to `level`; zoomed, the box and its children. */
-const viewBoxes = (ix: Index, top: Item | undefined, level: number) =>
-  !top ? ix.all.filter(it => it.depth <= level && !it.m) : [top, ...(top.o && top.kind !== 'file' ? face(top) : top.kids)]
-
-/** The box in the view (`ids`) that holds `id`: that box, or its nearest parent there; none if it is outside the view. */
-function lift(ix: Index, ids: Set<string>, id: string) {
-  let it = ix.items.get(id)
-  while (it && !ids.has(it.id)) it = it.parent
-  return it
-}
-
-/** The file that holds `id`, e.g. src/types/boxes.rs. */
-function fileOf(ix: Index, id: string) {
-  let it = ix.items.get(id)
-  while (it?.parent && it.kind !== 'file') it = it.parent
-  return it
-}
-
-/**
- * Where a link's end outside the zoomed box is drawn: at its exact box with `exactPeers`, or when it sits in the
- * zoomed box's own file (e.g. the types next to a zoomed type), which has no other file to show. Otherwise at its
- * file, shown inside its folders or module files down to the zoomed box's depth, so you see where it goes without
- * zooming out.
- */
-function outsideEnd(ix: Index, top: Item | undefined, exactPeers: boolean, id: string) {
-  const home = top && fileOf(ix, top.id)
-  return exactPeers || (home && home !== top && fileOf(ix, id) === home) ? ix.items.get(id) : fileOf(ix, id)
-}
-
-/** Adds outside box `o` to `ext`, plus its parent boxes down to the zoomed box's depth (it can sit higher up). */
-function addOutside(ext: Map<string, Item>, o: Item, top: Item | undefined, ids: Set<string>) {
-  for (let p: Item | undefined = o; p && top && (p === o || p.depth >= top.depth) && !ids.has(p.id); p = p.parent) ext.set(p.id, p)
-}
-
-/**
- * The links in `shown` that touch the view's boxes (`ids`), with the boxes their ends are drawn at, and the outside
- * boxes they bring in (`ext`). Arrows end at outside boxes exactly when there are at most `PEERS` of them.
- */
-function linkEnds(ix: Index, shown: Dependency[], top: Item | undefined, ids: Set<string>) {
-  const inView = (id: string) => lift(ix, ids, id)
-  const peers = new Set(shown.flatMap(e => (inView(e.from) || inView(e.to) ? [e.from, e.to].filter(id => !inView(id)) : [])))
-  const exactPeers = !!top && peers.size <= PEERS
-  const ext = new Map<string, Item>()
-  const exact = shown.flatMap((e): Placed[] => {
-    let a = inView(e.from), b = inView(e.to)
-    if (!a && !b) return [] // wholly outside the zoomed box
-    a ??= outsideEnd(ix, top, exactPeers, e.from)
-    b ??= outsideEnd(ix, top, exactPeers, e.to)
-    // Skip edges between a box and a box inside it: they'd loop onto the outer box.
-    if (!a || !b || within(a, b.id) || within(b, a.id)) return []
-    for (const o of [a, b]) addOutside(ext, o, top, ids)
-    return [{ ...e, a: a.id, b: b.id }]
-  })
-  return { exact, ext, exactPeers }
-}
-
-const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
-
-/**
- * The arrows between owner boxes, merged by their two ends. When more than `BUNDLE` boxes inside the zoomed box have
- * arrows to (or from) one outside box, those become one arrow from the zoomed box itself, with a count: e.g. every
- * type in code.rs "generates" its copy in contract.ts. Selecting a box inside still shows its own exact arrows.
- */
-function bundle(owned: Placed[], top: Item | undefined, ext: Map<string, Item>) {
-  const inside = (id: string) => !!top && id !== top.id && !ext.has(id)
-  const fans = Map.groupBy(owned.filter(e => inside(e.a) !== inside(e.b)), e => (inside(e.a) ? '-> ' + e.b : '<- ' + e.a))
-  const bundled = new Set([...fans.values()].filter(es => new Set(es.map(e => (inside(e.a) ? e.a : e.b))).size > BUNDLE).flat())
-  return Map.groupBy(owned.map(e => (!bundled.has(e) ? e : inside(e.a) ? { ...e, a: top!.id } : { ...e, b: top!.id })), key)
-}
-
-/** The box inside top box `box` that holds `id` (or `box` itself). */
-function childOf(ix: Index, id: string, box: string) {
-  let it = ix.items.get(id)!
-  while (it.id !== box && it.parent && it.parent.id !== box) it = it.parent
-  return it.id
-}
-
-/** Finer arrows standing in for the merged arrow `replaces`, for the top boxes in `tops`, or for exact ends (`exact`). */
-type Finer = { es: Placed[]; tops: Set<string>; exact: boolean; replaces: string | undefined }
-
-/**
- * The finer arrows `edges` merged away, drawn instead of them for the selected box: for a selected top box, its
- * children's arrows to other top boxes; for a box inside one, its exact arrows, including those to its siblings.
- */
-function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, owner: (id: string) => string) {
-  const detail = new Map<string, Finer>()
-  const add = (e: Placed, top: string | undefined, replaces: string | undefined) => {
-    if (edges.has(key(e))) return
-    const d = detail.get(key(e)) ?? detail.set(key(e), { es: [], tops: new Set(), exact: false, replaces }).get(key(e))!
-    if (top) d.tops.add(top)
-    else d.exact = true
-    d.es.push(e)
-  }
-  for (const e of exact) {
-    const [ca, cb] = [owner(e.a), owner(e.b)]
-    const replaces = ca === cb ? undefined : key({ a: ca, b: cb })
-    add(e, undefined, replaces)
-    if (ca !== cb) {
-      add({ ...e, a: childOf(ix, e.a, ca), b: cb }, ca, replaces)
-      add({ ...e, a: ca, b: childOf(ix, e.b, cb) }, cb, replaces)
-    }
-  }
-  return detail
-}
-
-/**
- * The boxes one map view shows, the edges (of the kinds `shows` lets through) lifted onto them, and each box's member
- * rows; a box in `expanded` also lists members not shown as boxes. Unzoomed: every box down to `level`, objects
- * listing their members as rows. Zoomed: one level only, the box and its direct children (a type's public members),
- * each drawn compact. A link leaving the zoomed box ends at the exact box it leads to, e.g. a type in another file,
- * when there are at most `PEERS` of those; with more, it ends at that box's file, so a busy view stays readable.
- * Selection never changes the view, so boxes don't move as you click around.
- */
-export function mapView(ix: Index, links: Dependency[], top: Item | undefined, level: number,
-  shows: (kind: string) => boolean, expanded: Set<string>) {
-  const inner = viewBoxes(ix, top, level)
-  /** A box's parent in this view. */
-  const up = (it: Item) => it.parent
-  const ids = new Set(inner.map(it => it.id))
-  const { exact, ext, exactPeers } = linkEnds(ix, links.filter(e => shows(e.kind)), top, ids)
-  /**
-   * A box hands its arrows to its outermost box in this view (a child of the zoomed box, or with outside files rather
-   * than exact peers, the outermost box around them), so arrows connect only the top boxes; the selected box's own
-   * are drawn instead.
-   */
-  const owner = (id: string) => {
-    let it = ix.items.get(id)
-    if (!it) return id // e.g. a selected arrow
-    while (it.parent && it.parent !== top && (ids.has(it.parent.id) || (!exactPeers && ext.has(it.parent.id)))) it = it.parent
-    return it.id
-  }
-  const owned = exact.flatMap(e => {
-    const [a, b] = [owner(e.a), owner(e.b)]
-    return a === b ? [] : [{ ...e, a, b }]
-  })
-  const edges = bundle(owned, top, ext)
-  const detail = finerEdges(ix, exact, edges, owner)
-  /** A box's rows: everything directly inside it when expanded (More); else its members, only unzoomed. */
-  const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top ? [] : it.kids.filter(k => k.m)
-  /** Whether a box can expand: it holds something to list, or code to show. */
-  const expands = (it: Item) => !ext.has(it.id) && (it.kids.length > 0 || it.diff.length > 0)
-  return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, up }
-}
-type View = ReturnType<typeof mapView>
 
 /**
  * Arrows from a box outside the zoomed one into it, given to ELK the other way round. ELK puts an arrow's start to
@@ -489,10 +131,10 @@ function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: stri
   useLayoutEffect(() => {
     const ids = [view, was.current]
     was.current = view
-    if (anchor) return // a double click already chose the clicked box
+    if (anchor.box) return // a double click already chose the clicked box
     const n = ids.map(id => getInternalNode(id)).find(n => n)
     const vp = getViewport()
-    if (n) anchor = placeOf(n.id, n, vp)
+    if (n) anchor.box = placeOf(n.id, n, vp)
   }, [view])
   useEffect(() => {
     const r = box.current?.getBoundingClientRect()
@@ -505,8 +147,8 @@ function useFit(box: RefObject<HTMLDivElement | null>, graph: Layout, view: stri
     const vp = history.state?.vp
     const shows = vp && -vp.x / vp.zoom < graph.width && (r.width - vp.x) / vp.zoom > 0 && -vp.y / vp.zoom < graph.height && (r.height - vp.y) / vp.zoom > 0
     const target = shows ? vp : fit
-    const from = anchor
-    anchor = null
+    const from = anchor.box
+    anchor.box = null
     const at = from && absolute(graph.laid, from.id)
     if (!from || !at) return void setViewport(target)
     const zoom0 = from.w / at.width
@@ -629,7 +271,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
       edges={shown.edges}
       onEdgeClick={(_, e) => x.select(e.id)}
       onNodesChange={pos.change}
-      onNodeDragStop={() => { draggedAt = Date.now(); pos.keep() }}
+      onNodeDragStop={() => { lastDrag.endedAt = Date.now(); pos.keep() }}
       nodeDragThreshold={8}
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}

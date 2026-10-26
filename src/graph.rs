@@ -34,7 +34,8 @@ pub fn print(repo_root: &Path, base: &str) -> anyhow::Result<()> {
     let objs: Vec<&MapBox> = m.boxes.iter().filter(|o| o.status != ChangeStatus::Removed).collect();
     let path = paths(&objs);
     let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), ..Default::default() };
-    for e in m.dependencies.iter().filter(|e| path.contains_key(e.from.as_str())) {
+    // Both ends must be live: a Markdown link can still name a box the change removed.
+    for e in m.dependencies.iter().filter(|e| path.contains_key(e.from.as_str()) && path.contains_key(e.to.as_str())) {
         t.add(e, [&path[e.from.as_str()], &path[e.to.as_str()]]);
     }
     report(&objs, &path, &t);

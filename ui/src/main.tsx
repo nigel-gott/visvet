@@ -21,7 +21,6 @@ if (location.hash && !history.state) {
   history.pushState({ scope: null, map: false }, '', hash)
 }
 
-/** The review model, reloaded on every server change event, the last load error, and the last `visvet show` request. */
 /**
  * Reloads the page if the server now serves a newer UI build (it restarts with every build, so this runs on each
  * reconnect). Waits while a comment is being typed, so a reload never loses it; the URL keeps the place on the map.
@@ -35,6 +34,7 @@ async function reloadIfRebuilt() {
   reload()
 }
 
+/** The review model, reloaded on every server change event, the last load error, and the last `visvet show` request. */
 function useModel() {
   const [model, setModel] = useState<Review>()
   const [error, setError] = useState<string>()
