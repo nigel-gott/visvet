@@ -21,7 +21,8 @@ pub enum DependencyKind {
     /// Function `from` really uses type `to`: reads one of its values, like `ChangeStatus::Removed`, passes
     /// it as a type argument, like `get::<View>()`, or unpacks a parameter holding it, like `Json(v): Json<View>`.
     Uses,
-    /// A code generator writes `to` from type `from`, e.g. ts-rs writes a TypeScript copy of a Rust type.
+    /// A code generator writes `to` from `from`, e.g. ts-rs writes a TypeScript copy of a Rust type, and Cargo writes
+    /// `Cargo.lock` from `Cargo.toml`.
     Generates,
     /// Markdown file `from` names box or file `to`, in a `code span` or a link.
     Links,
