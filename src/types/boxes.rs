@@ -1,7 +1,7 @@
 //! The boxes on the map and what they hold: code (types, files, their members), documents, or plain files.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{ChangeStatus, DiffLine, DocLabels, LineRange, MemberId, RepoPath, BoxId};
+use super::{ChangeStatus, DiffLine, DocLabels, Language, LineRange, MemberId, RepoPath, BoxId};
 
 /// What a box is.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, TS)]
@@ -102,6 +102,8 @@ pub struct MapBox {
     pub id: BoxId,
     pub name: String,
     pub file: RepoPath,
+    /// The file's language, which the UI colours its code by.
+    pub language: Language,
     pub lines: LineRange,
     /// First paragraph of the doc comment, or of a file's leading comment, or "".
     pub doc: String,

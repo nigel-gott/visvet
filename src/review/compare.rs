@@ -2,8 +2,7 @@
 //! so every box knows whether it was added, changed, removed or is the same.
 use crate::review::parse::{ParsedMember, ParsedBox, parse};
 use super::{codegen, markdown};
-use super::language::Language;
-use crate::types::{BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, BoxId, BoxKind};
+use crate::types::{Language, BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, BoxId, BoxKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::HashMap;
 
@@ -66,6 +65,7 @@ fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, br
         id,
         name: x.name.clone(),
         file: file.clone(),
+        language: Language::of(file),
         lines: lines(x.line, &x.text),
         doc: x.doc.clone(),
         status: kind.status,
@@ -85,7 +85,7 @@ fn file_box(file: &RepoPath, x: &ParsedBox, members: Vec<Member>, file_status: C
     let language = Language::of(file);
     let (content, links) = match language {
         Language::Markdown => (BoxContent::Doc { labels: markdown::labels(&x.text) }, markdown::links(file, &x.text)),
-        _ if language.grammar().is_some() => (code(x, members), vec![]),
+        _ if language.is_parsed() => (code(x, members), vec![]),
         _ => (BoxContent::Plain, vec![]),
     };
     let generates = codegen::lock_files(file).iter().map(RepoPath::to_string).collect();

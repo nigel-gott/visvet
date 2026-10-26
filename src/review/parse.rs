@@ -5,10 +5,9 @@ mod rust;
 mod ts;
 mod walk;
 
-use crate::types::{MemberKind, RepoPath, BoxKind};
+use crate::types::{Language, MemberKind, RepoPath, BoxKind};
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Component, Path, PathBuf};
-use super::language::Language;
 use tree_sitter::Parser;
 use walk::FileParser;
 
@@ -54,7 +53,7 @@ pub fn parse(path: &RepoPath, src: &str) -> Vec<ParsedBox> {
     let language = Language::of(path);
     let file = ParsedBox { name: path.to_string(), kind: BoxKind::File, line: 1, text: src.into(), doc: head_doc(language, src), ..Default::default() };
     let mut parser = FileParser { src, path, language, boxes: vec![file] };
-    let Some(grammar) = language.grammar() else { return parser.boxes };
+    let Some(grammar) = grammar(language) else { return parser.boxes };
     let mut p = Parser::new();
     p.set_language(&grammar).expect("grammar");
     let Some(tree) = p.parse(src, None) else { return parser.boxes };
@@ -75,6 +74,16 @@ pub fn parse(path: &RepoPath, src: &str) -> Vec<ParsedBox> {
         }
     }
     parser.boxes
+}
+
+/// The tree-sitter grammar that parses `language` into boxes, for the languages visvet parses.
+fn grammar(language: Language) -> Option<tree_sitter::Language> {
+    Some(match language {
+        Language::Rust => tree_sitter_rust::LANGUAGE.into(),
+        Language::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        Language::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
+        _ => return None,
+    })
 }
 
 /// Joins a relative path, as written in a file (an import, a link), onto a repo-relative dir, resolving `.` and `..`

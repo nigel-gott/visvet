@@ -71,6 +71,11 @@ export type DocLabels = { kind: DocKind | null, status: WorkStatus | null, };
 export type GitRef = string;
 
 /**
+ * The languages visvet tells apart.
+ */
+export type Language = "rust" | "typescript" | "tsx" | "javascript" | "css" | "json" | "toml" | "markdown" | "other";
+
+/**
  * The first and last line of something in its file, 1-based, including its doc comment.
  */
 export type LineRange = { first: number, last: number, };
@@ -79,7 +84,11 @@ export type LineRange = { first: number, last: number, };
  * One box on the map: a type, an impl or a whole file. Every box has these; what else it holds depends on what it
  * is (`content`): code, a Markdown document, or any other file.
  */
-export type MapBox = { id: BoxId, name: string, file: RepoPath, lines: LineRange, 
+export type MapBox = { id: BoxId, name: string, file: RepoPath, 
+/**
+ * The file's language, which the UI colours its code by.
+ */
+language: Language, lines: LineRange, 
 /**
  * First paragraph of the doc comment, or of a file's leading comment, or "".
  */

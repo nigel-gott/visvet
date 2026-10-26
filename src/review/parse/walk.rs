@@ -1,7 +1,6 @@
 //! Walking one file's syntax tree: each top-level item, the types it declares and their members.
 use super::{ParsedMember, ParsedBox, clean};
-use crate::review::language::Language;
-use crate::types::{MemberKind, BoxKind, RepoPath};
+use crate::types::{Language, MemberKind, BoxKind, RepoPath};
 use tree_sitter::Node;
 
 /// Parses one file into boxes: holds the file's source and path, and the boxes found so far. Each kind of

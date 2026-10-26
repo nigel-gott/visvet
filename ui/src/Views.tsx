@@ -2,8 +2,10 @@
 
 import { Debuffs } from './Debuffs'
 import { X, type Ctx } from './context'
-import { Fragment, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
+import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
+import type { Language } from './contract'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -102,16 +104,23 @@ export function Outline() {
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 
 /** The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. */
-export function DiffView({ diff }: { diff: DiffLine[] }) {
+export function DiffView({ diff, language }: { diff: DiffLine[]; language: Language }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
+  const highlighter = useHighlighter()
+  const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])
   // Long unchanged runs fold only around a change; unchanged code shows whole.
   const changed = diff.some(l => l.kind !== 'ctx')
   const runs: { start: number; lines: DiffLine[] }[] = []
   diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
   const rows = runs.flatMap(({ start, lines }) => changed && lines.length > 8 && !unfolded.has(start)
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
-    : lines.map((l, k) => <div key={start + k} className={'ln ' + l.kind}><span className="no">{l.line}</span>{l.text}</div>))
+    : lines.map((l, k) => <div key={start + k} className={'ln ' + l.kind}><span className="no">{l.line}</span>{colouredText(l, coloured?.[start + k])}</div>))
   return <div className="diff">{rows}</div>
+}
+
+/** A line's text, in its syntax colours once they are known. */
+function colouredText(line: DiffLine, pieces?: ColouredPiece[]) {
+  return pieces ? pieces.map((piece, index) => <span key={index} className="tok" style={piece.style}>{piece.text}</span>) : line.text
 }
 
 /** Back, the item or edge name, and the item's status and size. */
@@ -167,7 +176,7 @@ export function Detail({ id }: { id: string }) {
         {crumbs.length > 0 && <nav className="crumbs">{crumbs.map(c => <a key={c.id} onClick={() => x.focus(c.id)}>{c.name}</a>)}</nav>}
         {it?.doc && <p className="desc">{it.doc}</p>}
         <Related id={id} it={it} />
-        {it && it.kind !== 'folder' && (diff.length === 0 ? <p>no text content</p> : <DiffView diff={diff} />)}
+        {it && it.kind !== 'folder' && (diff.length === 0 ? <p>no text content</p> : <DiffView diff={diff} language={languageOf(it)} />)}
       </div>
       {it && <NavBar it={it} />}
     </>

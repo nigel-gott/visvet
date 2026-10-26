@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: Colour the code in open boxes by language with Shiki, in light and dark, keeping the diff colours.
 ---
 # Syntax highlighting

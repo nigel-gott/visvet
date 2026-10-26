@@ -1,10 +1,11 @@
 // One box on the map: its header, doc, fields, pills, member rows and code. A click selects it; a double click zooms into it.
 
-import { useContext } from 'react'
+import { useContext, useMemo } from 'react'
 import { Handle, Position, useReactFlow, type InternalNode, type Node, type NodeProps, type Viewport } from '@xyflow/react'
 import { codeOf, type Item } from './model'
 import { X } from './context'
 import { DiffView, Head, Notes } from './Views'
+import { languageOf } from './highlight'
 import { ThreadChip } from './Threads'
 import { allLines, codeHeight, fieldTable, pills, showsCode } from './size'
 
@@ -117,6 +118,8 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   const x = useContext(X)
   const click = useClick(it, ext)
   const implemented = codeOf(it.o)?.implements ?? []
+  // Made once per box, so its syntax colours are worked out once, not on every render.
+  const code = useMemo(() => allLines(it), [it])
   return (
     <>
       <Handle type="target" position={Position.Left} />
@@ -137,7 +140,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <Rows it={it} rows={rows} click={click} />
         {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
         {showsCode(it, x) &&
-          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={allLines(it)} /></div>}
+          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} /></div>}
       </div>
       <Handle type="source" position={Position.Right} />
     </>

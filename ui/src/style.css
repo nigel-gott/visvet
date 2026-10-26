@@ -144,6 +144,8 @@ main { grid-area: 2 / 1; min-height: 0 }
 .ln { padding-left: 5ch; text-indent: -5ch; white-space: pre-wrap; overflow-wrap: anywhere }
 .ln.add { background: var(--add-bg) }
 .ln.del { background: var(--del-bg) }
+/* Syntax colours: Shiki gives each piece its light colour, and its dark one as --shiki-dark. */
+@media (prefers-color-scheme: dark) { .tok { color: var(--shiki-dark) !important } }
 .diff > .fold { display: block; width: 100%; margin: 0; border: 0; background: var(--panel); color: var(--muted) }
 .no { display: inline-block; min-width: 4ch; margin-right: 1ch; text-indent: 0; text-align: right; color: var(--muted); user-select: none }
 /* Boxes and arrows highlighted by `visvet show`. */

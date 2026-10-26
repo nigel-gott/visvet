@@ -4,7 +4,6 @@ pub mod codegen;
 pub mod compare;
 pub mod coverage;
 pub mod dependencies;
-pub mod language;
 pub mod markdown;
 pub mod parse;
 
