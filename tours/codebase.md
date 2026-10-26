@@ -38,10 +38,16 @@ route: Into src, where the Rust program lives, starting at its entry point.
 `mod` declares a module. A file isn't a module until its parent declares it: `mod cli;` loads `src/cli.rs`. A module named like a folder (`src/review.rs`) holds the files in that folder (`src/review/`), which is why the map draws `review/` inside `review.rs`.
 
 ### `#[tokio::main]`
-`#[...]` is an attribute: a note to the compiler, here a macro that rewrites the function. Rust has no built-in async runtime. tokio is a library that supplies one, and this attribute starts it before `main` runs.
+Your first macro. A macro is code that writes code: it runs inside the compiler, takes Rust source as input, and gives back new source, which is then compiled as if you had typed it. Rust has three kinds, and this tour shows each:
+
+- **Attribute macros**, written `#[name]` on an item, like this one. They take the whole item and replace it.
+- **Derive macros**, written `#[derive(Name)]` on a type. They read the type and add code beside it.
+- **Function-like macros**, called with a `!`, like `format!(...)` or `vec![...]`.
+
+Rust has no built-in async runtime; tokio supplies one. This attribute rewrites `main` into roughly `fn main() -> anyhow::Result<()> { tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap().block_on(async { cli::run().await }) }`: a plain `main` that starts the runtime and runs your async code on it. Not every `#[...]` is a macro: `#[cfg(test)]` and `#[allow(...)]` are built-in attributes, instructions the compiler follows itself.
 
 ### `async fn main() -> anyhow::Result<()> {`
-`-> T` is the return type. `Result<T, E>` is either `Ok(value)` or `Err(error)`: Rust has no exceptions, so a function that can fail says so in its type. `()` is the "unit" type, Rust's `void`. `anyhow::Result<()>` is a `Result` whose error can be any error.
+`-> T` is the return type. `Result<T, E>` is either `Ok(value)` or `Err(error)`: Rust has no exceptions, so a function that can fail says so in its type. `()` is the "unit" type: the empty value, for a function with nothing to return. `anyhow::Result<()>` is a `Result` whose error can be any error.
 
 ### `cli::run().await`
 `.await` comes after the call. The line has no `;` and no `return`: the last expression in a block is its value, so this is what `main` returns.
@@ -51,10 +57,10 @@ route: Into src, where the Rust program lives, starting at its entry point.
 route: Over to src/cli.rs: what the program reads first is its command line.
 
 ### `#[derive(Parser)]`
-`derive` asks a macro to write code for the type. clap's `Parser` writes the code that reads the arguments into a `Cli`, and turns the `///` doc comments into the `--help` text. The type is the schema: no separate description of the arguments.
+A derive macro. At compile time, clap's `Parser` macro is handed the tokens of this struct: its name, each field, its type, and every attribute and doc comment on it. It writes a new block, `impl Parser for Cli { ... }`, with the code that reads the arguments into a `Cli`, and turns the `///` doc comments into the `--help` text. Unlike an attribute macro, a derive can only add code: the struct itself stays as written. The type is the schema: no separate description of the arguments.
 
 ### `#[arg(long, global = true, default_value = ".")]`
-Settings for one argument: `--repo`, allowed after any subcommand, `.` when not given.
+Settings for one argument: `--repo`, allowed after any subcommand, `.` when not given. `#[arg]` isn't a macro of its own: it is a "helper attribute" that only the `Parser` derive reads, as it walks the fields. On its own the compiler would reject it.
 
 ### `cmd: Option<Cmd>,`
 Rust has no `null` or `undefined`. A value that may be missing is an `Option`: `Some(value)` or `None`. The compiler won't let you use it until you have handled `None`.
@@ -128,7 +134,7 @@ route: Same file: the check every request passes before its handler.
 Each step works on an `Option`: `and_then` goes on only when there is a value, `ok()` turns a `Result` into an `Option`, and `unwrap_or` gives a default.
 
 ### `return (StatusCode::FORBIDDEN, format!("visvet: unknown host {host:?}; use 127.0.0.1 or the --url address")).into_response();`
-`format!` is Rust's template string: `{host}` puts a value in, `{host:?}` puts in its debug form, with quotes. `into_response` comes from axum's `IntoResponse` trait; a trait is like an interface that a type can take on, even a type from another crate, such as this tuple.
+`format!` is a function-like macro that builds a `String` from a template: `{host}` puts a value in, `{host:?}` puts in its debug form, with quotes. It is a macro, not a function, for two reasons: a Rust function takes a fixed number of arguments, and the macro reads the template at compile time, so a `{name}` that doesn't exist, or a value that can't print, is a compile error, not a runtime one. `into_response` comes from axum's `IntoResponse` trait: a set of methods a type can take on, even a type from another crate, such as this tuple.
 
 ## The request this tour follows
 `src/server.rs::model` answers GET `/api/model`: it builds the review and sends it as JSON. The UI asks for it on load and after each change.
@@ -180,7 +186,7 @@ Compile what follows only for `cargo test`. visvet's map leaves test modules out
 `super` is the module around this one: the tests can use everything in the file, private items too.
 
 ### `assert!(counts("src/main.rs") && counts(".visvet/threads/k3f9a2/1-ann.md") && counts(".git/HEAD"));`
-`assert!` fails the test when its condition is false. Macros end in `!`, like `format!` and `vec!`.
+`assert!` fails the test when its condition is false. Being a macro, it sees the condition's source text, so a failure prints the expression itself, not just "false". `assert_eq!(a, b)`, used in other tests, prints both values.
 
 ## Building the review
 `src/review.rs::build_review` is the heart of visvet. It lists the files in the working tree and at the base, reads both versions of each, compares them, and finds the arrows between the boxes.
@@ -209,7 +215,7 @@ route: Over to src/git.rs, which build_review asked for the lists of files.
 `Command::new` uses `::` because `new` belongs to the type, like a static method; `.arg` uses `.` because it works on a value. Each call returns the builder, so they chain.
 
 ### `anyhow::ensure!(out.status.success(), "git {}: {}", args.join(" "), err.trim());`
-If git failed, return an error built from this message and git's own error text.
+If git failed, return an error built from this message and git's own error text. This is something only a macro can do: it expands to `if !condition { return Err(anyhow!(...)) }` right here, so its `return` leaves `git` itself. A function could only return from its own body.
 
 ## Iterators
 `src/git.rs::paths` splits git's output into paths. It is one chain of iterator calls, which you will see everywhere in Rust.
@@ -226,7 +232,7 @@ route: Back in src/review, into the first step of building: comparing each file.
 `Option<&[u8]>`: a file's bytes, borrowed, or `None` when that version doesn't exist (the file was added or deleted).
 
 ### `let parsed = |b: Option<&[u8]>| b.map_or(vec![], |b| parse(file, &std::str::from_utf8(b).unwrap_or("").replace("\r\n", "\n")));`
-A closure kept in a variable, which uses `file` from around it. `map_or` gives `vec![]` (an empty list) for `None`, else parses the text.
+A closure kept in a variable, which uses `file` from around it. `map_or` gives `vec![]` (an empty list) for `None`, else parses the text. `vec![a, b, c]` is a function-like macro that builds a `Vec` holding those items; it takes square brackets by convention, since any of `()`, `[]` or `{}` may wrap a macro's input.
 
 ### `let (now, before) = (parsed(new), (new != old).then(|| parsed(old)));`
 An unchanged file isn't parsed twice: the old version is parsed only when the bytes differ.
@@ -367,7 +373,13 @@ view: zoomed
 route: Over to src/types.rs: the types the review is made of.
 
 ### `macro_rules! string_methods {`
-A macro writes code at compile time from a pattern. This one gives each string wrapper type `.as_str()` and printing, without writing them out each time.
+A macro of visvet's own, so you can see how one is made. `macro_rules!` defines a "declarative" macro: a list of rules, each a pattern for the input and a template for the output, like a `match` on source code. This one gives each string wrapper type `.as_str()` and printing, without writing them out each time. It is used at the end of `src/types/ids.rs`: `string_methods!(BoxId, MemberId, MapId);`.
+
+### `($($name:ident),*) => {$(`
+The rule's pattern, then the start of its template. `$name:ident` matches one identifier (a name such as `BoxId`) and calls it `$name`. `$( ... ),*` means "the part inside, repeated any number of times, separated by commas". In the template, `$( ... )*` repeats its part once per match. So `string_methods!(BoxId, MapId)` writes the two `impl` blocks below twice: once with `$name` as `BoxId`, once as `MapId`.
+
+### `impl $name {`
+The template: plain Rust with `$name` filled in. The compiler expands it before checking types, so a mistake in it is reported where the macro is used. Declarative macros only rearrange tokens; the derive and attribute macros you have seen are "procedural": Rust programs, in their own crates, that run in the compiler. To see what any macro writes, `cargo expand` (a separate tool) prints the code after expansion.
 
 ### `pub use annotations::*;`
 Passes on everything in the `annotations` module, so other code can write `crate::types::Thread` and needn't know the file it is in.
@@ -433,10 +445,10 @@ A `u64` (an unsigned 64-bit number) would become a TypeScript `bigint`, since a 
 route: Over to review.rs: the one value the request handler sends.
 
 ### `#[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]`
-`Serialize` and `Deserialize` (serde) convert to and from JSON; `TS` (ts-rs) writes the TypeScript copy. The JSON and the TypeScript come from the same type, so they always agree.
+Six derives on one type, each adding its own `impl` block. `Clone`, `Debug` and `Default` are built into Rust; `Serialize` and `Deserialize` come from serde, `TS` from ts-rs. serde's derive writes code that visits each field by name, which is how JSON can be written without looking the fields up at runtime. ts-rs's writes a function that prints this type's TypeScript, and `cargo test` runs it. The JSON and the TypeScript come from the same type, so they always agree.
 
 ### `#[ts(export, export_to = "../ui/src/contract.ts")]`
-Where the TypeScript copy goes. visvet reads this line too, to draw a "generates" arrow from each type to its copy.
+A helper attribute that the `TS` derive reads, as `#[serde(...)]` lines are for serde's. Where the TypeScript copy goes. visvet reads this line too, to draw a "generates" arrow from each type to its copy.
 
 ## Saving threads safely
 `src/state/store.rs::update` changes the comment threads: it locks visvet's folder, loads the threads, runs the change, and saves them.
