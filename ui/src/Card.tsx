@@ -47,7 +47,7 @@ function isDouble(id: string) {
 
 /** Where box node `n` is on screen in viewport `vp`, saved under `id` so the next view can open it from there. */
 export const placeOf = (id: string, n: InternalNode, vp: Viewport) =>
-  ({ id, x: n.internals.positionAbsolute.x * vp.zoom + vp.x, y: n.internals.positionAbsolute.y * vp.zoom + vp.y, w: (n.measured.width ?? 320) * vp.zoom })
+  ({ id, x: n.internals.positionAbsolute.x * vp.zoom + vp.x, y: n.internals.positionAbsolute.y * vp.zoom + vp.y, w: (n.width ?? n.measured.width ?? 320) * vp.zoom })
 
 /** The box a double click on `t` (box `it`, or one of its rows) zooms into: `t` itself, or for a member, the box it lives in. */
 const diveTo = (it: Item, t: Item, zoomable: boolean) =>
