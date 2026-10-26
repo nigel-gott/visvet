@@ -1,7 +1,8 @@
 //! What only Rust has: `use crate::...` imports and `impl` blocks.
 use super::names::base;
 use super::walk::FileParser;
-use super::{dir, join};
+use super::join;
+use crate::types::RepoPath;
 use tree_sitter::Node;
 
 /// What only Rust has: `use crate::...` imports and `impl` blocks.
@@ -9,7 +10,7 @@ impl FileParser<'_> {
     /// Records the files of the crate modules a Rust `use crate::...` names.
     pub(super) fn rust_use(&mut self, n: Node) {
         let Some(a) = n.child_by_field_name("argument") else { return };
-        let krate = &self.path[..self.path.rfind("src/").map_or(dir(self.path).as_os_str().len(), |i| i + 3)];
+        let krate = self.path.src_folder().unwrap_or(self.path.folder());
         let list = a.child_by_field_name("list").filter(|_| a.child_by_field_name("path").is_some_and(|p| self.t(p) == "crate"));
         let items: Vec<&str> = match list {
             Some(l) => l.named_children(&mut l.walk()).map(|c| self.t(c)).collect(),
@@ -17,7 +18,7 @@ impl FileParser<'_> {
         };
         for m in items {
             let p = join(krate, m.split([':', ' ']).next().unwrap());
-            self.boxes[0].uses.push(vec![format!("{p}.rs"), format!("{p}/mod.rs")]);
+            self.boxes[0].uses.push(vec![p.with_suffix(".rs"), RepoPath(p.0.join("mod.rs"))]);
         }
     }
 

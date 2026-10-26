@@ -7,7 +7,8 @@ visvet is a multi-lens, visual way to review code changes at a higher level than
 - Doesn't read Rust or serde. Names and doc comments must explain themselves to a non-Rust reader.
 - Reviews every line, so keep changes small, with as few lines as possible.
 - Wants small "micro types" for domain values instead of bare strings, for example `GitRef`, not `String`.
-- Never parse file paths or URLs by hand (splitting on `/` or `.`, slicing, `strip_suffix(".rs")`). Use the standard library: `std::path::Path` in Rust (`file_name`, `parent`, `extension`, `starts_with`), or a proper library.
+- Never hold a file path as a string. In Rust a repo file is a `RepoPath`, anything else a `Path`/`PathBuf`; turn it into text only to print it or build a box id. Path helpers go on `RepoPath`.
+- Never parse file paths or URLs by hand (splitting on `/` or `.`, slicing, `strip_suffix(".rs")`). Use the standard library: `std::path::Path` in Rust (`file_name`, `parent`, `extension`, `starts_with`), `http::Uri` for URLs.
 - Always commit and push your work when a change is done, so nothing is lost.
 
 ## Run it

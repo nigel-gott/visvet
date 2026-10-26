@@ -31,6 +31,15 @@ impl BoxKind {
             Self::Interface => "interface", Self::TypeAlias => "type", Self::Impl => "impl", Self::File => "file",
         }
     }
+
+    /// The id of a box of this kind named `name` in `file`: a file's own box is just its path, e.g. "src/a.rs"; a
+    /// type adds "::" and its name, e.g. "src/a.rs::Thread".
+    pub fn box_id(self, file: &RepoPath, name: &str) -> BoxId {
+        match self {
+            Self::File => BoxId(file.to_string()),
+            _ => BoxId(format!("{file}::{name}")),
+        }
+    }
 }
 
 /// What a member of a box is.

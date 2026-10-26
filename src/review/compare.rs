@@ -2,6 +2,7 @@
 //! so every box knows whether it was added, changed, removed or is the same.
 use crate::review::parse::{ParsedMember, ParsedBox, parse};
 use super::{codegen, markdown};
+use super::language::Language;
 use crate::types::{BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, BoxId, BoxKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::HashMap;
@@ -16,7 +17,7 @@ pub struct Parsed {
     pub types: Vec<String>,
     pub member_types: Vec<(String, MemberKind, Vec<String>)>,
     pub traits: Vec<String>,
-    pub imports: Vec<Vec<String>>,
+    pub imports: Vec<Vec<RepoPath>>,
     pub calls: Vec<[String; 3]>,
     pub generates: Vec<String>,
     pub links: Vec<String>,
@@ -32,7 +33,7 @@ fn lines(first: u32, text: &str) -> LineRange {
 /// "\r\n" as "\n" (else empty); the file box's status uses the raw bytes, so a binary file still shows as changed.
 /// While the new version has a syntax error (e.g. mid-edit), nothing in it counts as removed.
 pub fn compare_file(file: &RepoPath, new: Option<&[u8]>, old: Option<&[u8]>) -> Vec<Parsed> {
-    let parsed = |b: Option<&[u8]>| b.map_or(vec![], |b| parse(file.as_str(), &std::str::from_utf8(b).unwrap_or("").replace("\r\n", "\n")));
+    let parsed = |b: Option<&[u8]>| b.map_or(vec![], |b| parse(file, &std::str::from_utf8(b).unwrap_or("").replace("\r\n", "\n")));
     let (now, before) = (parsed(new), (new != old).then(|| parsed(old)));
     let (before, broken) = (before.as_ref().unwrap_or(&now), now.first().is_some_and(|f| f.broken));
     pair(&now, before, |o| &o.name).into_iter().filter(|(n, _)| n.is_some() || !broken)
@@ -40,11 +41,11 @@ pub fn compare_file(file: &RepoPath, new: Option<&[u8]>, old: Option<&[u8]>) -> 
         .collect()
 }
 
-/// Compares one box's two versions (either missing): its members, its status (`file_status` for the file's own box;
-/// changed if any member changed) and diff, and the names it mentions, for `find_dependencies`.
+/// Compares one box's two versions (either missing): its members, status and diff, and the names it mentions, for
+/// `find_dependencies`. What differs between a file's own box and a type in it is in `file_box` and `type_box`.
 fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, broken: bool, file_status: ChangeStatus) -> Parsed {
     let x = n.or(o).unwrap();
-    let id = BoxId(if x.kind == BoxKind::File { file.as_str().into() } else { format!("{}::{}", file.as_str(), x.name) });
+    let id = x.kind.box_id(file, &x.name);
     let (mut calls, mut member_types) = (vec![], vec![]);
     let members: Vec<Member> = pair(n.map_or(&[][..], |n| &n.members[..]), o.map_or(&[][..], |o| &o.members[..]), |m| &m.name)
         .into_iter().filter(|(nm, _)| nm.is_some() || !broken)
@@ -56,20 +57,10 @@ fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, br
             m
         })
         .collect();
-    let status = match status(n.map(|n| (&n.text, &n.impls)), o.map(|o| (&o.text, &o.impls))) {
-        _ if x.kind == BoxKind::File => file_status,
-        ChangeStatus::Same if members.iter().any(|m| m.status != ChangeStatus::Same) => ChangeStatus::Changed,
-        st => st,
-    };
-    let md = x.kind == BoxKind::File && file.as_str().ends_with(".md");
-    // A file box is code only for a language visvet parses; a type or impl always is.
-    let code = x.kind != BoxKind::File || matches!(file.as_str().rsplit('.').next(), Some("rs" | "ts" | "tsx"));
-    let content = if code {
-        BoxContent::Code { kind: x.kind, members, implements: vec![], coverage: None }
-    } else if md {
-        BoxContent::Doc { labels: markdown::labels(&x.text) }
-    } else {
-        BoxContent::Plain
+    let own_status = status(n.map(|n| (&n.text, &n.impls)), o.map(|o| (&o.text, &o.impls)));
+    let kind = match x.kind {
+        BoxKind::File => file_box(file, x, members, file_status),
+        _ => type_box(file, x, members, own_status),
     };
     let map_box = MapBox {
         id,
@@ -77,16 +68,42 @@ fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, br
         file: file.clone(),
         lines: lines(x.line, &x.text),
         doc: x.doc.clone(),
-        status,
+        status: kind.status,
         diff: diff(n.map(|n| (&*n.text, n.line)), o.map(|o| (&*o.text, o.line))),
-        content,
+        content: kind.content,
     };
-    let mut generates: Vec<String> = codegen::targets(file.as_str(), &x.text).into_iter().map(|f| format!("{f}::{}", x.name)).collect();
-    if x.kind == BoxKind::File {
-        generates.extend(codegen::lock_files(file).iter().map(RepoPath::to_string));
-    }
-    let links = if md { markdown::links(file.as_str(), &x.text) } else { vec![] };
-    Parsed { map_box, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates, links }
+    Parsed { map_box, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates: kind.generates, links: kind.links }
+}
+
+/// The parts of a box that depend on whether it is a file's own box or a type in it: its status, content, the ids
+/// of the boxes generated from it, and for a Markdown file, the boxes and files it names.
+struct KindParts { status: ChangeStatus, content: BoxContent, generates: Vec<String>, links: Vec<String> }
+
+/// A file's own box: the file's status, code only in a language visvet parses, the lock files a package manager
+/// writes from it, and for Markdown, its labels and links.
+fn file_box(file: &RepoPath, x: &ParsedBox, members: Vec<Member>, file_status: ChangeStatus) -> KindParts {
+    let language = Language::of(file);
+    let (content, links) = match language {
+        Language::Markdown => (BoxContent::Doc { labels: markdown::labels(&x.text) }, markdown::links(file, &x.text)),
+        _ if language.grammar().is_some() => (code(x, members), vec![]),
+        _ => (BoxContent::Plain, vec![]),
+    };
+    let generates = codegen::lock_files(file).iter().map(RepoPath::to_string).collect();
+    KindParts { status: file_status, content, generates, links }
+}
+
+/// A type (or impl) in a file: changed when any of its members changed, always code, and maybe generated into
+/// another language, e.g. by ts-rs.
+fn type_box(file: &RepoPath, x: &ParsedBox, members: Vec<Member>, own_status: ChangeStatus) -> KindParts {
+    let any_changed = members.iter().any(|m| m.status != ChangeStatus::Same);
+    let status = if own_status == ChangeStatus::Same && any_changed { ChangeStatus::Changed } else { own_status };
+    let generates = codegen::targets(file, &x.text).iter().map(|f| format!("{f}::{}", x.name)).collect();
+    KindParts { status, content: code(x, members), generates, links: vec![] }
+}
+
+/// The content of a box that holds code: its kind and members.
+fn code(x: &ParsedBox, members: Vec<Member>) -> BoxContent {
+    BoxContent::Code { kind: x.kind, members, implements: vec![], coverage: None }
 }
 
 /// Compares one member's two versions (either missing) of box `box_id`.

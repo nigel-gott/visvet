@@ -11,14 +11,14 @@ fn dep(from: &str, to: &str, kind: DependencyKind) -> Dependency {
 
 /// Resolves names into dependencies and each box's `implements`, and sorts the boxes by place. Every box is kept,
 /// changed or not, so the map shows the whole project. Removed things are never targets.
-pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<String>) -> (Vec<MapBox>, Vec<Dependency>) {
+pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<RepoPath>) -> (Vec<MapBox>, Vec<Dependency>) {
     let ix = Index::new(&all);
     let (mut edges, mut links, mut implements) = (vec![], BTreeSet::new(), vec![]);
     let ids: HashSet<&str> = all.iter().flat_map(|p| p.map_box.members().iter().map(|m| m.id.as_str()).chain([p.map_box.id.as_str()])).collect();
     for p in &all {
         let o = &p.map_box;
-        let files: BTreeSet<&String> = p.imports.iter().filter_map(|c| c.iter().find(|f| cur.contains(*f))).collect();
-        edges.extend(files.into_iter().filter(|f| *f != o.id.as_str()).map(|f| dep(o.id.as_str(), f, DependencyKind::Imports)));
+        let files: BTreeSet<&RepoPath> = p.imports.iter().filter_map(|c| c.iter().find(|f| cur.contains(*f))).collect();
+        edges.extend(files.into_iter().filter(|f| **f != o.file).map(|f| dep(o.id.as_str(), f.as_str(), DependencyKind::Imports)));
         for (names, kind) in [(&p.types, DependencyKind::Has), (&p.traits, DependencyKind::Implements)] {
             for to in names.iter().filter_map(|name| ix.ty(o, name)).filter(|to| *to != o.id.as_str()) {
                 edges.push(dep(o.id.as_str(), to, kind));
@@ -79,7 +79,7 @@ impl<'a> Index<'a> {
     fn callee(&self, o: &MapBox, q: &str, name: &str) -> Option<&'a str> {
         let c: Vec<_> = self.fns.get(name).into_iter().flatten().filter(|(co, cm)| same_lang(o, &co.file) && match q {
             "" => cm.kind == MemberKind::Fn,
-            q => co.name == q || cm.kind == MemberKind::Fn && co.file.as_str().trim_end_matches("/mod.rs").rsplit('/').next().unwrap().split('.').next() == Some(q),
+            q => co.name == q || cm.kind == MemberKind::Fn && co.file.module_name() == q,
         }).map(|(co, cm)| (*co, cm.id.as_str())).collect();
         pick(o, &c)
     }
@@ -126,7 +126,7 @@ mod tests {
             ("ui/src/main.tsx", "import { a } from './api';\nimport './style.css';\nexport * from '../lib';\nimport r from 'react';"),
             ("ui/src/api.ts", ""), ("ui/src/style.css", ""), ("ui/lib/index.ts", ""),
         ];
-        let cur: HashSet<String> = files.iter().map(|(f, _)| f.to_string()).collect();
+        let cur: HashSet<RepoPath> = files.iter().map(|(f, _)| RepoPath(f.into())).collect();
         let all = files.iter().flat_map(|(f, s)| cmp(f, Some(s.as_bytes()), None)).collect();
         let (_, edges) = find_dependencies(all, &cur);
         let e: Vec<_> = edges.iter().map(|e| (e.from.as_str(), e.to.as_str(), e.kind.label())).collect();
@@ -145,7 +145,7 @@ mod tests {
             ("ui/a.tsx", "function A() { return <B x={1} /> }\nconst B = () => { load(); return <div /> };\nclass C { go() { this.stop(); A(); } stop() { new C(); } }"),
             ("ui/b.ts", "export function load() {}"),
         ];
-        let cur: HashSet<String> = files.iter().map(|(f, _)| f.to_string()).collect();
+        let cur: HashSet<RepoPath> = files.iter().map(|(f, _)| RepoPath(f.into())).collect();
         let all = files.iter().flat_map(|(f, s)| cmp(f, Some(s.as_bytes()), None)).collect();
         let (_, edges) = find_dependencies(all, &cur);
         let e: Vec<_> = edges.iter().filter(|e| e.kind == DependencyKind::Calls).map(|e| (e.from.as_str(), e.to.as_str())).collect();

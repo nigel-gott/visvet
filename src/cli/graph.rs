@@ -1,5 +1,5 @@
 //! `visvet graph`: the review map as text, so the AI sees the coupling, cycles and complexity the user sees.
-use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, MapBox, ChangeStatus, MemberKind, BoxKind}};
+use crate::{review::build_review, types::{DependencyKind, DiffLineKind, Dependency, Member, MapBox, ChangeStatus, MemberKind, BoxKind, RepoPath}};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
@@ -25,6 +25,8 @@ struct Tally<'a> {
     deps: [Graph<'a>; 2],
     calls: [Graph<'a>; 2],
     zoom: BTreeMap<&'a str, Zoom<'a>>,
+    /// Each file's path, by its id.
+    files: HashMap<&'a str, &'a RepoPath>,
 }
 
 /// Prints the map of the change against `base`, each section worst first: totals, top-folder coupling, cycles,
@@ -33,7 +35,8 @@ pub fn print(repo_root: &Path, base: &str) -> anyhow::Result<()> {
     let m = build_review(repo_root, base)?;
     let objs: Vec<&MapBox> = m.boxes.iter().filter(|o| o.status != ChangeStatus::Removed).collect();
     let path = paths(&objs);
-    let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), ..Default::default() };
+    let files = objs.iter().map(|o| (o.file.as_str(), &o.file)).collect();
+    let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), files, ..Default::default() };
     // Both ends must be live: a Markdown link can still name a box the change removed.
     for e in m.dependencies.iter().filter(|e| path.contains_key(e.from.as_str()) && path.contains_key(e.to.as_str())) {
         t.add(e, [&path[e.from.as_str()], &path[e.to.as_str()]]);
@@ -42,16 +45,11 @@ pub fn print(repo_root: &Path, base: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The first folder of a file's path, or "." for a file at the root.
-fn top_folder(file: &str) -> &str {
-    file.split_once('/').map_or(".", |(d, _)| d)
-}
-
 /// The path and kind of every live object, member and file box.
 fn paths<'a>(objs: &[&'a MapBox]) -> Paths<'a> {
     let mut path = HashMap::new();
     for o in objs {
-        let f = vec![top_folder(o.file.as_str()), o.file.as_str()];
+        let f = vec![o.file.top_folder(), o.file.as_str()];
         let p = if o.kind() == BoxKind::File { f.clone() } else { [&f[..], &[o.id.as_str()]].concat() };
         for x in o.members().iter().filter(|x| x.status != ChangeStatus::Removed) {
             path.insert(x.id.as_str(), ([&p[..], &[x.id.as_str()]].concat(), x.kind.label()));
@@ -76,7 +74,8 @@ impl<'a> Tally<'a> {
             if a == b {
                 continue;
             }
-            if e.kind.counts_for_cycles() && !(k == 1 && (in_submodule(a, b) || in_submodule(b, a))) {
+            let submodule = |file: &str, parent: &str| self.files[file].in_submodule_of(self.files[parent]);
+            if e.kind.counts_for_cycles() && !(k == 1 && (submodule(a, b) || submodule(b, a))) {
                 self.deps[k].entry(a).or_default().insert(b);
             }
             if k == 0 {
@@ -101,17 +100,11 @@ impl<'a> Tally<'a> {
     }
 }
 
-/// Whether `file` sits in the submodule folder of `parent`, like `src/review/parse.rs` in `src/review.rs`.
-fn in_submodule(file: &str, parent: &str) -> bool {
-    let parent = Path::new(parent);
-    parent.extension().is_some_and(|ext| ext == "rs") && Path::new(file).starts_with(parent.with_extension(""))
-}
-
 /// Prints the sections from the tallies.
 fn report(objs: &[&MapBox], path: &Paths, t: &Tally) {
     let fns: Vec<&Member> = objs.iter().flat_map(|o| o.members()).filter(|x| path.contains_key(x.id.as_str()) && matches!(x.kind, MemberKind::Fn | MemberKind::Method)).collect();
     let files: BTreeSet<&str> = objs.iter().map(|o| o.file.as_str()).collect();
-    let tops = objs.iter().map(|o| top_folder(o.file.as_str())).collect::<BTreeSet<_>>().len();
+    let tops = objs.iter().map(|o| o.file.top_folder()).collect::<BTreeSet<_>>().len();
     let types = objs.iter().filter(|o| o.kind() != BoxKind::File).count();
     println!("totals: {tops} top folders, {} files, {types} types, {} functions; links: {}", files.len(), fns.len(), list(&t.kinds));
     section("top-folder coupling (from -> to)", usize::MAX, t.pairs.iter().map(|((a, b), c)| (c.values().sum::<usize>(), format!("{a} -> {b}: {}", list(c)))));

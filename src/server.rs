@@ -55,7 +55,8 @@ fn err(e: impl Display) -> (StatusCode, String) {
 pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: bool) -> anyhow::Result<()> {
     let local = format!("http://{}:{}", if addr.host == "0.0.0.0" { "127.0.0.1" } else { &addr.host }, addr.port);
     let mut hosts: Vec<String> = [addr.host.as_str(), "127.0.0.1", "localhost"].iter().map(|h| format!("{h}:{}", addr.port)).collect();
-    hosts.extend(addr.url.as_deref().and_then(|u| u.split("://").nth(1)?.split('/').next()).map(String::from));
+    // The host (with any port) from the public URL, e.g. "mac.tailnet.ts.net".
+    hosts.extend(addr.url.as_deref().and_then(|u| u.parse::<Uri>().ok()?.authority().map(|a| a.to_string())));
     let (tx, _) = broadcast::channel(16);
     let to_ui = tx.clone();
     let _watcher = watch::watch(repo_root.clone(), move |e| _ = to_ui.send(e))?;
