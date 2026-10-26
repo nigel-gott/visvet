@@ -17,17 +17,17 @@ impl FileParser<'_> {
         };
         for m in items {
             let p = join(krate, m.split([':', ' ']).next().unwrap());
-            self.objs[0].uses.push(vec![format!("{p}.rs"), format!("{p}/mod.rs")]);
+            self.units[0].uses.push(vec![format!("{p}.rs"), format!("{p}/mod.rs")]);
         }
     }
 
-    /// Adds a Rust impl block's methods, and its trait, to the object for its type.
+    /// Adds a Rust impl block's methods, and its trait, to the unit for its type.
     pub(super) fn rust_impl(&mut self, n: Node) {
         let Some(ty) = n.child_by_field_name("type") else { return };
-        let oi = self.obj(&base(self.t(ty)), n);
+        let oi = self.unit_index(&base(self.t(ty)), n);
         if let Some(tr) = n.child_by_field_name("trait") {
             let tr = base(self.t(tr));
-            self.objs[oi].impls.insert(tr);
+            self.units[oi].impls.insert(tr);
         }
         self.members(oi, n, n.child_by_field_name("body"));
     }

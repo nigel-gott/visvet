@@ -66,7 +66,7 @@ impl FileParser<'_> {
     }
 
     /// Calls and JSX components inside `n` as (qualifier, name). The qualifier is "" for a free fn,
-    /// else an object or module name (`self`/`Self`/`this` → enclosing object); calls on other values are skipped.
+    /// else an object or module name (`self`/`Self`/`this` → enclosing unit); calls on other values are skipped.
     /// A Rust struct literal or TS `new` gives ("new", type name). Returns the decision points inside `n`,
     /// nested closures and fns included.
     pub(super) fn calls(&self, oi: usize, n: Node, out: &mut Vec<(String, String)>) -> u32 {
@@ -79,7 +79,7 @@ impl FileParser<'_> {
                 _ => None,
             };
             if let Some(t) = made.map(|t| base(self.t(t))) {
-                out.push(("new".into(), if t == "Self" { self.objs[oi].name.clone() } else { t }));
+                out.push(("new".into(), if t == "Self" { self.units[oi].name.clone() } else { t }));
             }
             let f = match n.kind() {
                 "call_expression" => n.child_by_field_name("function"),
@@ -90,7 +90,7 @@ impl FileParser<'_> {
                 let i = t.rfind(['.', ':']);
                 let (q, name) = i.map_or(("", t), |i| (t[..i].trim_end_matches(':'), &t[i + 1..]));
                 let q = match q {
-                    "self" | "Self" | "this" => Some(self.objs[oi].name.clone()),
+                    "self" | "Self" | "this" => Some(self.units[oi].name.clone()),
                     _ if i.is_some_and(|i| t[i..].starts_with('.')) => None,
                     q => Some(base(q)),
                 };

@@ -1,14 +1,14 @@
 //! Walking one file's syntax tree: each top-level item, the types it declares and their members.
-use super::{Mem, Obj, clean};
+use super::{ParsedMember, ParsedUnit, clean};
 use crate::types::{MemberKind, UnitKind};
 use tree_sitter::Node;
 
-/// Parses one file into objects: holds the file's source and path, and the objects found so far. Each kind of
+/// Parses one file into units: holds the file's source and path, and the units found so far. Each kind of
 /// work is a block of methods in its own module: walking items (here), names (`names.rs`), Rust (`rust.rs`), TS (`ts.rs`).
 pub(super) struct FileParser<'a> {
     pub(super) src: &'a str,
     pub(super) path: &'a str,
-    pub(super) objs: Vec<Obj>,
+    pub(super) units: Vec<ParsedUnit>,
 }
 
 /// The node's 1-based start line.
@@ -21,7 +21,7 @@ pub(super) fn outer(n: Node) -> Node {
     n.parent().filter(|p| p.kind() == "export_statement").unwrap_or(n)
 }
 
-/// The object kind of a type-declaring node kind, if it is one.
+/// The unit kind of a type-declaring node kind, if it is one.
 pub(super) fn type_kind(k: &str) -> Option<UnitKind> {
     Some(match k {
         "struct_item" => UnitKind::Struct,
@@ -66,13 +66,13 @@ impl<'a> FileParser<'a> {
         (if lead(b).trim().is_empty() { b - lead(b).len() } else { b }, line(n), clean(&parts.join("\n")))
     }
 
-    /// Index of the object named `name`, adding an "impl" object when the type is declared elsewhere.
-    pub(super) fn obj(&mut self, name: &str, n: Node) -> usize {
-        if let Some(i) = self.objs.iter().position(|o| o.name == name) {
+    /// Index of the unit named `name`, adding an "impl" unit when the type is declared elsewhere.
+    pub(super) fn unit_index(&mut self, name: &str, n: Node) -> usize {
+        if let Some(i) = self.units.iter().position(|o| o.name == name) {
             return i;
         }
-        self.objs.push(Obj { name: name.into(), kind: UnitKind::Impl, line: line(n), ..Default::default() });
-        self.objs.len() - 1
+        self.units.push(ParsedUnit { name: name.into(), kind: UnitKind::Impl, line: line(n), ..Default::default() });
+        self.units.len() - 1
     }
 
     /// Handles one top-level item: imports, types, impls and free functions.
@@ -95,21 +95,21 @@ impl<'a> FileParser<'a> {
     /// Adds a struct, enum, trait, type alias, class or interface with its text, doc, heritage, type refs and members.
     pub(super) fn type_item(&mut self, n: Node, kind: UnitKind) {
         let Some(name) = n.child_by_field_name("name") else { return };
-        let oi = self.obj(self.t(name), n);
+        let oi = self.unit_index(self.t(name), n);
         let (start, line, doc) = self.head(n);
-        let o = &mut self.objs[oi];
+        let o = &mut self.units[oi];
         (o.kind, o.line, o.text, o.doc) = (kind, line, self.src[start..n.end_byte()].into(), doc);
         self.heritage(oi, n);
         let body = n.child_by_field_name("body").or_else(|| n.child_by_field_name("value").filter(|v| v.kind() == "object_type"));
         let whole = if kind == UnitKind::TypeAlias { Some(n) } else { body.filter(|b| b.kind() == "ordered_field_declaration_list") };
         if let Some(w) = whole {
             let names = self.type_names(w);
-            self.objs[oi].refs.extend(names);
+            self.units[oi].refs.extend(names);
         }
         self.members(oi, n, body);
         if whole.is_some() {
             // A type alias's members are inside its whole text, whose names the alias already has.
-            self.objs[oi].members.iter_mut().for_each(|m| m.types.clear());
+            self.units[oi].members.iter_mut().for_each(|m| m.types.clear());
         }
     }
 
@@ -136,7 +136,7 @@ impl<'a> FileParser<'a> {
         if let Some(tp) = owner.child_by_field_name("type_parameters") {
             for nm in tp.named_children(&mut tp.walk()).filter_map(|p| p.child_by_field_name("name")) {
                 let t = self.t(nm);
-                let o = &mut self.objs[oi];
+                let o = &mut self.units[oi];
                 o.refs.remove(t);
                 o.members.iter_mut().for_each(|m| { m.types.remove(t); });
             }
@@ -154,6 +154,6 @@ impl<'a> FileParser<'a> {
         let complexity = 1 + body.map_or(0, |b| self.calls(oi, b, &mut calls));
         let text = self.src[start..n.end_byte()].into();
         let types = if matches!(kind, MemberKind::Fn | MemberKind::Method) { self.unpacked(n).into_iter().chain(body.map(|b| self.uses(b)).unwrap_or_default()).collect() } else { self.type_names(n) };
-        self.objs[oi].members.push(Mem { name: name.into(), kind, sig, text, doc, line, calls, complexity, types });
+        self.units[oi].members.push(ParsedMember { name: name.into(), kind, sig, text, doc, line, calls, complexity, types });
     }
 }

@@ -1,6 +1,6 @@
 //! Comparing a file's two versions: parses both, pairs old and new types and members by name, and diffs each pair,
 //! so every box knows whether it was added, changed, removed or is the same.
-use crate::review::parse::{Mem, Obj, parse};
+use crate::review::parse::{ParsedMember, ParsedUnit, parse};
 use super::{codegen, markdown};
 use crate::types::{BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, UnitId, UnitKind};
 use similar::{ChangeTag, TextDiff};
@@ -42,7 +42,7 @@ pub fn compare_file(file: &RepoPath, new: Option<&[u8]>, old: Option<&[u8]>) -> 
 
 /// Compares one unit's two versions (either missing): its members, its status (`file_status` for the file's own box;
 /// changed if any member changed) and diff, and the names it mentions, for `find_dependencies`.
-fn compare_unit(file: &RepoPath, n: Option<&Obj>, o: Option<&Obj>, broken: bool, file_status: ChangeStatus) -> Parsed {
+fn compare_unit(file: &RepoPath, n: Option<&ParsedUnit>, o: Option<&ParsedUnit>, broken: bool, file_status: ChangeStatus) -> Parsed {
     let x = n.or(o).unwrap();
     let id = UnitId(if x.kind == UnitKind::File { file.as_str().into() } else { format!("{}::{}", file.as_str(), x.name) });
     let (mut calls, mut member_types) = (vec![], vec![]);
@@ -87,7 +87,7 @@ fn compare_unit(file: &RepoPath, n: Option<&Obj>, o: Option<&Obj>, broken: bool,
 }
 
 /// Compares one member's two versions (either missing) of the unit `unit`.
-fn compare_member(unit: &UnitId, n: Option<&Mem>, o: Option<&Mem>) -> Member {
+fn compare_member(unit: &UnitId, n: Option<&ParsedMember>, o: Option<&ParsedMember>) -> Member {
     let m = n.or(o).unwrap();
     Member {
         id: MemberId(format!("{unit}::{}", m.name)),
