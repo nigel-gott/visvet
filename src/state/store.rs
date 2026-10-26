@@ -197,12 +197,11 @@ pub fn reply(repo_root: &Path, id: ThreadId, author: Author, text: String, state
     })
 }
 
-/// Moves each thread in `moves` onto its new box.
-pub fn move_threads(repo_root: &Path, moves: Vec<(ThreadId, MapId)>) -> Result<()> {
+/// Moves thread `id` onto box `target`, e.g. after its box was renamed.
+pub fn move_thread(repo_root: &Path, id: ThreadId, target: MapId) -> Result<()> {
     update(repo_root, |s| {
-        for (id, target) in moves {
-            s.threads.iter_mut().filter(|t| t.id == id).for_each(|t| t.target = target.clone());
-        }
+        let t = s.threads.iter_mut().find(|t| t.id == id).ok_or_else(|| anyhow!("no thread {id}"))?;
+        t.target = target;
         Ok(())
     })
 }

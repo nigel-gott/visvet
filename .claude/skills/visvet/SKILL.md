@@ -3,7 +3,7 @@ name: visvet
 description: Review loop with the user through visvet. Use when the user says "visvet", talks about what they see in it, or after finishing a change they will review in visvet.
 ---
 
-The user reviews your changes in visvet instead of reading raw code. visvet shows the change as boxes: folders contain files, and files contain code units (types such as structs and classes) with their members. Each box has a description, your review notes and the code diff. The user leaves comment threads on boxes, which you answer with `visvet reply`.
+The user reviews your changes in visvet instead of reading raw code. visvet shows the change as boxes: folders contain files, and files contain boxes for their types (structs, classes and so on) with their members. Each box has a description, your review notes and the code diff. The user leaves comment threads on boxes, which you answer with `visvet reply`.
 
 ## Describe the code, in the code
 Box descriptions come from doc comments, so keep them current as part of every change:
@@ -20,7 +20,7 @@ Markdown files are boxes too. Front matter `kind: issue` or `kind: milestone` an
 ## Annotate your change for review
 A note is a 📝 message from you in the box's thread: it joins the latest thread on the box, or starts one that needs no answer, and replaces your earlier note there. Keep few: only where the user should look, saying why it changed, what to check, or a risk. When code changes, rewrite or remove stale notes. Notes and replies render light markdown (paragraphs, `- ` lists, `**bold**`, backticks):
 ```bash
-visvet explain "src/review.rs::build_review" "Diffs every file against base so removed units still show"
+visvet explain "src/review.rs::build_review" "Diffs every file against base so removed boxes still show"
 visvet explain "src/" "New: doc comments become box descriptions"
 visvet explain "src/server.rs -> src/review.rs" "Server rebuilds the review on every request"
 ```
@@ -46,7 +46,7 @@ Reduce them, or explain the trade-off with `visvet explain` on the box or arrow.
 The UI's data types in `ui/src/contract.ts` are generated from `src/types.rs` by ts-rs. After changing `src/types.rs`, run `cargo test` to regenerate them; never edit `contract.ts` by hand.
 
 ## Keep changes reviewable
-The user reviews at the folder, file and code unit level, then reads code only where needed. Prefer small, well-named code units and members with clear signatures. Never edit `.visvet/` files by hand; use `visvet reply` and `visvet explain`. The one exception: you may delete a thread folder holding only your own note once it is stale, e.g. its box was moved or removed, since `visvet explain` can't remove a note. Never touch the user's messages. Commit the thread files in `.visvet/threads/` along with your code.
+The user reviews at the folder, file and type level, then reads code only where needed. Prefer small, well-named code units and members with clear signatures. Never edit `.visvet/` files by hand; use `visvet reply` and `visvet explain`. The one exception: you may delete a thread folder holding only your own note once it is stale, since `visvet explain` can't remove a note. Never touch the user's messages. Commit the thread files in `.visvet/threads/` along with your code.
 
 ## Follow and steer what the user sees
 The user keeps visvet open beside this session.
@@ -56,6 +56,7 @@ The user keeps visvet open beside this session.
 ## Answer the user's comment threads
 The user comments on boxes in visvet instead of in chat, so they don't interrupt your work. Each thread is open (waiting for you), working, question (waiting for them) or resolved.
 - When you finish a task, a stop hook hands you every open thread and keeps you going. For each: do what it asks or answer it, then `visvet reply <id> "<what you did>" --resolve`. If you need their input, `visvet reply <id> "<your question>" --ask`. A reply without a flag marks it working.
+- Threads stay on a box's id, so when you rename or move a box, move its threads too: `visvet move <id> <new box id>`. The stop hook also lists any thread whose box no longer exists (whoever renamed it) and keeps you going until each is moved. If the box was deleted, move the thread to what replaced it, or to its file.
 - `visvet threads --all` lists every unresolved thread. The prompt hook shows only threads waiting for you, with only the messages since you last wrote; read `.visvet/threads/<id>/` for the rest when you need it.
 - When you're idle with nothing open, run `visvet wait` in the background (run_in_background). It exits when the user leaves a comment, which wakes you to answer it.
 - Answer a thread only in the thread. Don't repeat the answer in the chat: your chat message after thread work is one line at most (e.g. "Answered 2 threads."), or nothing. The user reads threads in the drawer.

@@ -78,6 +78,13 @@ enum Cmd {
         #[arg(long, conflicts_with = "resolve")]
         ask: bool,
     },
+    /// Move a comment thread onto another box, e.g. after renaming or moving the box it was on
+    Move {
+        #[arg(value_parser = |s: &str| Ok::<_, String>(ThreadId(s.trim_start_matches('#').into())))]
+        id: ThreadId,
+        /// The box's new id, in any form `explain` takes
+        to: String,
+    },
     /// Wait until the user leaves a comment, then print it (run in the background while idle)
     Wait,
     /// Print what the user is looking at in the UI
@@ -109,6 +116,7 @@ pub async fn run() -> anyhow::Result<()> {
             let state = if resolve { ThreadState::Resolved } else if ask { ThreadState::Question } else { ThreadState::Working };
             store::reply(&repo_root, id, Author::Ai, text.join(" "), state)
         }
+        Cmd::Move { id, to } => store::move_thread(&repo_root, id, MapId(to)),
         Cmd::Wait => threads::wait(&repo_root),
         Cmd::Show { symbol, highlight } => store::put(&repo_root, HandOff::Show, &Show { target: MapId(symbol), highlight: highlight.into_iter().map(MapId).collect() }),
     }
