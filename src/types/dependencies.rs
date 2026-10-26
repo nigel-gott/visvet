@@ -36,6 +36,12 @@ impl DependencyKind {
             Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses", Self::Generates => "generates", Self::Links => "links",
         }
     }
+
+    /// Whether arrows of this kind can make a cycle a reader must untangle: code links only, not Markdown "links",
+    /// generated files or trait implementations.
+    pub fn counts_for_cycles(self) -> bool {
+        matches!(self, Self::Calls | Self::Uses | Self::Has | Self::Imports | Self::Creates)
+    }
 }
 
 /// `from` depends on `to`; one arrow on the map.

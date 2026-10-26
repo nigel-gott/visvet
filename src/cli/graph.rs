@@ -76,7 +76,7 @@ impl<'a> Tally<'a> {
             if a == b {
                 continue;
             }
-            if counts_for_cycles(e.kind) && !(k == 1 && (in_submodule(a, b) || in_submodule(b, a))) {
+            if e.kind.counts_for_cycles() && !(k == 1 && (in_submodule(a, b) || in_submodule(b, a))) {
                 self.deps[k].entry(a).or_default().insert(b);
             }
             if k == 0 {
@@ -99,12 +99,6 @@ impl<'a> Tally<'a> {
             z.links[i] += 1;
         }
     }
-}
-
-/// Whether a link of this kind can make a cycle a reader must untangle: code links only, not Markdown "links",
-/// generated files or trait implementations.
-fn counts_for_cycles(kind: DependencyKind) -> bool {
-    matches!(kind, DependencyKind::Calls | DependencyKind::Uses | DependencyKind::Has | DependencyKind::Imports | DependencyKind::Creates)
 }
 
 /// Whether `file` sits in the submodule folder of `parent`, like `src/review/parse.rs` in `src/review.rs`.
