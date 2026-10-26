@@ -41,8 +41,8 @@ Rust has no `null`. A value that may be missing is an `Option`: either `Some(spa
 ### `let target = MapId(text.split('`').nth(1).unwrap_or("").into());`
 Splitting on backticks puts the first name in backticks at position 1. `MapId(...)` wraps the text in a "micro type", a string that the compiler won't mix up with other strings.
 
-### `span: lines.and_then(|lines| find_code(lines, note_code))`
-`|lines| ...` is a closure, Rust's arrow function. `and_then` runs it only when there are lines, so a missing box gives `None` without an `if`.
+### `let span = lines.filter(|_| on_box.is_none()).and_then(|lines| find_code(lines, note_code));`
+`|lines| ...` is a closure, Rust's arrow function. `filter` drops the lines when the note is about a whole box, and `and_then` runs `find_code` only when lines are left, so either case gives `None` without an `if`.
 
 ## Finding a piece of code
 `src/review/tours.rs::find_code` searches the box's current lines for the note's code.
