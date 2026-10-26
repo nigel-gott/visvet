@@ -1,7 +1,7 @@
 // The tour player, drawn on the map itself: each step's text in a bubble laid out beside its box, notes on code under
 // the noted lines, and notes on other boxes in bubbles above them. Back and Next (or the arrow keys) step through it.
 
-import { useContext, useEffect } from 'react'
+import { useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import { X, type Ctx } from './context'
 import { Rich } from './Rich'
 import type { CodeNote, Tour, TourStep } from './contract'
@@ -107,28 +107,90 @@ function useArrowKeys() {
   })
 }
 
-/** In the top bar: a list to start a tour from, or while one plays, its title, how far through it is, and ✕ to leave. */
+/** Where this browser last was in each tour: its step number by tour file. Kept in this browser only. */
+const PROGRESS_KEY = 'visvet:tour-progress'
+function lastSteps(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}') } catch { return {} }
+}
+function rememberStep(file: string, step: number) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify({ ...lastSteps(), [file]: step })) } catch { /* private mode: not kept */ }
+}
+
+/** Closes a popup that is `open` when the user clicks anywhere outside `box`. */
+function useClosesOnClickOutside(box: RefObject<HTMLElement | null>, open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return
+    const click = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) close() }
+    addEventListener('mousedown', click)
+    return () => removeEventListener('mousedown', click)
+  }, [open])
+}
+
+/**
+ * In the top bar: a Tours button opening the list of tours, each to resume where this browser left it or start over;
+ * while one plays, its title (opening a list of its steps to jump to), Back and Next, the step number, and ✕ to leave.
+ */
 export function TourBar() {
   const x = useContext(X)
   const playing = useTourStep()
+  const [menu, setMenu] = useState(false)
+  const bar = useRef<HTMLDivElement>(null)
+  useClosesOnClickOutside(bar, menu, () => setMenu(false))
   useArrowKeys()
+  useEffect(() => { if (playing) rememberStep(playing.tour.file, playing.number) }, [playing?.tour.file, playing?.number])
   if (!x.model.tours.length) return null
-  if (!playing) {
-    const start = (file: string) => file && x.showStep({ file, step: 0 })
-    return (
-      <select className="tour-pick" value="" onChange={e => start(e.target.value)} title="Take a guided tour of the code">
-        <option value="">▶ Take a tour…</option>
-        {x.model.tours.map(tour => <option key={tour.file} value={tour.file}>{tour.title}</option>)}
-      </select>
-    )
-  }
+  const go = (file: string, step: number) => { setMenu(false); x.showStep({ file, step }) }
+  if (!playing) return (
+    <div className="tour-bar" ref={bar}>
+      <button className="tour-open" title="Take a guided tour of the code" onClick={() => setMenu(!menu)}>🧭 Tours ▾</button>
+      {menu && <div className="tour-menu">{x.model.tours.map(tour => <TourCard key={tour.file} tour={tour} go={go} />)}</div>}
+    </div>
+  )
   const { tour, number } = playing
   return (
-    <nav className="tour-playing">
-      <span className="tour-name">🧭 {tour.title}</span>
-      <progress max={tour.steps.length} value={number + 1} />
+    <div className="tour-bar" ref={bar}>
+      <button className="tour-open" title="Jump to any step" onClick={() => setMenu(!menu)}>🧭 {tour.title} ▾</button>
+      <button title="Back a step" disabled={number === 0} onClick={() => go(tour.file, number - 1)}>‹</button>
+      <span className="tour-count">{number + 1} / {tour.steps.length}</span>
+      <button title="Next step" disabled={number === tour.steps.length - 1} onClick={() => go(tour.file, number + 1)}>›</button>
       <button title="Leave the tour" onClick={() => x.showStep(null)}>✕</button>
-    </nav>
+      {menu && <StepList tour={tour} number={number} go={go} />}
+    </div>
+  )
+}
+
+/** A tour in the Tours list: its title and description, how far this browser got, and Resume or Start over. */
+function TourCard({ tour, go }: { tour: Tour; go: (file: string, step: number) => void }) {
+  const at = Math.min(lastSteps()[tour.file] ?? 0, tour.steps.length - 1)
+  const started = at > 0
+  return (
+    <div className="tour-card">
+      <b>{tour.title}</b>
+      {tour.description && <p>{tour.description}</p>}
+      {started && <progress max={tour.steps.length} value={at + 1} />}
+      <div className="tour-card-actions">
+        {started && <button className="primary" onClick={() => go(tour.file, at)}>Resume at step {at + 1}: {tour.steps[at].title}</button>}
+        <button className={started ? '' : 'primary'} onClick={() => go(tour.file, 0)}>{started ? 'Start over' : 'Start'}</button>
+      </div>
+    </div>
+  )
+}
+
+/** Every step of the playing tour by name, the current one marked and scrolled to; a click jumps there. */
+function StepList({ tour, number, go }: { tour: Tour; number: number; go: (file: string, step: number) => void }) {
+  const here = useRef<HTMLButtonElement>(null)
+  // In braces: newer browsers return a promise from scrollIntoView, which React would take for a clean-up function.
+  useEffect(() => { here.current?.scrollIntoView({ block: 'center' }) }, [])
+  return (
+    <ol className="tour-menu tour-steps">
+      {tour.steps.map((step, index) => (
+        <li key={index}>
+          <button ref={index === number ? here : undefined} className={index === number ? 'here' : ''} onClick={() => go(tour.file, index)}>
+            <span className="tour-step-no">{index + 1}</span>{step.title}
+          </button>
+        </li>
+      ))}
+    </ol>
   )
 }
 

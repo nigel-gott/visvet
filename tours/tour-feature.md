@@ -102,17 +102,17 @@ route: Same file: the React hook that loads those colours.
 `useState` is React's `ref()`, and `useEffect` with an empty list `[]` runs once after the component first shows, like Vue's `onMounted`. When Shiki has loaded, `setHighlighter` stores it and React re-renders every box with colours.
 
 ## Picking a tour
-`ui/src/Tours.tsx::TourBar` sits in the top bar: a list of tours, then while one plays, its name, a progress bar and ✕ to leave.
+`ui/src/Tours.tsx::TourBar` sits in the top bar: a Tours button opening the list of tours, each to resume or start over; while one plays, its name (opening a list of its steps), Back and Next, the step number and ✕ to leave.
 route: To Tours.tsx, where you picked this tour.
 
 ### `if (!x.model.tours.length) return null`
 A React component is a function that returns what to show. Returning `null` shows nothing, like `v-if="false"` on the whole template.
 
-### `{x.model.tours.map(tour => <option key={tour.file} value={tour.file}>{tour.title}</option>)}`
-JSX is HTML written inside JavaScript: `{…}` holds a JavaScript expression, like Vue's `:value`. A list is a plain `.map`, where Vue uses `v-for`, and `key` is Vue's `:key`.
+### `useEffect(() => { if (playing) rememberStep(playing.tour.file, playing.number) }, [playing?.tour.file, playing?.number])`
+Each time the step changes, this browser remembers it, so the Tours list can offer to resume there.
 
-### `<progress max={tour.steps.length} value={number + 1} />`
-How far through the tour you are, as a plain HTML progress bar.
+### `{menu && <StepList tour={tour} number={number} go={go} />}`
+`&&` is `v-if`: the list of steps shows only while `menu` is true. A click outside closes it (`useClosesOnClickOutside`).
 
 ## The step's bubble
 `ui/src/Tours.tsx::StepBubble` is the speech bubble above the step's box: its title, text, and Back and Next. The step number at its top says how far through the tour you are.
