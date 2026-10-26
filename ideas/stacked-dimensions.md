@@ -13,4 +13,14 @@ Why it might work: 2D layout stays as it is inside each plane; depth carries onl
 
 Prior art: CodeCity (code as 3D buildings) is the famous one, mostly a lesson in 3D getting hard to read. Here 3D is only for the moment of switching.
 
-Cheap first try: CSS 3D transforms (perspective and a tilt) on the existing map layers, with two planes. No 3D library.
+## Simpler: stacked cards
+
+The same idea at the size of one box. A box that also exists in other dimensions is drawn as a small stack of cards: one or two cards peek out behind it, offset a little. Nothing else is added: no badges, no labels (maybe a tiny tab edge in each dimension's colour, maybe not even that).
+
+- Click the stack and the cards fan out: one card per dimension, each showing that dimension's version (the `orders` table, the "order" concept).
+- Pick a card and you switch to that dimension, centred on it.
+- A box with no stack exists in only one dimension, which is itself worth knowing.
+
+Probably the better first experiment: it's a box style plus a small menu, and it reads at a glance.
+
+Cheap first try of the full stack: CSS 3D transforms (perspective and a tilt) on the existing map layers, with two planes. No 3D library.

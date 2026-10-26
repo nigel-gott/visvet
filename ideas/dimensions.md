@@ -18,7 +18,7 @@ Other dimensions show the same project another way, and you switch between them:
 The same thing exists in several dimensions: the concept "order", the `Order` ORM model, the `orders` table, the "place an order" behaviour. Moving between them must be easy, but boxes already carry a lot, so no more badges on them.
 
 - **For now:** a quick way to switch dimension, keeping the selection where the other dimension has it. Then experiment.
-- **One experiment, a stack:** see [stacked dimensions](stacked-dimensions.md).
+- **Experiments:** a box drawn as a small stack of cards, which fans out to pick a dimension; or the whole map as stacked planes. See [stacked dimensions](stacked-dimensions.md).
 
 A dimension can also be projected into another: in the code dimension, a database shows up as its migration files or ORM classes.
 
