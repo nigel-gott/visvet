@@ -28,4 +28,9 @@ caffeinate -is visvet serve --no-open --port 7880 --url https://nigels-macbook-p
 - `visvet coverage` runs the Rust tests under `cargo llvm-cov`; boxes then show a 🧪 low-coverage debuff. Rerun it after changing tests.
 
 ## Comment threads
-See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`, and only there: don't repeat thread answers in the chat. When idle, keep `visvet wait` running in the background so new comments wake you.
+See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`, and only there: don't repeat thread answers in the chat. When idle, keep `visvet wait` running in the background so new comments wake you. The stop hook also lists threads whose box was renamed or deleted: move each with `visvet move <id> <box id>`.
+
+## Work to do, and ideas
+- `issues/`: concrete work, one Markdown file per issue, a folder per milestone (see `issues/README.md`). Pick from here.
+- `ideas/`: thinking, not plans. One idea per note, in a folder per theme whose `README.md` is its hub; front matter `kind: idea` and a `status:` of `exploring`, `parked` or `dropped`. When the user shares ideas, write them up there, with your own suggestions, and link each note from its hub with a reason.
+- Review comes first: the user wants features only as fast as they can review them. Don't start a feature nobody asked for; propose it as an issue instead.
