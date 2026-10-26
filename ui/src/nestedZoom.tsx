@@ -31,7 +31,7 @@ export type ZoomMotion = { duration: number; ease: (t: number) => number; lands:
 const ONE_ZOOM: ZoomMotion = { duration: ZOOM_TIME, ease: easeInOut, lands: true }
 
 /** How long each zoom level of a journey takes, in ms: quicker than a single zoom, since the camera doesn't stop. */
-const JOURNEY_LEVEL_TIME = 900
+const JOURNEY_LEVEL_TIME = 2700
 
 /** The motion of level `level` (from 0) of a journey through `levels` zoom levels: its slice of one ease in and out. */
 export function journeyMotion(level: number, levels: number): ZoomMotion {
@@ -105,7 +105,7 @@ function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean
  * moment, and which boxes that view opens with; done once the new view has fully taken over.
  */
 export const zoomer: {
-  run: ((to: string | null, switchView: () => void, opened?: Set<string>, motion?: ZoomMotion) => Promise<void>) | null
+  run: ((to: string | null, switchView: () => void, opened?: Set<string>, motion?: ZoomMotion, bubble?: StepBubbleBox) => Promise<void>) | null
   /**
    * Lays out ahead the views a journey will pass through (each with the boxes it opens, and the new step's `bubble`),
    * so none keeps it waiting.
@@ -130,9 +130,9 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
   latest.current = { x, graph, kinds }
 
   /** Zooming into box `to`, drawn in this view: glide in while its view fades in inside it, then switch to that view. */
-  const zoomIn = async (to: string, switchView: () => void, opened: Set<string>, motion: ZoomMotion) => {
+  const zoomIn = async (to: string, switchView: () => void, opened: Set<string>, motion: ZoomMotion, bubble?: StepBubbleBox) => {
     const { x, kinds } = latest.current, node = getInternalNode(to), rect = map.current?.getBoundingClientRect()
-    const inner = await layOutView(x, x.ix.items.get(to), kinds, opened)
+    const inner = await layOutView(x, x.ix.items.get(to), kinds, opened, bubble ?? stepBubbleBox(x))
     const box = absolute(inner.laid, to)
     if (!node || !rect || !box) return switchView()
     // Where the inner view will put the box once it takes over: its fit (see `useFit`).
@@ -149,9 +149,9 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
   }
 
   /** Zooming out of the current box to `to`: switch to the outer view with the current one drawn inside its box, fading. */
-  const zoomOut = async (to: string | null, switchView: () => void, opened: Set<string>, motion: ZoomMotion) => {
+  const zoomOut = async (to: string | null, switchView: () => void, opened: Set<string>, motion: ZoomMotion, bubble?: StepBubbleBox) => {
     const { x, graph, kinds } = latest.current, from = x.scope
-    const outer = await layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, opened)
+    const outer = await layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, opened, bubble ?? stepBubbleBox(x))
     const inOuter = from && outer.laid.find(n => n.id === from), box = from && absolute(graph.laid, from)
     if (!inOuter || !box) return switchView()
     const preview = { box: from, inner: graph, scale: inOuter.width! / box.width, inward: false }
@@ -165,14 +165,14 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
   }
 
   useEffect(() => {
-    zoomer.run = async (to, switchView, opened = new Set(), motion = ONE_ZOOM) => {
+    zoomer.run = async (to, switchView, opened = new Set(), motion = ONE_ZOOM, bubble) => {
       const { x } = latest.current
       const around: string[] = []
       for (let it = x.scope ? x.ix.items.get(x.scope)?.parent : undefined; it; it = it.parent) around.push(it.id)
       const inward = to !== null && to !== x.scope && getInternalNode(to)
       const outward = to === null ? x.scope !== null : around.includes(to)
-      if (inward) await zoomIn(to, switchView, opened, motion)
-      else if (outward) await zoomOut(to, switchView, opened, motion)
+      if (inward) await zoomIn(to, switchView, opened, motion, bubble)
+      else if (outward) await zoomOut(to, switchView, opened, motion, bubble)
       else switchView()
     }
     zoomer.prepare = async (views, bubble) => {

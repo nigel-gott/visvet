@@ -275,22 +275,24 @@ function App() {
    * with the step's boxes already open, so nothing jumps on arrival. Then the camera glides to the step's box.
    */
   const showStep = async (place: TourPlace | null) => {
-    setTour(place)
     const trip = ++journey.current
     const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
-    if (!step) return setRoute(null)
-    const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
+    if (!step) { setTour(place); return setRoute(null) }
+    const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to), bubble = bubbleBoxOf(step)
     const openedAt = (hop: string | null) => (hop === to ? openFor(step.target, step.view) : new Set<string>())
     // Every view on the way is laid out before setting off, so the camera never waits for one.
-    await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubbleBoxOf(step))
+    await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubble)
     if (journey.current !== trip) return
     for (const [level, hop] of hops.entries()) {
       setRoute({ stops: [scope, ...hops], at: level + 1 })
-      const enter = () => { go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: openedAt(hop) }) }
-      await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length)) : enter())
+      // The step changes as its view takes over: until then the view being left keeps the old step, untouched.
+      const arriving = level === hops.length - 1
+      const enter = () => { if (arriving) setTour(place); go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: openedAt(hop) }) }
+      await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length), bubble) : enter())
       // A newer step (a quick Next) takes over the journey.
       if (journey.current !== trip) return
     }
+    setTour(place)
     setRoute(null)
     showBox(step.target, step.view)
   }
