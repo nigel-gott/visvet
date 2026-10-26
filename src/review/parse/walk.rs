@@ -3,8 +3,9 @@ use super::{Mem, Obj, clean};
 use crate::types::{MemberKind, UnitKind};
 use tree_sitter::Node;
 
-/// Extraction state for one file: its source, path and the objects found so far.
-pub(super) struct Ex<'a> {
+/// Parses one file into objects: holds the file's source and path, and the objects found so far. Each kind of
+/// work is a block of methods in its own module: walking items (here), names (`names.rs`), Rust (`rust.rs`), TS (`ts.rs`).
+pub(super) struct FileParser<'a> {
     pub(super) src: &'a str,
     pub(super) path: &'a str,
     pub(super) objs: Vec<Obj>,
@@ -33,7 +34,8 @@ pub(super) fn type_kind(k: &str) -> Option<UnitKind> {
     })
 }
 
-impl<'a> Ex<'a> {
+/// Walking the syntax tree: each top-level item, the types it declares, and their members.
+impl<'a> FileParser<'a> {
     /// The node's source text.
     pub(super) fn t(&self, n: Node) -> &'a str {
         &self.src[n.byte_range()]

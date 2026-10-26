@@ -1,6 +1,6 @@
 //! The names code mentions, for arrows: the types a field holds, the types a function's body uses, and the
 //! functions it calls or the types it constructs.
-use super::walk::Ex;
+use super::walk::FileParser;
 use std::collections::BTreeSet;
 use tree_sitter::Node;
 
@@ -17,7 +17,8 @@ pub(super) fn base(s: &str) -> String {
     s.split('<').next().unwrap().rsplit([':', '.']).next().unwrap().trim().into()
 }
 
-impl Ex<'_> {
+/// Reading names: the types and functions code mentions, which become arrows.
+impl FileParser<'_> {
     /// The type names used under `n`, for "has" arrows.
     pub(super) fn type_names(&self, n: Node) -> BTreeSet<String> {
         let (mut stack, mut names) = (vec![n], BTreeSet::new());

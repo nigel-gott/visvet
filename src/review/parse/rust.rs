@@ -1,10 +1,11 @@
 //! What only Rust has: `use crate::...` imports and `impl` blocks.
 use super::names::base;
-use super::walk::Ex;
+use super::walk::FileParser;
 use super::{dir, join};
 use tree_sitter::Node;
 
-impl Ex<'_> {
+/// What only Rust has: `use crate::...` imports and `impl` blocks.
+impl FileParser<'_> {
     /// Records the files of the crate modules a Rust `use crate::...` names.
     pub(super) fn rust_use(&mut self, n: Node) {
         let Some(a) = n.child_by_field_name("argument") else { return };

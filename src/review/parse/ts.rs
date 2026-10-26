@@ -1,11 +1,12 @@
 //! What only TypeScript has: relative imports, `const f = () => ...` functions, and `extends`/`implements`.
 use super::names::base;
-use super::walk::Ex;
+use super::walk::FileParser;
 use super::{dir, join};
 use crate::types::MemberKind;
 use tree_sitter::Node;
 
-impl Ex<'_> {
+/// What only TypeScript has: relative imports, `const f = () => ...` functions, `extends` and `implements`.
+impl FileParser<'_> {
     /// Records a TS import or re-export from relative module `s`, as candidate files.
     pub(super) fn ts_import(&mut self, s: Node) {
         let spec = self.t(s).trim_matches(['\'', '"']);

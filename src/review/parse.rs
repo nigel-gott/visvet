@@ -9,7 +9,7 @@ use crate::types::{MemberKind, RepoPath, UnitKind};
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Component, Path, PathBuf};
 use tree_sitter::Parser;
-use walk::Ex;
+use walk::FileParser;
 
 /// A raw object from one version of a file, before it is paired with the other version.
 #[derive(Default, Debug)]
@@ -37,12 +37,12 @@ pub struct Mem {
     pub text: String,
     pub doc: String,
     pub line: u32,
-    /// Fns and methods only: calls and constructions in the body, see `Ex::calls`.
+    /// Fns and methods only: calls and constructions in the body, see `FileParser::calls`.
     pub calls: Vec<(String, String)>,
     /// 1 + the body's decision points (see `decision`); 1 for members without a body.
     pub complexity: u32,
     /// Type names for arrows: a field's or variant's type ("has"), or the types a function's body
-    /// really uses, see `Ex::uses` ("uses").
+    /// really uses, see `FileParser::uses` ("uses").
     pub types: BTreeSet<String>,
 }
 
@@ -50,23 +50,23 @@ pub struct Mem {
 /// Only .rs/.ts/.tsx files are parsed.
 pub fn parse(path: &str, src: &str) -> Vec<Obj> {
     let file = Obj { name: path.into(), kind: UnitKind::File, line: 1, text: src.into(), doc: head_doc(path, src), ..Default::default() };
-    let mut x = Ex { src, path, objs: vec![file] };
+    let mut parser = FileParser { src, path, objs: vec![file] };
     let lang = match path.rsplit('.').next() {
         Some("rs") => tree_sitter_rust::LANGUAGE,
         Some("ts") => tree_sitter_typescript::LANGUAGE_TYPESCRIPT,
         Some("tsx") => tree_sitter_typescript::LANGUAGE_TSX,
-        _ => return x.objs,
+        _ => return parser.objs,
     };
     let mut p = Parser::new();
     p.set_language(&lang.into()).expect("grammar");
-    let Some(tree) = p.parse(src, None) else { return x.objs };
+    let Some(tree) = p.parse(src, None) else { return parser.objs };
     for n in tree.root_node().named_children(&mut tree.walk()) {
-        x.objs[0].broken |= n.is_error();
-        x.item(n);
+        parser.objs[0].broken |= n.is_error();
+        parser.item(n);
     }
     // Member names make ids: unique per object, and a free fn must not reuse a type's name.
-    let types: HashSet<String> = x.objs[1..].iter().map(|o| o.name.clone()).collect();
-    for (i, o) in x.objs.iter_mut().enumerate() {
+    let types: HashSet<String> = parser.objs[1..].iter().map(|o| o.name.clone()).collect();
+    for (i, o) in parser.objs.iter_mut().enumerate() {
         let mut taken = if i == 0 { types.clone() } else { HashSet::new() };
         for m in &mut o.members {
             let (name, mut k) = (m.name.clone(), 1);
@@ -76,7 +76,7 @@ pub fn parse(path: &str, src: &str) -> Vec<Obj> {
             }
         }
     }
-    x.objs
+    parser.objs
 }
 
 /// The folder a repo-relative file is in ("" at the root): Rust's `Path::parent`, which only lacks an answer for "".
