@@ -1,7 +1,7 @@
 //! Where things are: a file's path in the repository, the ids of boxes and members, and line ranges.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A file's path from the repository root, e.g. "src/types/boxes.rs". A real path (`PathBuf`, Rust's path type), but
 /// not a place on this computer: the file may exist only in git (deleted, or its older version), so visvet never
@@ -24,6 +24,36 @@ impl RepoPath {
     /// Whether this is a Rust source file.
     pub fn is_rust(&self) -> bool {
         self.0.extension().is_some_and(|e| e == "rs")
+    }
+    /// The file's extension, e.g. "rs"; empty when it has none.
+    pub fn extension(&self) -> &str {
+        self.0.extension().and_then(|e| e.to_str()).unwrap_or("")
+    }
+    /// The folder the file is in; empty for a file at the repository root.
+    pub fn folder(&self) -> &Path {
+        self.0.parent().unwrap_or(Path::new(""))
+    }
+    /// The first folder of the path, or "." for a file at the root.
+    pub fn top_folder(&self) -> &str {
+        if self.folder() == Path::new("") {
+            return ".";
+        }
+        self.0.iter().next().and_then(|top| top.to_str()).unwrap_or(".")
+    }
+    /// The Rust module the file holds: its name without extension, or its folder's name for a `mod.rs`.
+    pub fn module_name(&self) -> &str {
+        let named = if self.0.file_name().is_some_and(|n| n == "mod.rs") { self.folder() } else { &self.0 };
+        named.file_stem().and_then(|n| n.to_str()).unwrap_or("")
+    }
+    /// The innermost `src` folder the file is in, e.g. "ui/src" for "ui/src/main.tsx".
+    pub fn src_folder(&self) -> Option<&Path> {
+        self.0.ancestors().find(|a| a.file_name().is_some_and(|n| n == "src"))
+    }
+    /// The path with `suffix` added to its last part, e.g. "src/a" plus ".rs" is "src/a.rs".
+    pub fn with_suffix(&self, suffix: &str) -> RepoPath {
+        let mut path = self.0.clone().into_os_string();
+        path.push(suffix);
+        RepoPath(path.into())
     }
 }
 

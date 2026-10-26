@@ -1,13 +1,15 @@
 //! Walking one file's syntax tree: each top-level item, the types it declares and their members.
 use super::{ParsedMember, ParsedBox, clean};
-use crate::types::{MemberKind, BoxKind};
+use crate::review::language::Language;
+use crate::types::{MemberKind, BoxKind, RepoPath};
 use tree_sitter::Node;
 
 /// Parses one file into boxes: holds the file's source and path, and the boxes found so far. Each kind of
 /// work is a block of methods in its own module: walking items (here), names (`names.rs`), Rust (`rust.rs`), TS (`ts.rs`).
 pub(super) struct FileParser<'a> {
     pub(super) src: &'a str,
-    pub(super) path: &'a str,
+    pub(super) path: &'a RepoPath,
+    pub(super) language: Language,
     pub(super) boxes: Vec<ParsedBox>,
 }
 
@@ -45,7 +47,7 @@ impl<'a> FileParser<'a> {
     /// `export`/decorators and the doc comment and attribute lines right above it, and starts at
     /// the beginning of its line unless other code precedes it there.
     pub(super) fn head(&self, n: Node) -> (usize, u32, String) {
-        let marks: &[&str] = if self.path.ends_with(".rs") { &["///", "/**"] } else { &["//", "/**"] };
+        let marks = self.language.doc_comments();
         let lead = |b: usize| self.src[..b].rsplit('\n').next().unwrap();
         let (mut n, mut parts) = (outer(n), vec![]);
         while let Some(p) = n.prev_sibling() {

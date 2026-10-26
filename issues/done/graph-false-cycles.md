@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: visvet graph reports cycles that aren't real: a Rust module and its own submodules, and Markdown notes linking to each other.
 ---
 # False cycles in visvet graph
@@ -13,6 +13,5 @@ description: visvet graph reports cycles that aren't real: a Rust module and its
 What to do, in `src/cli/graph.rs`:
 
 - Count cycles only over code arrows (calls, uses, has, imports, creates), never "links".
-- Ignore arrows between a file and the files of its own submodule folder (`x.rs` and `x/...`), in both directions, when looking for cycles.
 
-The arrows themselves stay on the map; only the cycle report changes.
+What was done instead for submodules: the arrow back to the parent was false. `use crate::review::parse::join` was read as importing `review.rs`, its first part only. Imports now point at the innermost module file that exists (`src/review/parse.rs`), in `src/review/parse/rust.rs::module_files`. The false arrows are gone from the map too, and no rule hides any. What's left in the cycle list is real: `parse.rs` and the files in `parse/` use each other's types.

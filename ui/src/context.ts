@@ -13,12 +13,16 @@ export type Ctx = {
   /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
   select: (id: string, replace?: boolean) => void
   focus: (id: string, replace?: boolean) => void
+  /** Zooms into box `id`, outlines it and opens it, so its diff shows. */
+  zoomTo: (id: string) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
   scope: string | null
   zoom: (id: string | null) => void
   /** Map boxes expanded in place to show their members and code (cleared when the view changes); `expand` flips one. */
   expanded: Set<string>
   expand: (id: string) => void
+  /** Opens all these boxes, or closes them all when they are all open already. */
+  expandAll: (ids: string[]) => void
   /** How deep the unzoomed map shows boxes, from 0 (only the top folders and files). The outline opens to the same depth. */
   level: number
   setLevel: (level: number) => void

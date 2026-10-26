@@ -6,10 +6,11 @@ import { createRoot } from 'react-dom/client'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
-import { flip, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
+import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph from './Graph'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
+import { LineCounts } from './Views'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -145,10 +146,32 @@ function Header({ error }: { error?: string }) {
         <a className={x.scope ? '' : 'here'} onClick={() => to(null)}>Map</a>
         {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
       </nav>
+      <ChangeSteps />
       <ThreadCounts />
       <span className="vs">vs <code>{x.model.compared_against}</code></span>
       {error && <span className="err">Refresh failed: {error}</span>}
     </header>
+  )
+}
+
+/** Steps through the changes one at a time, in review order, with the lines the whole change added and removed. */
+function ChangeSteps() {
+  const x = useContext(X)
+  const { changes } = x.ix, at = changes.findIndex(it => it.id === x.sel)
+  if (!changes.length) return null
+  /** Shows the change `by` steps on, wrapping round; from no change, the first or last one. */
+  const step = (by: number) => {
+    const from = at < 0 ? (by > 0 ? -1 : 0) : at
+    x.zoomTo(changes[(from + by + changes.length) % changes.length].id)
+  }
+  const total = { added: x.ix.roots.reduce((n, r) => n + r.diffCount.added, 0), removed: x.ix.roots.reduce((n, r) => n + r.diffCount.removed, 0) }
+  return (
+    <nav className="changes">
+      <button title="Previous change" onClick={() => step(-1)}>‹</button>
+      <span>change {at < 0 ? '–' : at + 1} of {changes.length}</span>
+      <button title="Next change" onClick={() => step(1)}>›</button>
+      <LineCounts count={total} />
+    </nav>
   )
 }
 
@@ -165,12 +188,15 @@ function useTypeToComment(sel: string | null, setDraft: Ctx['setDraft']) {
   }, [sel])
 }
 
+/** The box to zoom into to show `it`: itself when it holds boxes, else the box it sits in. */
+const zoomFor = (it: Item) => (it.kids.length ? it : it.parent)?.id ?? null
+
 /** `visvet show`: zooms into the target's box (its parent's for a member or an arrow), opens it and highlights it. */
 function useShow(show: Show | undefined, ix: Index | undefined, open: (id: string, to: string | null, ids: string[]) => void) {
   useEffect(() => {
     const t = show?.target ?? ''
     const it = ix?.items.get(t.split(' -> ')[0])
-    if (show && it) open(t, (it.kids.length && !t.includes(' -> ') ? it : it.parent)?.id ?? null, [t, ...show.highlight])
+    if (show && it) open(t, t.includes(' -> ') ? it.parent?.id ?? null : zoomFor(it), [t, ...show.highlight])
   }, [show])
 }
 
@@ -219,7 +245,13 @@ function App() {
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
+    zoomTo: id => {
+      nav.show(id, id, [id])
+      // Opened, so its diff shows; in the view being opened, since a new view starts with nothing open.
+      setWide({ view: id, ids: new Set([id]) })
+    },
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
+    expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,
     detail: detail?.id === sel ? detail : null, showDetail: (id, kind) => showDetail(kind ? { id, kind } : null),
     draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox, full: full === sel, setFull,

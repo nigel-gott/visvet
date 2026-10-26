@@ -21,7 +21,8 @@ pub enum DependencyKind {
     /// Function `from` really uses type `to`: reads one of its values, like `ChangeStatus::Removed`, passes
     /// it as a type argument, like `get::<View>()`, or unpacks a parameter holding it, like `Json(v): Json<View>`.
     Uses,
-    /// A code generator writes `to` from type `from`, e.g. ts-rs writes a TypeScript copy of a Rust type.
+    /// A code generator writes `to` from `from`, e.g. ts-rs writes a TypeScript copy of a Rust type, and Cargo writes
+    /// `Cargo.lock` from `Cargo.toml`.
     Generates,
     /// Markdown file `from` names box or file `to`, in a `code span` or a link.
     Links,
@@ -34,6 +35,12 @@ impl DependencyKind {
             Self::Has => "has", Self::Implements => "implements", Self::Imports => "imports",
             Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses", Self::Generates => "generates", Self::Links => "links",
         }
+    }
+
+    /// Whether arrows of this kind can make a cycle a reader must untangle: code links only, not Markdown "links",
+    /// generated files or trait implementations.
+    pub fn counts_for_cycles(self) -> bool {
+        matches!(self, Self::Calls | Self::Uses | Self::Has | Self::Imports | Self::Creates)
     }
 }
 

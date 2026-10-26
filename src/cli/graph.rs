@@ -5,172 +5,211 @@ use std::path::Path;
 
 /// A count per name, e.g. links per kind.
 type Counts<'a> = BTreeMap<&'a str, usize>;
-/// Each node's distinct neighbours.
+/// Each box's distinct neighbours: the boxes it links to.
 type Graph<'a> = BTreeMap<&'a str, BTreeSet<&'a str>>;
 
-/// One box zoomed in: its children with outside links, their peers outside, the peers' parent boxes, links [out, in].
+/// How many links leave a box and how many arrive at it.
+#[derive(Default, Clone, Copy)]
+struct LinkCount { outgoing: usize, incoming: usize }
+
+/// What one box looks like zoomed in: which of its children link outside it, the outside boxes they link to, the
+/// boxes those sit in, and how many links leave and arrive.
 #[derive(Default)]
-struct Zoom<'a> { linked: BTreeSet<&'a str>, peers: BTreeSet<&'a str>, boxes: BTreeSet<&'a str>, links: [usize; 2] }
+struct ZoomView<'a> { children_linking_out: BTreeSet<&'a str>, outside_peers: BTreeSet<&'a str>, peer_parents: BTreeSet<&'a str>, links: LinkCount }
 
-/// Each box's kind and the boxes it sits in, outermost first: top folder, file, type or free fn, member.
-type Paths<'a> = HashMap<&'a str, (Vec<&'a str>, &'a str)>;
+/// Zoomed into a top folder: its place in a `Place`'s nesting.
+const TOP_FOLDER: usize = 0;
+/// Zoomed into a file: its place in a `Place`'s nesting.
+const FILE: usize = 1;
+/// The zoom levels `visvet graph` reports on.
+const LEVELS: [usize; 2] = [TOP_FOLDER, FILE];
 
-/// Link tallies: per kind, per top-folder pair, per file across top folders [out, in], the top-folder and file
-/// dependency graphs, the call graph [callees, callers], and each box's zoom view.
+/// Where a box, member or file sits on the map.
+struct Place<'a> {
+    /// The boxes it sits in, outermost first, ending with itself: top folder, file, type or free fn, member.
+    nesting: Vec<&'a str>,
+    /// Its kind, e.g. "struct", "method" or "file".
+    kind: &'a str,
+}
+
+/// Every live box's, member's and file's place, by id.
+type Places<'a> = HashMap<&'a str, Place<'a>>;
+
+/// Link tallies: per kind, per top-folder pair, per file across top folders, the code links between boxes at each
+/// zoom level, the call graph both ways, and each box's zoom view.
 #[derive(Default)]
 struct Tally<'a> {
-    kinds: Counts<'a>,
-    pairs: BTreeMap<(&'a str, &'a str), Counts<'a>>,
-    cross: BTreeMap<&'a str, [usize; 2]>,
-    deps: [Graph<'a>; 2],
-    calls: [Graph<'a>; 2],
-    zoom: BTreeMap<&'a str, Zoom<'a>>,
+    links_per_kind: Counts<'a>,
+    /// Links from one top folder to another, per kind.
+    top_folder_links: BTreeMap<(&'a str, &'a str), Counts<'a>>,
+    /// Per file, its links that leave or enter its top folder.
+    cross_folder_links: BTreeMap<&'a str, LinkCount>,
+    /// Which box has a code link to which, per zoom level (`TOP_FOLDER`, `FILE`), for finding cycles.
+    code_links: [Graph<'a>; 2],
+    /// Per function, the functions it calls.
+    callees: Graph<'a>,
+    /// Per function, the functions that call it.
+    callers: Graph<'a>,
+    zoom_views: BTreeMap<&'a str, ZoomView<'a>>,
 }
 
 /// Prints the map of the change against `base`, each section worst first: totals, top-folder coupling, cycles,
 /// files linked across top folders, zoom views, then the most complex and most connected functions. Removed code is left out.
 pub fn print(repo_root: &Path, base: &str) -> anyhow::Result<()> {
-    let m = build_review(repo_root, base)?;
-    let objs: Vec<&MapBox> = m.boxes.iter().filter(|o| o.status != ChangeStatus::Removed).collect();
-    let path = paths(&objs);
-    let mut t = Tally { kinds: ["calls", "creates", "has", "implements", "imports", "uses"].map(|k| (k, 0)).into(), ..Default::default() };
+    let review = build_review(repo_root, base)?;
+    let live: Vec<&MapBox> = review.boxes.iter().filter(|map_box| map_box.status != ChangeStatus::Removed).collect();
+    let places = places(&live);
+    let link_kinds = ["calls", "creates", "has", "implements", "imports", "uses"];
+    let mut tally = Tally { links_per_kind: link_kinds.map(|kind| (kind, 0)).into(), ..Default::default() };
     // Both ends must be live: a Markdown link can still name a box the change removed.
-    for e in m.dependencies.iter().filter(|e| path.contains_key(e.from.as_str()) && path.contains_key(e.to.as_str())) {
-        t.add(e, [&path[e.from.as_str()], &path[e.to.as_str()]]);
+    let is_live = |dep: &&Dependency| places.contains_key(dep.from.as_str()) && places.contains_key(dep.to.as_str());
+    for dep in review.dependencies.iter().filter(is_live) {
+        tally.add(dep, &places[dep.from.as_str()], &places[dep.to.as_str()]);
     }
-    report(&objs, &path, &t);
+    report(&live, &places, &tally);
     Ok(())
 }
 
-/// The first folder of a file's path, or "." for a file at the root.
-fn top_folder(file: &str) -> &str {
-    file.split_once('/').map_or(".", |(d, _)| d)
-}
-
-/// The path and kind of every live object, member and file box.
-fn paths<'a>(objs: &[&'a MapBox]) -> Paths<'a> {
-    let mut path = HashMap::new();
-    for o in objs {
-        let f = vec![top_folder(o.file.as_str()), o.file.as_str()];
-        let p = if o.kind() == BoxKind::File { f.clone() } else { [&f[..], &[o.id.as_str()]].concat() };
-        for x in o.members().iter().filter(|x| x.status != ChangeStatus::Removed) {
-            path.insert(x.id.as_str(), ([&p[..], &[x.id.as_str()]].concat(), x.kind.label()));
+/// Where every live box, member and file sits.
+fn places<'a>(boxes: &[&'a MapBox]) -> Places<'a> {
+    let mut places = HashMap::new();
+    for map_box in boxes {
+        let file_nesting = vec![map_box.file.top_folder(), map_box.file.as_str()];
+        let box_nesting = if map_box.kind() == BoxKind::File { file_nesting.clone() } else { [&file_nesting[..], &[map_box.id.as_str()]].concat() };
+        for member in map_box.members().iter().filter(|member| member.status != ChangeStatus::Removed) {
+            places.insert(member.id.as_str(), Place { nesting: [&box_nesting[..], &[member.id.as_str()]].concat(), kind: member.kind.label() });
         }
-        path.insert(o.id.as_str(), (p, o.kind().label()));
-        path.insert(o.file.as_str(), (f, "file"));
+        places.insert(map_box.id.as_str(), Place { nesting: box_nesting, kind: map_box.kind().label() });
+        places.insert(map_box.file.as_str(), Place { nesting: file_nesting, kind: "file" });
     }
-    path
+    places
 }
 
 impl<'a> Tally<'a> {
-    /// Counts edge `e` whose ends have these paths.
-    fn add(&mut self, e: &'a Dependency, ends: [&(Vec<&'a str>, &'a str); 2]) {
-        *self.kinds.entry(e.kind.label()).or_default() += 1;
-        if e.kind == DependencyKind::Calls {
-            self.calls[0].entry(e.from.as_str()).or_default().insert(e.to.as_str());
-            self.calls[1].entry(e.to.as_str()).or_default().insert(e.from.as_str());
+    /// Counts dependency `dep`, whose two ends sit at `from` and `to`.
+    fn add(&mut self, dep: &'a Dependency, from: &Place<'a>, to: &Place<'a>) {
+        *self.links_per_kind.entry(dep.kind.label()).or_default() += 1;
+        if dep.kind == DependencyKind::Calls {
+            self.callees.entry(dep.from.as_str()).or_default().insert(dep.to.as_str());
+            self.callers.entry(dep.to.as_str()).or_default().insert(dep.from.as_str());
         }
-        // Level 0 is top folders, 1 is files.
-        for k in 0..2 {
-            let (a, b) = (ends[0].0[k], ends[1].0[k]);
-            if a == b {
+        for level in LEVELS {
+            let (from_box, to_box) = (from.nesting[level], to.nesting[level]);
+            // Both ends in one box: at this level it links nothing.
+            if from_box == to_box {
                 continue;
             }
-            if e.kind != DependencyKind::Implements {
-                self.deps[k].entry(a).or_default().insert(b);
+            if dep.kind.counts_for_cycles() {
+                self.code_links[level].entry(from_box).or_default().insert(to_box);
             }
-            if k == 0 {
-                *self.pairs.entry((a, b)).or_default().entry(e.kind.label()).or_default() += 1;
-                self.cross.entry(ends[0].0[1]).or_default()[0] += 1;
-                self.cross.entry(ends[1].0[1]).or_default()[1] += 1;
+            if level == TOP_FOLDER {
+                *self.top_folder_links.entry((from_box, to_box)).or_default().entry(dep.kind.label()).or_default() += 1;
+                self.cross_folder_links.entry(from.nesting[FILE]).or_default().outgoing += 1;
+                self.cross_folder_links.entry(to.nesting[FILE]).or_default().incoming += 1;
             }
-            self.add_zoom(k, ends);
+            self.add_zoom(level, from, to);
         }
     }
 
-    /// Zoomed into either end's level-`k` box, the other end shows as its box at the same depth, inside that box's parent.
-    fn add_zoom(&mut self, k: usize, ends: [&(Vec<&'a str>, &'a str); 2]) {
-        for (i, ((p, kind), q)) in [(ends[0], &ends[1].0), (ends[1], &ends[0].0)].into_iter().enumerate() {
-            let d = drawn(k, p, kind);
-            let (j, z) = (d.min(q.len() - 1), self.zoom.entry(p[k]).or_default());
-            z.linked.extend((d > k).then(|| p[d]));
-            z.boxes.extend((j > k).then(|| q[j - 1]));
-            z.peers.insert(q[j]);
-            z.links[i] += 1;
+    /// Records a link in the zoom view of each end's box at `level`. Zoomed into one end's box, the other end shows
+    /// as its box at the same depth, inside that box's parent.
+    fn add_zoom(&mut self, level: usize, from: &Place<'a>, to: &Place<'a>) {
+        for (inside, outside, leaves) in [(from, to, true), (to, from, false)] {
+            let inside_depth = drawn_depth(level, inside);
+            let outside_depth = inside_depth.min(outside.nesting.len() - 1);
+            let view = self.zoom_views.entry(inside.nesting[level]).or_default();
+            view.children_linking_out.extend((inside_depth > level).then(|| inside.nesting[inside_depth]));
+            view.peer_parents.extend((outside_depth > level).then(|| outside.nesting[outside_depth - 1]));
+            view.outside_peers.insert(outside.nesting[outside_depth]);
+            if leaves { view.links.outgoing += 1 } else { view.links.incoming += 1 }
         }
     }
 }
 
 /// Prints the sections from the tallies.
-fn report(objs: &[&MapBox], path: &Paths, t: &Tally) {
-    let fns: Vec<&Member> = objs.iter().flat_map(|o| o.members()).filter(|x| path.contains_key(x.id.as_str()) && matches!(x.kind, MemberKind::Fn | MemberKind::Method)).collect();
-    let files: BTreeSet<&str> = objs.iter().map(|o| o.file.as_str()).collect();
-    let tops = objs.iter().map(|o| top_folder(o.file.as_str())).collect::<BTreeSet<_>>().len();
-    let types = objs.iter().filter(|o| o.kind() != BoxKind::File).count();
-    println!("totals: {tops} top folders, {} files, {types} types, {} functions; links: {}", files.len(), fns.len(), list(&t.kinds));
-    section("top-folder coupling (from -> to)", usize::MAX, t.pairs.iter().map(|((a, b), c)| (c.values().sum::<usize>(), format!("{a} -> {b}: {}", list(c)))));
-    for (k, level) in [(1, "files"), (0, "top folders")] {
-        section(&format!("cycles among {level}"), usize::MAX, cycles(&t.deps[k]).into_iter().map(|c| (c.len(), c.join(", "))));
-    }
-    section("files with the most links across top folders", 10, t.cross.iter().map(|(f, [o, i])| (o + i, format!("{f}: {o} out, {i} in"))));
-    let kids = kids(path);
-    section("zoom views (what each box looks like zoomed in)", 10, t.zoom.iter().map(|(b, z)| {
-        let ([o, i], n, p) = (z.links, kids.get(b).unwrap_or(&0), z.peers.len());
-        (p + o + i, format!("{b}: {} of {n} children link out, to {p} peers in {} boxes ({o} out, {i} in)", z.linked.len(), z.boxes.len()))
+fn report(boxes: &[&MapBox], places: &Places, tally: &Tally) {
+    let is_function = |member: &&Member| places.contains_key(member.id.as_str()) && matches!(member.kind, MemberKind::Fn | MemberKind::Method);
+    let functions: Vec<&Member> = boxes.iter().flat_map(|map_box| map_box.members()).filter(is_function).collect();
+    let files: BTreeSet<&str> = boxes.iter().map(|map_box| map_box.file.as_str()).collect();
+    let top_folders = boxes.iter().map(|map_box| map_box.file.top_folder()).collect::<BTreeSet<_>>().len();
+    let types = boxes.iter().filter(|map_box| map_box.kind() != BoxKind::File).count();
+    println!("totals: {top_folders} top folders, {} files, {types} types, {} functions; links: {}", files.len(), functions.len(), list(&tally.links_per_kind));
+    section("top-folder coupling (from -> to)", usize::MAX, tally.top_folder_links.iter().map(|((from, to), per_kind)| {
+        (per_kind.values().sum::<usize>(), format!("{from} -> {to}: {}", list(per_kind)))
     }));
-    let lines = |x: &Member| x.diff.iter().filter(|d| d.kind != DiffLineKind::Removed).count();
-    section("most complex functions (complexity, lines)", 10, fns.iter().map(|x| ((x.complexity, lines(x)), format!("{:>3} {:>4}  {}", x.complexity, lines(x), x.id))));
-    for (title, g) in [("most callees (fan-out)", &t.calls[0]), ("most callers (fan-in)", &t.calls[1])] {
-        section(title, 10, g.iter().map(|(id, s)| (s.len(), format!("{:>3}  {id}", s.len()))));
+    for (level, name) in [(FILE, "files"), (TOP_FOLDER, "top folders")] {
+        section(&format!("cycles among {name}"), usize::MAX, cycles(&tally.code_links[level]).into_iter().map(|cycle| (cycle.len(), cycle.join(", "))));
+    }
+    section("files with the most links across top folders", 10, tally.cross_folder_links.iter().map(|(file, links)| {
+        (links.outgoing + links.incoming, format!("{file}: {} out, {} in", links.outgoing, links.incoming))
+    }));
+    let drawn_children = drawn_children(places);
+    section("zoom views (what each box looks like zoomed in)", 10, tally.zoom_views.iter().map(|(zoomed, view)| {
+        let (links, children, peers) = (view.links, drawn_children.get(zoomed).unwrap_or(&0), view.outside_peers.len());
+        let text = format!("{zoomed}: {} of {children} children link out, to {peers} peers in {} boxes ({} out, {} in)",
+            view.children_linking_out.len(), view.peer_parents.len(), links.outgoing, links.incoming);
+        (peers + links.outgoing + links.incoming, text)
+    }));
+    let lines = |function: &Member| function.diff.iter().filter(|line| line.kind != DiffLineKind::Removed).count();
+    section("most complex functions (complexity, lines)", 10, functions.iter().map(|function| {
+        ((function.complexity, lines(function)), format!("{:>3} {:>4}  {}", function.complexity, lines(function), function.id))
+    }));
+    for (title, graph) in [("most callees (fan-out)", &tally.callees), ("most callers (fan-in)", &tally.callers)] {
+        section(title, 10, graph.iter().map(|(function, linked)| (linked.len(), format!("{:>3}  {function}", linked.len()))));
     }
 }
 
-/// Per top-folder and file box, how many nodes inside it are drawn as themselves when zoomed in.
-fn kids<'a>(path: &Paths<'a>) -> Counts<'a> {
-    let mut kids = Counts::new();
-    for (p, kind) in path.values() {
-        for k in (0..2).filter(|&k| p.len() > k + 1 && drawn(k, p, kind) == p.len() - 1) {
-            *kids.entry(p[k]).or_default() += 1;
+/// Per top-folder and file box, how many things inside it are drawn as boxes of their own when zoomed in.
+fn drawn_children<'a>(places: &Places<'a>) -> Counts<'a> {
+    let mut counts = Counts::new();
+    for place in places.values() {
+        let own_depth = place.nesting.len() - 1;
+        for level in LEVELS.into_iter().filter(|&level| own_depth > level && drawn_depth(level, place) == own_depth) {
+            *counts.entry(place.nesting[level]).or_default() += 1;
         }
     }
-    kids
+    counts
 }
 
-/// The depth at which the map draws a node, zoomed into its level-`k` box (0 top folder, 1 file): a folder shows files
-/// and types, a file also fns and methods. Other members are drawn as the box they sit in.
-fn drawn(k: usize, p: &[&str], kind: &str) -> usize {
-    let own = !matches!(kind, "fn" | "method" | "field" | "variant") || k == 1 && matches!(kind, "fn" | "method");
-    p.len() - if own { 1 } else { 2 }
+/// How deep in its nesting the map draws a thing, zoomed into its box at `level`: a folder shows files and types,
+/// a file also functions and methods. Other members are drawn as the box they sit in.
+fn drawn_depth(level: usize, place: &Place) -> usize {
+    let is_member = matches!(place.kind, "fn" | "method" | "field" | "variant");
+    let is_function = matches!(place.kind, "fn" | "method");
+    let has_own_box = !is_member || level == FILE && is_function;
+    place.nesting.len() - if has_own_box { 1 } else { 2 }
 }
 
-/// Groups of two or more nodes that all reach each other: the strongly connected components.
-fn cycles<'a>(g: &Graph<'a>) -> Vec<Vec<&'a str>> {
-    let reach = |a: &'a str| {
-        let (mut seen, mut todo) = (BTreeSet::new(), vec![a]);
-        while let Some(n) = todo.pop() {
-            todo.extend(g.get(n).into_iter().flatten().copied().filter(|b| seen.insert(*b)));
+/// Groups of two or more boxes that all reach each other through links: the strongly connected components.
+fn cycles<'a>(graph: &Graph<'a>) -> Vec<Vec<&'a str>> {
+    let reachable_from = |start: &'a str| {
+        let (mut seen, mut to_visit) = (BTreeSet::new(), vec![start]);
+        while let Some(node) = to_visit.pop() {
+            to_visit.extend(graph.get(node).into_iter().flatten().copied().filter(|next| seen.insert(*next)));
         }
         seen
     };
-    let r: BTreeMap<_, _> = g.keys().map(|&a| (a, reach(a))).collect();
-    let mut out: Vec<Vec<&str>> = vec![];
-    for (a, ra) in &r {
-        if ra.contains(a) && !out.iter().any(|c| c.contains(a)) {
-            out.push(r.iter().filter(|(b, rb)| ra.contains(*b) && rb.contains(a)).map(|(b, _)| *b).collect());
+    let reach: BTreeMap<_, _> = graph.keys().map(|&node| (node, reachable_from(node))).collect();
+    let mut cycles: Vec<Vec<&str>> = vec![];
+    for (node, from_node) in &reach {
+        let in_a_cycle = from_node.contains(node);
+        if in_a_cycle && !cycles.iter().any(|cycle| cycle.contains(node)) {
+            let reach_each_other = |(other, from_other): &(&&str, &BTreeSet<&str>)| from_node.contains(*other) && from_other.contains(node);
+            cycles.push(reach.iter().filter(reach_each_other).map(|(other, _)| *other).collect());
         }
     }
-    out
+    cycles
 }
 
 /// Counts as "8 calls, 2 has".
-fn list(c: &Counts) -> String {
-    c.iter().map(|(k, n)| format!("{n} {k}")).collect::<Vec<_>>().join(", ")
+fn list(counts: &Counts) -> String {
+    counts.iter().map(|(name, count)| format!("{count} {name}")).collect::<Vec<_>>().join(", ")
 }
 
-/// Prints `title`, then its first `n` rows by key, highest first.
-fn section<K: Ord>(title: &str, n: usize, rows: impl Iterator<Item = (K, String)>) {
+/// Prints `title`, then its first `limit` rows by key, highest first.
+fn section<Key: Ord>(title: &str, limit: usize, rows: impl Iterator<Item = (Key, String)>) {
     let mut rows: Vec<_> = rows.collect();
-    rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    rows.sort_by(|(key_a, text_a), (key_b, text_b)| key_b.cmp(key_a).then_with(|| text_a.cmp(text_b)));
     println!("{title}:{}", if rows.is_empty() { " none" } else { "" });
-    rows.iter().take(n).for_each(|(_, r)| println!("  {r}"));
+    rows.iter().take(limit).for_each(|(_, text)| println!("  {text}"));
 }

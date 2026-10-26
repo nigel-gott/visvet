@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: A "generates" arrow from a package manifest to the lock file its package manager writes, e.g. Cargo.toml to Cargo.lock.
 ---
 # Manifest generates lock file

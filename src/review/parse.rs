@@ -8,6 +8,7 @@ mod walk;
 use crate::types::{MemberKind, RepoPath, BoxKind};
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Component, Path, PathBuf};
+use super::language::Language;
 use tree_sitter::Parser;
 use walk::FileParser;
 
@@ -24,7 +25,7 @@ pub struct ParsedBox {
     pub members: Vec<ParsedMember>,
     pub refs: BTreeSet<String>,
     /// File boxes only: per import, candidate repo paths in preference order.
-    pub uses: Vec<Vec<String>>,
+    pub uses: Vec<Vec<RepoPath>>,
     /// File boxes only: the parse has a top-level syntax error (e.g. mid-edit).
     pub broken: bool,
 }
@@ -49,17 +50,13 @@ pub struct ParsedMember {
 
 /// The "file" box (whole text, free fns as members, imports) followed by the file's types.
 /// Only .rs/.ts/.tsx files are parsed.
-pub fn parse(path: &str, src: &str) -> Vec<ParsedBox> {
-    let file = ParsedBox { name: path.into(), kind: BoxKind::File, line: 1, text: src.into(), doc: head_doc(path, src), ..Default::default() };
-    let mut parser = FileParser { src, path, boxes: vec![file] };
-    let lang = match path.rsplit('.').next() {
-        Some("rs") => tree_sitter_rust::LANGUAGE,
-        Some("ts") => tree_sitter_typescript::LANGUAGE_TYPESCRIPT,
-        Some("tsx") => tree_sitter_typescript::LANGUAGE_TSX,
-        _ => return parser.boxes,
-    };
+pub fn parse(path: &RepoPath, src: &str) -> Vec<ParsedBox> {
+    let language = Language::of(path);
+    let file = ParsedBox { name: path.to_string(), kind: BoxKind::File, line: 1, text: src.into(), doc: head_doc(language, src), ..Default::default() };
+    let mut parser = FileParser { src, path, language, boxes: vec![file] };
+    let Some(grammar) = language.grammar() else { return parser.boxes };
     let mut p = Parser::new();
-    p.set_language(&lang.into()).expect("grammar");
+    p.set_language(&grammar).expect("grammar");
     let Some(tree) = p.parse(src, None) else { return parser.boxes };
     for n in tree.root_node().named_children(&mut tree.walk()) {
         parser.boxes[0].broken |= n.is_error();
@@ -80,17 +77,12 @@ pub fn parse(path: &str, src: &str) -> Vec<ParsedBox> {
     parser.boxes
 }
 
-/// The folder a repo-relative file is in ("" at the root): Rust's `Path::parent`, which only lacks an answer for "".
-pub fn dir(path: &str) -> &Path {
-    Path::new(path).parent().unwrap_or(Path::new(""))
-}
-
 /// Joins a relative path, as written in a file (an import, a link), onto a repo-relative dir, resolving `.` and `..`
 /// as text; a `rel` starting with `/` starts from the repo root. Rust's own paths leave `..` in, because on disk a symlink can make `a/b/..` differ from `a`; repo paths
 /// come from git, which never follows symlinks, so resolving as text is right here.
-pub fn join(dir: impl AsRef<Path>, rel: &str) -> RepoPath {
+pub fn join(dir: &Path, rel: &str) -> RepoPath {
     let mut out = PathBuf::new();
-    for c in dir.as_ref().join(rel).components() {
+    for c in dir.join(rel).components() {
         match c {
             Component::ParentDir => _ = out.pop(),
             Component::Normal(s) => out.push(s),
@@ -101,22 +93,20 @@ pub fn join(dir: impl AsRef<Path>, rel: &str) -> RepoPath {
 }
 
 /// A file's leading comment block. Markdown: the one-line frontmatter `description:`, else the first heading.
-fn head_doc(path: &str, src: &str) -> String {
-    let ext = path.rsplit('.').next().unwrap_or("");
+fn head_doc(language: Language, src: &str) -> String {
     let s = src.trim_start();
     let s = if s.starts_with("#!") { s.split_once('\n').map_or("", |(_, r)| r).trim_start() } else { s };
-    if ext == "md" {
+    if language == Language::Markdown {
         let (front, body) = s.strip_prefix("---").and_then(|f| f.split_once("\n---")).unwrap_or(("", s));
         let desc = front.lines().find_map(|l| l.strip_prefix("description:")).map(|d| d.trim().trim_matches(['"', '\''])).filter(|d| !d.is_empty() && !d.starts_with(['>', '|']));
         return clean(desc.or_else(|| body.lines().find(|l| l.starts_with('#'))).unwrap_or(""));
     }
     for (open, close) in [("/*", "*/"), ("<!--", "-->")] {
-        if let Some(b) = s.strip_prefix(open).filter(|_| ext != "rs") {
+        if let Some(b) = s.strip_prefix(open).filter(|_| language != Language::Rust) {
             return clean(b.split(close).next().unwrap());
         }
     }
-    let mark = match ext { "rs" => "//!", "ts" | "tsx" | "js" | "jsx" | "css" => "//", _ => "#" };
-    clean(&s.lines().take_while(|l| l.trim_start().starts_with(mark)).collect::<Vec<_>>().join("\n"))
+    clean(&s.lines().take_while(|l| l.trim_start().starts_with(language.file_comment())).collect::<Vec<_>>().join("\n"))
 }
 
 /// Strips comment markers; keeps the first paragraph (up to a blank or `@tag` line) on one line,
@@ -153,14 +143,14 @@ mod tests {
     #[test]
     fn join_resolves_dots() {
         for (dir, rel, out) in [("issues", "../src/a.rs", "src/a.rs"), ("ui/src", "./model", "ui/src/model"), ("", "a/../../b", "b"), ("a", "/b", "b")] {
-            assert_eq!(join(dir, rel).as_str(), out);
+            assert_eq!(join(Path::new(dir), rel).as_str(), out);
         }
     }
 
     #[test]
     fn rust_struct_impl_merge() {
         let src = "//! File doc.\n//!\n//! More.\nimpl Foo {\n    /// Makes one.\n    pub fn new(\n        x: u8,\n    ) -> Self { todo!() }\n    pub fn a(&self) -> u8 { 1 }\n}\nimpl fmt::Display for Foo<T> { fn fmt(&self) {} }\n/// The foo.\n/// Really.\n///\n/// Details.\n#[derive(\n    Debug,\n)]\npub struct Foo { pub a: Vec<Bar>, b: u8 }\nenum E { A(Baz), B }\nimpl Ext for Other {}\n// plain\nfn free() {}\n#[cfg(test)]\nmod tests { struct Hidden; }\n";
-        let boxes = parse("a.rs", src);
+        let boxes = parse(&RepoPath("a.rs".into()), src);
         let foo = get(&boxes, "Foo");
         assert_eq!((foo.kind, foo.line, &foo.impls, &foo.refs), (BoxKind::Struct, 12, &set(&["Display"]), &set(&[])));
         assert_eq!(foo.members[3].types, set(&["Bar", "Vec"]));
@@ -181,7 +171,7 @@ mod tests {
     #[test]
     fn ts_class_interface() {
         let src = "/** The C class.\n * More.\n *\n * Details. */\nexport class C extends Base<T> implements I {\n  x: Foo; // trailing\n  // Runs it.\n  run(a: { b: number }): void {}\n  get v() { return 1 }\n  set v(x) {}\n}\ninterface I extends J { p: Bar; m(): void; }\nexport const f = (a: number) => { return a };\nfunction g() {}\ntype U = Foo | Baz;\nenum E { A, B = 2 }\ntype P<K> = { a: K; m(): Foo }\nconst U = () => 1;\n";
-        let boxes = parse("a.tsx", src);
+        let boxes = parse(&RepoPath("a.tsx".into()), src);
         let c = get(&boxes, "C");
         assert_eq!((c.kind, c.line, &c.impls, &c.refs), (BoxKind::Class, 1, &set(&["Base", "I"]), &set(&[])));
         assert_eq!(c.members[0].types, set(&["Foo"]));
@@ -192,7 +182,7 @@ mod tests {
         assert_eq!(docs, ("The C class. More.", "The C class. More.", "", "Runs it."));
         for (p, s, d) in [("x.md", "---\ndescription: \"Hi there\"\n---\n# T", "Hi there"), ("y.md", "# Title\n\nProse.", "Title"),
             ("x.sh", "#!/bin/sh\n# Deploys.\n\n# other", "Deploys."), ("i.html", "<!-- Entry\n page. -->\n<html>", "Entry page.")] {
-            assert_eq!(parse(p, s)[0].doc, d);
+            assert_eq!(parse(&RepoPath(p.into()), s)[0].doc, d);
         }
         let i = get(&boxes, "I");
         assert_eq!((i.kind, &i.impls, &i.members[0].types), (BoxKind::Interface, &set(&["J"]), &set(&["Bar"])));

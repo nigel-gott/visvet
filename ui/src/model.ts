@@ -42,6 +42,8 @@ export type Item = {
   ctx: boolean
   /** Current lines of code, each counted once. */
   loc: number
+  /** Lines added and removed in it since the base, each counted once. */
+  diffCount: DiffCount
   /** How many functions in it (or it itself) are over `COMPLEX`, the limit for a "complex" debuff. */
   complex: number
   /** Lines the tests ran, of those they could: a file's or function's own, else added up from what is inside it. */
@@ -49,6 +51,9 @@ export type Item = {
   /** What a Markdown file says it is, e.g. an open issue; a folder takes its README.md's. */
   labels?: DocLabels
 }
+/** How many lines a change added and removed. */
+export type DiffCount = { added: number; removed: number }
+
 /** The item tree, every item by id, and the review order. */
 export type Index = ReturnType<typeof index>
 
@@ -60,6 +65,12 @@ export const within = (it: Item | undefined, id: string): boolean => !!it && (it
 
 /** A copy of `set` with `id` added, or removed if it was there. */
 export const flip = (set: Set<string>, id: string) => { const n = new Set(set); if (!n.delete(id)) n.add(id); return n }
+/** A copy of `set` with all of `ids` added, or all removed when every one is in it already. */
+export const flipAll = (set: Set<string>, ids: string[]) => {
+  const n = new Set(set), all = ids.every(id => set.has(id))
+  ids.forEach(id => all ? n.delete(id) : n.add(id))
+  return n
+}
 
 /** Complexity (from the extractor: 1 + branches, loops and the like, each match counted once) above which a function is hard to follow. */
 export const COMPLEX = 15
@@ -67,10 +78,13 @@ export const COMPLEX = 15
 /** Sets `loc`, `complex` and `cov` bottom-up and returns the item's current lines as "file:line" keys. */
 function measure(it: Item, file = ''): Set<string> {
   if (it.kind === 'file') file = it.id
+  // Each line as "kind file:line", e.g. "add src/a.rs:12", so a line in both a file's and a box's diff counts once.
   const lines = new Set<string>()
   for (const k of it.kids) for (const l of measure(k, file)) lines.add(l)
-  for (const l of it.diff) if (l.kind !== 'del') lines.add(`${file}:${l.line}`)
-  it.loc = lines.size
+  for (const l of it.diff) lines.add(`${l.kind} ${file}:${l.line}`)
+  const count = (kind: string) => [...lines].filter(l => l.startsWith(kind + ' ')).length
+  it.loc = lines.size - count('del')
+  it.diffCount = { added: count('add'), removed: count('del') }
   const inside = it.kids.flatMap(k => k.cov ?? [])
   it.cov = codeOf(it.o)?.coverage ?? it.m?.coverage ?? (inside.length ? { covered: inside.reduce((n, c) => n + c.covered, 0), coverable: inside.reduce((n, c) => n + c.coverable, 0) } : undefined)
   it.complex = +((it.kind === 'fn' || it.kind === 'method') && it.m!.complexity > COMPLEX) + it.kids.reduce((n, k) => n + k.complex, 0)
@@ -87,7 +101,7 @@ export const codeOf = (o?: MapBox) => (o?.content.type === 'code' ? o.content : 
 export function index(model: Review) {
   const items = new Map<string, Item>(), roots: Item[] = []
   const add = (it: Partial<Item> & Pick<Item, 'id' | 'kind' | 'name'>, parent?: Item) => {
-    const item: Item = { doc: '', status: 'same', diff: [], depth: parent ? parent.depth + 1 : 0, kids: [], ctx: true, loc: 0, complex: 0, parent, ...it }
+    const item: Item = { doc: '', status: 'same', diff: [], depth: parent ? parent.depth + 1 : 0, kids: [], ctx: true, loc: 0, diffCount: { added: 0, removed: 0 }, complex: 0, parent, ...it }
     items.set(item.id, item)
     ;(parent?.kids ?? roots).push(item)
     return item
@@ -118,5 +132,8 @@ export function index(model: Review) {
   for (const it of items.values()) if (it.name === 'README.md' && it.parent?.kind === 'folder' && it.labels?.kind) it.parent.labels = it.labels
   roots.forEach(r => measure(r))
   const all = roots.flatMap(subtree)
-  return { items, roots, all, order: all.filter(it => !it.ctx) }
+  const order = all.filter(it => !it.ctx)
+  /** The changes to step through, in review order: each added item whole, else changed items with nothing changed inside. */
+  const changes = order.filter(it => it.parent?.status !== 'added' && (it.status === 'added' || !it.kids.some(k => !k.ctx)))
+  return { items, roots, all, order, changes }
 }
