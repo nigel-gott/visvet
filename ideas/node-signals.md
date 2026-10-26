@@ -9,6 +9,11 @@ What a box tells you at a glance about its health, beyond its structure. A compl
 - **Hotspot:** complexity × churn, the classic "where the bugs are" signal (from *Your Code as a Crime Scene*, tool: code-maat). Hotspot with low coverage is the riskiest code there is.
 - **Dead code:** see below.
 - **Familiarity:** see [fog of war](fog-of-war.md).
+- **Change coupling:** boxes that always change in the same commits but have no arrow between them: a hidden dependency (code-maat's "temporal coupling"). Could be drawn as a dotted arrow.
+- **Knowledge at risk:** see [activity](activity.md).
+- **Smells you can count:** `unwrap`/`unsafe`/`any`, TODO and FIXME, how many members the outside uses (a wide public surface).
+- **From traces:** slow spans and hot paths, once [flows](flows.md) exist.
+- **External dependencies:** outdated versions or known vulnerabilities (`cargo audit`, `npm audit`).
 
 ## Dead code
 
@@ -29,6 +34,7 @@ The worry is real: jagged edges for one thing and animation for another would tu
 | Border colour | changed since the base |
 | Debuff icons | discrete facts (complex, long, untested) |
 | Edge fill | familiarity ([fog of war](fog-of-war.md)) |
+| Avatars in the corner | people ([activity](activity.md)) |
 
 Free ones, and a suggested use:
 

@@ -17,5 +17,8 @@ Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 - [Behaviour dimension](behaviour-dimension.md): the system as black boxes and what they do, taken from the tests.
 - [Flows](flows.md): highlighted paths through the code, derived from tests or tracing.
 - [Architecture dimension](architecture-dimension.md): services, containers, people and teams, C4-style.
+- [Questions](questions.md): the AI asks, in threads and tours: option lists and mini conversations.
+- [AI helpers](ai-helpers.md): an orchestrator with sub-agents, and a cheap background model.
+- [Activity](activity.md): who's working on what: agents, open PRs and ownership, as avatars.
 - [Fog of war](fog-of-war.md): the map shows where you haven't looked or understood, without a checklist.
 - [Node signals](node-signals.md): churn, hotspots, dead code, and which visual channel shows what.

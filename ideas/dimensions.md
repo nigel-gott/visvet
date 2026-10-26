@@ -7,6 +7,9 @@ Other dimensions show the same project another way, and you switch between them:
 - **[Data](data-dimension.md):** schemas, tables and data models, and how they relate.
 - **[Behaviour](behaviour-dimension.md):** what the system does, as black boxes and their behaviours, taken from the tests.
 - **[Architecture](architecture-dimension.md):** services, containers, people and teams (C4 levels 1 and 2).
+- **Time:** a slider through the git history; the map replays how the project grew, where change concentrated.
+- **Trust:** where untrusted input enters (HTTP, files, user text) and which [flows](flows.md) carry it to something risky (a shell, SQL, the file system).
+- **Dependencies:** the external crates and npm packages, their versions, licences and vulnerabilities.
 - More to find, e.g. the HTTP surface (see `issues/map-views/http-endpoints.md`).
 
 A dimension can be projected into another: in the code dimension, a database shows up as its migration files or ORM classes.
