@@ -24,7 +24,7 @@ button, input { font: inherit }
 input[type=search] { display: block; width: 100%; padding: 6px }
 label { display: inline-flex; align-items: center; gap: 4px }
 
-.app { height: 100vh; display: grid; grid-template: auto 1fr / 1fr }
+.app { height: 100vh; height: 100dvh; display: grid; grid-template: auto 1fr / 1fr }
 header { grid-area: 1 / 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel) }
 .steps { display: flex; gap: 4px }
 .steps button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 18px; line-height: 1; cursor: pointer }
