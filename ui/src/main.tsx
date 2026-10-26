@@ -277,12 +277,20 @@ function App() {
   /**
    * Moves to a tour step one zoom level at a time, each a continuous zoom (see nestedZoom.tsx); the last view opens
    * with the step's boxes already open, so nothing jumps on arrival. Then the camera glides to the step's box.
+   * With "you drive" chosen, the user makes the moves instead, or with `jump`, the step's view opens at once.
    */
-  const showStep = async (place: TourPlace | null) => {
+  const showStep = async (place: TourPlace | null, jump = false) => {
     const trip = ++journey.current
     const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
     if (!step) { setTour(place); setHeading(null); return setRoute(null) }
     const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
+    if (moves.byHand && jump) {
+      // Skipping through the tour: straight to the step's view, opened and framed, with no journey.
+      setRoute(null)
+      setHeading(null)
+      setTour(place)
+      return showBox(step.target, step.view)
+    }
     if (moves.byHand) {
       // The user makes the moves, following the cues (see `guide`); the step opens, bubble and all, once they reach it.
       // Until then the boxes the step left open close again.

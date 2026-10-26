@@ -108,7 +108,7 @@ function useArrowKeys() {
       const to = playing.number + (by ?? 0)
       if (typing || !by || to < 0 || to >= playing.tour.steps.length) return
       e.preventDefault()
-      x.showStep({ file: playing.tour.file, step: to })
+      x.showStep({ file: playing.tour.file, step: to }, true)
     }
     addEventListener('keydown', press)
     return () => removeEventListener('keydown', press)
@@ -147,7 +147,8 @@ export function TourBar() {
   useArrowKeys()
   useEffect(() => { if (playing) rememberStep(playing.tour.file, playing.number) }, [playing?.tour.file, playing?.number])
   if (!x.model.tours.length) return null
-  const go = (file: string, step: number) => { setMenu(false); x.showStep({ file, step }) }
+  // With "you drive" chosen, these skip straight to the step; the bubble's Next leaves the moves to the user.
+  const go = (file: string, step: number) => { setMenu(false); x.showStep({ file, step }, true) }
   if (!playing) return (
     <div className="tour-bar" ref={bar}>
       <button className="tour-open" title="Take a guided tour of the code" onClick={() => setMenu(!menu)}>🧭 Tours ▾</button>

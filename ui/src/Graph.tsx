@@ -288,8 +288,8 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const framing = hit && Math.max(Math.min((r.width - 2 * GUTTER) / hit.width, (r.height - PANEL_CLEARANCE - GUTTER) / hit.height, closest), fit.zoom)
     // Within the view (a tour step's journey has just landed on its fit, or its box opened or closed), the camera
     // closes in on the box and its bubble, as near as shows them whole. Opening a view on a box centres it at full
-    // size, unless the user drives, and the view opens on its fit.
-    const middle = hit && same ? centredAt(framing!) : hit && !moves.byHand ? centredAt(1) : undefined
+    // size; with "you drive", where that is a jump straight to a tour step, it frames the step the same way.
+    const middle = hit && (same || moves.byHand) ? centredAt(framing!) : hit ? centredAt(1) : undefined
     const target = shows ? vp : middle ?? fit
     const from = anchor.box
     anchor.box = null

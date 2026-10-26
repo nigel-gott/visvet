@@ -27,8 +27,8 @@ export type Ctx = {
   stepBox?: string
   /** The notes on the code of that step's box, which its code makes room for. */
   stepNotes: CodeNote[]
-  /** Shows a tour's step, zooming into its box; null leaves the tour. */
-  showStep: (place: TourPlace | null) => void
+  /** Shows a tour's step, zooming into its box; null leaves the tour. With "you drive", `jump` goes straight there. */
+  showStep: (place: TourPlace | null, jump?: boolean) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
   scope: string | null
   zoom: (id: string | null) => void
