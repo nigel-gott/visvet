@@ -3,7 +3,7 @@ mod watch;
 use crate::state::visvet_dir::HandOff;
 use watch::RepoEvent;
 use crate::review::{build_review, coverage};
-use crate::state::store;
+use crate::state::{renames, store};
 use crate::{types::{Author, MapId, Review, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
@@ -91,6 +91,7 @@ async fn check_host(State(app): State<App>, req: Request, next: Next) -> Respons
 async fn model(State(app): State<App>) -> Res<Json<Review>> {
     let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {
         let mut m = build_review(&app.repo_root, &app.base)?;
+        renames::follow(&app.repo_root, &m)?;
         m.annotations = store::load(&app.repo_root)?;
         coverage::add(&app.repo_root, &mut m);
         Ok(m)

@@ -39,6 +39,11 @@ impl VisvetDir {
         self.0.join("threads")
     }
 
+    /// What each thread's box looked like, so the thread can follow it when it's renamed (see `renames`).
+    pub fn anchors(&self) -> PathBuf {
+        self.0.join("anchors")
+    }
+
     /// The file for hand-off `h`.
     pub fn hand_off(&self, h: HandOff) -> PathBuf {
         self.0.join(match h { HandOff::View => "view.json", HandOff::Show => "show.json" })

@@ -197,6 +197,16 @@ pub fn reply(repo_root: &Path, id: ThreadId, author: Author, text: String, state
     })
 }
 
+/// Moves each thread in `moves` onto its new box.
+pub fn move_threads(repo_root: &Path, moves: Vec<(ThreadId, MapId)>) -> Result<()> {
+    update(repo_root, |s| {
+        for (id, target) in moves {
+            s.threads.iter_mut().filter(|t| t.id == id).for_each(|t| t.target = target.clone());
+        }
+        Ok(())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
