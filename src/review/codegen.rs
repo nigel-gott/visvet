@@ -2,6 +2,7 @@
 //! manifest to its lock file, which parsing alone can't see. To support another generator, write a detector like
 //! `ts_rs` and add it to `DETECTORS`, or add a manifest to `LOCK_FILES`.
 use crate::review::parse::join;
+use crate::types::RepoPath;
 use std::path::Path;
 
 /// Given a type's file and its source text (attributes included), the repo file a code generator writes a type of
@@ -26,11 +27,10 @@ const LOCK_FILES: &[(&str, &[&str])] = &[
 ];
 
 /// The lock files a package manager may write from manifest `file`, in its folder. The caller keeps those that exist.
-pub fn lock_files(file: &str) -> Vec<String> {
-    let path = Path::new(file);
-    let (name, dir) = (path.file_name().unwrap_or_default(), path.parent().unwrap_or(Path::new("")));
+pub fn lock_files(file: &RepoPath) -> Vec<RepoPath> {
+    let (name, dir) = (file.0.file_name().unwrap_or_default(), file.0.parent().unwrap_or(Path::new("")));
     LOCK_FILES.iter().filter(|(manifest, _)| name == *manifest).flat_map(|(_, locks)| locks.iter())
-        .map(|lock| join(dir, lock).to_string()).collect()
+        .map(|lock| join(dir, lock)).collect()
 }
 
 /// ts-rs: `#[ts(export, export_to = "../ui/src/contract.ts")]` on a Rust type writes a TypeScript copy of it to
@@ -55,8 +55,9 @@ mod tests {
 
     #[test]
     fn manifest_points_at_its_lock_files() {
-        assert_eq!(lock_files("Cargo.toml"), ["Cargo.lock"]);
-        assert_eq!(lock_files("ui/package.json"), ["ui/package-lock.json", "ui/yarn.lock", "ui/pnpm-lock.yaml"]);
-        assert!(lock_files("src/main.rs").is_empty());
+        let locks = |file: &str| lock_files(&RepoPath(file.into())).iter().map(|p| p.to_string()).collect::<Vec<_>>();
+        assert_eq!(locks("Cargo.toml"), ["Cargo.lock"]);
+        assert_eq!(locks("ui/package.json"), ["ui/package-lock.json", "ui/yarn.lock", "ui/pnpm-lock.yaml"]);
+        assert!(locks("src/main.rs").is_empty());
     }
 }

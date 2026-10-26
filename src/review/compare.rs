@@ -83,7 +83,7 @@ fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, br
     };
     let mut generates: Vec<String> = codegen::targets(file.as_str(), &x.text).into_iter().map(|f| format!("{f}::{}", x.name)).collect();
     if x.kind == BoxKind::File {
-        generates.extend(codegen::lock_files(file.as_str()));
+        generates.extend(codegen::lock_files(file).iter().map(RepoPath::to_string));
     }
     let links = if md { markdown::links(file.as_str(), &x.text) } else { vec![] };
     Parsed { map_box, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates, links }
