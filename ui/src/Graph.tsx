@@ -263,7 +263,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     // Where arrows attach (mid left in, mid right out), given up front so a box being dragged keeps its arrows.
     const handles = [{ type: 'target' as const, position: Position.Left, x: 0, y: n.height! / 2, width: 1, height: 1 },
       { type: 'source' as const, position: Position.Right, x: n.width!, y: n.height! / 2, width: 1, height: 1 }]
-    const node = { ...n, position, extent, handles, draggable: n.id !== x.scope, dragHandle: '.hdr', type: 'card', className: x.hl.has(n.id) ? 'hl' : undefined, data }
+    const node = { ...n, position, extent, handles, draggable: n.id !== x.scope, dragHandle: '.hdr', type: 'card', className: x.hl.has(n.id) && n.id !== x.scope ? 'hl' : undefined, data }
     made.current.boxes.set(n.id, { key, node })
     return node
   })
