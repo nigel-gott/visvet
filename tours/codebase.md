@@ -207,8 +207,8 @@ A real operating-system thread, not an async task: it spends its life waiting fo
 `src/git.rs::GitRepo` is how visvet reads the repository: through git2, Rust bindings to libgit2, the C library many git tools are built on. It answers in types (trees, blobs, statuses), so visvet never runs the `git` program or parses its text.
 route: Over to src/git.rs: building a review starts by asking git which files there are.
 
-### `pub struct GitRepo(Repository);`
-A struct with one unnamed field: git2's `Repository`, opened once per review and asked every question, instead of opening it again for each.
+### `repo: Repository,`
+The one field: git2's `Repository`, opened once per review and asked every question, instead of opening it again for each. Methods reach it as `self.repo`.
 
 ### `options.include_untracked(true).recurse_untracked_dirs(true).include_ignored(false);`
 A builder: each setting returns the options again, so they chain. `StatusOptions::new()` above uses `::` because `new` belongs to the type, like a static method; these use `.` because they work on a value.

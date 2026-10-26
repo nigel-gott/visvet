@@ -18,31 +18,33 @@ pub fn user_name(repo_root: &Path) -> Option<String> {
 }
 
 /// A repository opened once, to answer every question one review asks of it.
-pub struct GitRepo(Repository);
+pub struct GitRepo {
+    repo: Repository,
+}
 
 impl GitRepo {
     /// The repository whose top folder is `repo_root`.
     pub fn open(repo_root: &Path) -> anyhow::Result<Self> {
-        Ok(Self(Repository::open(repo_root)?))
+        Ok(Self { repo: Repository::open(repo_root)? })
     }
 
     /// Tracked files and untracked files that aren't ignored, which exist on disk.
     pub fn current_files(&self) -> anyhow::Result<Vec<RepoPath>> {
-        let tracked = self.0.index()?.iter().filter_map(|entry| repo_path(&entry.path)).collect::<Vec<_>>();
+        let tracked = self.repo.index()?.iter().filter_map(|entry| repo_path(&entry.path)).collect::<Vec<_>>();
         let mut options = StatusOptions::new();
         options.include_untracked(true).recurse_untracked_dirs(true).include_ignored(false);
-        let statuses = self.0.statuses(Some(&mut options))?;
+        let statuses = self.repo.statuses(Some(&mut options))?;
         let untracked = statuses.iter().filter(|entry| entry.status().contains(Status::WT_NEW)).filter_map(|entry| repo_path(entry.path_bytes()));
-        let top = self.0.workdir().unwrap_or(Path::new(""));
+        let top = self.repo.workdir().unwrap_or(Path::new(""));
         Ok(tracked.into_iter().chain(untracked).filter(|file| top.join(&file.0).is_file()).collect())
     }
 
     /// The files at git ref `base`; none when the repository has no commits yet, an error when only `base` is unknown.
     pub fn base_files(&self, base: &str) -> anyhow::Result<Vec<RepoPath>> {
-        if self.0.is_empty()? {
+        if self.repo.is_empty()? {
             return Ok(vec![]);
         }
-        let tree = self.0.revparse_single(base)?.peel_to_tree()?;
+        let tree = self.repo.revparse_single(base)?.peel_to_tree()?;
         let mut files = vec![];
         tree.walk(TreeWalkMode::PreOrder, |folder, entry| {
             if entry.kind() == Some(ObjectType::Blob) && let Ok(name) = entry.name() {
@@ -55,15 +57,15 @@ impl GitRepo {
 
     /// The files whose working-tree content differs from git ref `base`; none when that can't be worked out.
     pub fn changed(&self, base: &str) -> Option<Vec<RepoPath>> {
-        let tree = self.0.revparse_single(base).ok()?.peel_to_tree().ok()?;
-        let diff = self.0.diff_tree_to_workdir_with_index(Some(&tree), Some(&mut DiffOptions::new())).ok()?;
+        let tree = self.repo.revparse_single(base).ok()?.peel_to_tree().ok()?;
+        let diff = self.repo.diff_tree_to_workdir_with_index(Some(&tree), Some(&mut DiffOptions::new())).ok()?;
         Some(diff.deltas().filter_map(|delta| delta.new_file().path().or(delta.old_file().path()).map(|path| RepoPath(path.into()))).collect())
     }
 
     /// The content of `file` at git ref `base`, if it was there.
     pub fn show(&self, base: &str, file: &RepoPath) -> Option<Vec<u8>> {
-        let tree = self.0.revparse_single(base).ok()?.peel_to_tree().ok()?;
-        let blob = tree.get_path(&file.0).ok()?.to_object(&self.0).ok()?.peel_to_blob().ok()?;
+        let tree = self.repo.revparse_single(base).ok()?.peel_to_tree().ok()?;
+        let blob = tree.get_path(&file.0).ok()?.to_object(&self.repo).ok()?.peel_to_blob().ok()?;
         Some(blob.content().to_vec())
     }
 }
