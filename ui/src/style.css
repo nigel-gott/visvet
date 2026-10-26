@@ -156,7 +156,8 @@ main { grid-area: 2 / 1; min-height: 0 }
 .card .code .diff { margin: 0; border: 0; border-radius: 0; font: 12px/16px var(--mono) }
 .card .code .ln { padding: 0 8px 0 calc(8px + 5ch); text-indent: -5ch; white-space: pre-wrap; overflow-wrap: anywhere }
 /* Boxes new to the map fade in, so a zoomed box's insides appear rather than pop in. */
-.react-flow__node { animation: appear .4s ease-out }
+/* New boxes fade in quickly; slower, a change of view looked like the map vanishing. */
+.react-flow__node { animation: appear .15s ease-out }
 @keyframes appear { from { opacity: 0 } }
 /* On the map a thick outline in the status colour shows what changed, so the +/~/- mark is left out; More/Less expands. */
 .card .mk { display: none }

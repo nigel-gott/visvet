@@ -16,5 +16,6 @@ Hubs, one per theme:
 - [Guided reading](guided-reading/README.md): tours, views and learning, so you're never dropped at a random box.
 - [AI in visvet](ai/README.md): more agents, a cheap model, voice, and using the Claude apps.
 - [Extending visvet](extending/README.md): new languages, plugins, widgets and things added to the map.
+- [One canvas](canvas/README.md): the map laid out once, so zooming only moves the camera and nothing jumps.
 
 Two notes cut across all of them: [methodology](methodology.md), visvet as a way to build projects, and [extracted, not drawn](extracted-not-drawn.md), the rule that the map comes from tools.
