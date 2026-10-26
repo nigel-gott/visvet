@@ -8,7 +8,7 @@ Why not artifacts: claude.ai refuses to be framed, see [Claude integration](clau
 
 - **A widget is a folder of HTML/JS**, written by the AI or a person. Shared ones are committed in `.visvet/widgets/`; private ones stay out of git.
 - **A box kind.** The map already has kinds of box content (code, doc, plain file). A widget is one more. Its threads, selection and arrows work like any box.
-- **Placed by an [overlay](overlays.md) or tour,** next to the box it's about, or as that box's body (a UI component showing itself live, see [live components](live-components.md)). The plain map stays clean: no widgets unless a layer adds them.
+- **First-class on the map,** like any [added content](added-content.md): an agent adds a widget box where it helps, next to the box it's about, or as that box's body (a UI component showing itself live, see [live components](live-components.md)). Tours can add widgets for one step.
 - **Built-in kinds** for the common cases: image, video, audio, Markdown, an artifact's HTML.
 
 ## The widget API
@@ -25,7 +25,7 @@ Copy the shape of the artifact runtime (`claude.use("db")` etc.): then a page wr
 
 ## Hard parts
 
-- **Security:** widgets are code the AI wrote, running beside your review. Each runs in a sandboxed iframe on a separate origin, with no access to the visvet page or its API except through the SDK.
+- **Security:** not a concern while visvet is for personal use: the agent can already edit the code. Each widget still runs in its own iframe, so its styles and crashes can't break the map.
 - **Speed:** many live iframes are heavy. Only widgets on screen and big enough run; the rest show a snapshot.
 - **Drift:** a widget about a box can lose it when code moves, like stranded notes today. Same anchoring rules as threads.
 

@@ -9,7 +9,7 @@ The core feature this needs: an annotation on a **span of code** inside an open 
 - A syntax feature is highlighted (`?`, `impl Trait`, a lifetime, `useEffect`). Clicking it opens a small window inline.
 - The window holds a note from the AI ("why it's done this way here"), and/or an excerpt of the official docs: the Rust Book, Rust by Example, std docs, React docs, with a link to the full page.
 - Many doc sites refuse to be embedded in a frame, so fetch and show the relevant section, rather than embed the site.
-- Same anchoring as threads and [overlays](overlays.md), so the tour survives small edits.
+- Same anchoring as threads and [added content](added-content.md), so the tour survives small edits.
 
 ## Koans
 

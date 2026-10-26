@@ -34,7 +34,7 @@ Keeping annotations honest, since they can drift from the code:
 
 - **Notation:** the standard statechart (UML / Harel, as XState draws it): rounded boxes for states, arrows labelled `event [guard] / action`, nested states, parallel regions.
 - **Machines together:** one level up, machines are boxes and the arrows are the events one machine sends to another (a thread resolved → the stop hook has nothing to hand over). Same boxes-and-arrows as the code map; zoom into a machine to see its states.
-- **In the code dimension:** not the diagram. Instead, select a machine and its transition sites light up across the code map, as an [overlay](overlays.md). This answers "where does this behaviour live?", which is the question that's hard today. Maybe a small tag on boxes that take part in a machine.
+- **In the code dimension:** not the diagram. Instead, select a machine and its transition sites light up across the code map. This answers "where does this behaviour live?", which is the question that's hard today. Maybe a small tag on boxes that take part in a machine.
 
 ## Possible first step
 

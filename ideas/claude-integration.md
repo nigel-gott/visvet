@@ -35,4 +35,4 @@ An artifact is just an HTML page the AI wrote, and visvet has the source (the fi
 
 This also starts the bigger direction: the AI customising visvet itself, e.g. a tour step that is a small working app inside a box. Artifacts are the bridge; a canvas-like layer of visvet's own may come later.
 
-[Overlays](overlays.md) stay in visvet, because they move the live map; artifacts are for content that stands on its own.
+[Widgets](widgets.md) are how visvet shows an artifact's HTML inside the map.
