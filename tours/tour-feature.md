@@ -5,9 +5,13 @@ description: A review of the tours work by touring it: syntax colours, tour file
 # The tour feature
 
 ## Tour files
-A tour is a Markdown file in `tours/README.md`'s folder. This very file is one: each `##` heading is a step, the first name in backticks is the box it shows, and `###` headings with code in backticks are notes on pieces of that code.
+This step shows the tour you're taking, `tours/tour-feature.md`: a tour is a Markdown file in the `tours` folder. Plain Markdown means a tour is reviewed like any other file, and each box it names gets a "links" arrow on the map.
 
-Plain Markdown means a tour is reviewed like any other file, and each box it names gets a "links" arrow on the map.
+### `kind: tour`
+The front matter says this file is a tour. `description:` says what it is for.
+
+### `## Tour files`
+Each `##` heading is a step: this one. The first name in backticks in its text is the box the step shows, and `###` headings like the one above this note are notes on pieces of that box's code. `tours/README.md` explains the format in full.
 
 ## What a tour is, as data
 `src/types/tours.rs::Tour` is the shape the server sends the UI. Every type in `src/types/` is part of the "contract": ts-rs writes a TypeScript copy of each into `ui/src/contract.ts`, so both sides agree.
