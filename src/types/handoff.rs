@@ -1,14 +1,7 @@
 //! The hand-offs between the UI and the AI: what the user is looking at, and where the AI sends them.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-
-/// Anything on the map the user can select or zoom into: a box id (see `BoxId`), a folder ending in "/"
-/// (e.g. "src/types/"), or an arrow "<from> -> <to>".
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
-#[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct MapId(pub String);
-
-string_methods!(MapId);
+use super::MapId;
 
 /// What the user is looking at in the UI. The UI posts it on every change; `visvet view` prints it.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]

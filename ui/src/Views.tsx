@@ -1,61 +1,32 @@
-// The outline and detail views, and the context they read.
+// The outline and detail views.
 
 import { Debuffs } from './Debuffs'
-import { createContext, Fragment, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { post, subtree, within, type DiffLine, type Index, type Item, type ChangeStatus, type Review, type Thread } from './model'
-
-/** What every view reads: the model, the item index, the selection, navigation and review state. */
-export type Ctx = {
-  model: Review; ix: Index; notes: Map<string, string>; sel: string | null
-  /** The comment threads between the user and the AI. */
-  threads: Thread[]
-  /** Boxes and arrows highlighted by `visvet show`; cleared by the next selection or Back. */
-  hl: Set<string>
-  /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
-  select: (id: string, replace?: boolean) => void
-  focus: (id: string, replace?: boolean) => void
-  /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
-  scope: string | null
-  zoom: (id: string | null) => void
-  /** Map boxes expanded in place to show their members and code (cleared when the view changes); `expand` flips one. */
-  expanded: Set<string>
-  expand: (id: string) => void
-  /** How deep the unzoomed map shows boxes, from 0 (only the top folders and files). The outline opens to the same depth. */
-  level: number
-  setLevel: (level: number) => void
-  back: () => void
-  /** The debuff whose details show beside the selected box, if one was clicked; `showDetail` sets or clears it. */
-  detail: { id: string; kind: string } | null
-  showDetail: (id: string, kind: string | null) => void
-  /** A comment being typed on the selected box: typing with a box selected starts one. */
-  draft: { target: string; text: string } | null
-  setDraft: (draft: { target: string; text: string } | null) => void
-  /** Whether the drawer shows the inbox of unresolved threads instead of the selected box. */
-  inbox: boolean
-  setInbox: (open: boolean) => void
-  /** Whether the drawer shows the selected box's whole conversation; otherwise a bubble shows only its latest message. */
-  full: boolean
-  setFull: (target: string | null) => void
-}
-export const X = createContext<Ctx>(null!)
+import { X, type Ctx } from './context'
+import { Fragment, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { within, type DiffLine, type Item, type ChangeStatus } from './model'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
-/** An item's status mark, kind badge (a coloured symbol, plus the kind's name for anything but a member) and name. */
+/**
+ * An item's status mark, kind badge (a coloured symbol, plus the kind's name for anything but a member), name, and
+ * for a labelled Markdown file, its status. A Markdown file's labelled kind (issue, milestone, idea or hub) replaces "file".
+ */
 export function Head({ it }: { it: Item }) {
   const x = useContext(X)
+  const kind = it.labels?.kind ?? it.kind
   return (
     <>
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
-      <span className={'badge k-' + it.kind} title={it.kind}>{!it.m && it.kind}</span>
+      <span className={'badge k-' + kind} title={kind}>{!it.m && kind}</span>
       <span className={'name ' + it.status}>{it.m?.signature ?? it.name}</span>
+      {it.labels?.status && <span className={'tag ' + it.labels.status} title="status">{it.labels.status}</span>}
       <Debuffs it={it} />
     </>
   )
 }
 
 
-/** An item's doc line. The AI's note on it shows in the side drawer, with its threads. */
+/** An item's doc line. The AI's note on it is a message in its thread, in the side drawer. */
 export function Notes({ it }: { it: Item }) {
   return it.doc && <div className="doc">{it.doc}</div>
 }
@@ -77,10 +48,10 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
 
 const FILTERS: [string, (it: Item, x: Ctx) => boolean][] = [
   ['All', () => true],
-  ['Has AI notes', (it, x) => x.notes.has(it.id)],
+  ['Has threads', (it, x) => x.threads.some(t => t.target === it.id)],
 ]
 
-/** The review outline: search, filters and the folder → file → unit → member tree. */
+/** The review outline: search, filters and the folder → file → box → member tree. */
 export function Outline() {
   const x = useContext(X)
   const [q, setQ] = useState('')
@@ -123,12 +94,14 @@ export function Outline() {
 /** An item's or edge end's display name. */
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 
-/** The diff; runs of more than 8 unchanged lines fold into one row until clicked. */
+/** The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. */
 export function DiffView({ diff }: { diff: DiffLine[] }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
+  // Long unchanged runs fold only around a change; unchanged code shows whole.
+  const changed = diff.some(l => l.kind !== 'ctx')
   const runs: { start: number; lines: DiffLine[] }[] = []
   diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
-  const rows = runs.flatMap(({ start, lines }) => lines.length > 8 && !unfolded.has(start)
+  const rows = runs.flatMap(({ start, lines }) => changed && lines.length > 8 && !unfolded.has(start)
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
     : lines.map((l, k) => <div key={start + k} className={'ln ' + l.kind}><span className="no">{l.line}</span>{l.text}</div>))
   return <div className="diff">{rows}</div>
@@ -186,7 +159,6 @@ export function Detail({ id }: { id: string }) {
       <div className="body">
         {crumbs.length > 0 && <nav className="crumbs">{crumbs.map(c => <a key={c.id} onClick={() => x.focus(c.id)}>{c.name}</a>)}</nav>}
         {it?.doc && <p className="desc">{it.doc}</p>}
-        {x.notes.has(id) && <p className="why">AI: {x.notes.get(id)}</p>}
         <Related id={id} it={it} />
         {it && it.kind !== 'folder' && (diff.length === 0 ? <p>no text content</p> : <DiffView diff={diff} />)}
       </div>

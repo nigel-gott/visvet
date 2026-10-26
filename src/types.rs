@@ -3,7 +3,7 @@
 //! `cargo test` regenerates the UI's copy, ui/src/contract.ts, from these types with ts-rs.
 
 /// Gives micro types `.as_str()` and printing. A micro type is a one-field string wrapper with one meaning, such as
-/// `FilePath`, that Rust won't let you mix up with other strings; in JSON and in the UI it is a plain string.
+/// `BoxId`, that Rust won't let you mix up with other strings; in JSON and in the UI it is a plain string.
 /// Each is declared as a plain struct, so visvet's map can see it; only these two helpers are generated.
 macro_rules! string_methods {
     ($($name:ident),*) => {$(
@@ -18,10 +18,18 @@ macro_rules! string_methods {
 }
 
 mod annotations;
-mod code;
+mod boxes;
+mod changes;
+mod dependencies;
+mod docs;
 mod handoff;
+mod ids;
 mod review;
 pub use annotations::*;
-pub use code::*;
+pub use boxes::*;
+pub use changes::*;
+pub use dependencies::*;
+pub use docs::*;
 pub use handoff::*;
+pub use ids::*;
 pub use review::*;

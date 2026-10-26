@@ -1,13 +1,17 @@
 // Comment threads between the user and the AI: a chip on each box, a panel on the selected box, counts in the top bar.
 
 import { Fragment, useContext, useEffect, useRef, useState } from 'react'
-import { post, type Item, type Thread, type ThreadState } from './model'
+import { flushSync } from 'react-dom'
+import { post, type Index, type Item, type Thread, type ThreadMessage, type ThreadState } from './model'
 import { DebuffDetail } from './Debuffs'
-import { X, type Ctx } from './Views'
+import { X, type Ctx } from './context'
 
 /** The threads on box `id` or anything inside it (a folder id ends in "/"). */
 export const threadsIn = (id: string, threads: Thread[]) =>
   threads.filter(t => t.target === id || t.target.startsWith(id.endsWith('/') ? id : id + '::'))
+
+/** Whether a thread holds only the AI's note, so it has nothing to answer or resolve. */
+const onlyNotes = (t: Thread) => t.messages.every(m => m.kind === 'note')
 
 /** Which state matters most when several threads share a chip: the user's attention first, then the AI's. */
 const URGENCY: ThreadState[] = ['question', 'open', 'working', 'resolved']
@@ -18,7 +22,8 @@ export function ThreadChip({ it }: { it: Item }) {
   const x = useContext(X)
   const ts = threadsIn(it.id, x.threads)
   const live = ts.filter(t => t.state !== 'resolved')
-  if (!ts.length) return x.notes.has(it.id) && <span className="talk note" title={x.notes.get(it.id)}>📝</span>
+  if (!ts.length) return null
+  if (ts.every(onlyNotes)) return <span className="talk note" title={ts[0].messages[0].text}>📝</span>
   const last = live.at(-1)?.messages.at(-1)
   return <span className={'talk ' + urgent(live.length ? live : ts)} title={last ? last.text : `${ts.length} resolved`}>💬 {live.length || '✓'}</span>
 }
@@ -30,7 +35,8 @@ export function ThreadChip({ it }: { it: Item }) {
 function Say({ text: start, focus, placeholder, send, done }: { text: string; focus: boolean; placeholder: string; send: (text: string) => Promise<unknown>; done: () => void }) {
   const [text, setText] = useState(start)
   const ref = useRef<HTMLTextAreaElement>(null)
-  useEffect(() => { if (focus) ref.current?.focus({ preventScroll: true }) }, [])
+  // Focus with the caret after the typed text, so typing carries on after the first character.
+  useEffect(() => { const el = ref.current; if (focus && el) { el.focus({ preventScroll: true }); el.setSelectionRange(start.length, start.length) } }, [])
   // Grow to fit the text (CSS caps it), so a long comment wraps instead of running off the side.
   useEffect(() => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }, [text])
   const submit = () => text.trim() && send(text.trim()).then(() => { setText(''); done() }, alert)
@@ -62,6 +68,8 @@ function Rich({ text }: { text: string }) {
 
 /** Who wrote a message, as a chat avatar. */
 const AVATAR = { user: '🧑', ai: '🤖' }
+/** A message's avatar: 📝 for the AI's note, otherwise who wrote it. */
+const avatar = (m: ThreadMessage) => (m.kind === 'note' ? '📝' : AVATAR[m.author])
 /** Each thread state, as a short line under the thread. */
 const LABEL: Record<ThreadState, string> = { open: 'waiting for Claude', working: 'Claude is on it', question: 'waiting for you', resolved: '✓ resolved' }
 
@@ -73,7 +81,20 @@ function sender(x: Ctx, target: string) {
 }
 
 /**
- * A small bubble over the map's corner with the selected box's latest message (or the AI's note); clicking it opens the
+ * A button that starts a comment on box `target`, for touch screens with no keyboard to type into the map. The field
+ * is focused within the tap itself, so a phone opens its keyboard.
+ */
+export function StartComment({ target, label }: { target: string; label: string }) {
+  const x = useContext(X)
+  const start = () => {
+    flushSync(() => x.setDraft({ target, text: '' }))
+    document.querySelector<HTMLTextAreaElement>('textarea.say')?.focus()
+  }
+  return <button className="start-comment" onClick={e => { e.stopPropagation(); start() }}>💬 {label}</button>
+}
+
+/**
+ * A small bubble over the map's corner with the selected box's latest message; clicking it opens the
  * whole conversation in the drawer. Typing with the box selected replies under it.
  */
 export function Peek({ target }: { target: string }) {
@@ -81,25 +102,24 @@ export function Peek({ target }: { target: string }) {
   const { live, send } = sender(x, target)
   const last = x.threads.filter(t => t.target === target).at(-1)
   const m = last?.messages.at(-1)
-  const note = x.notes.get(target)
   return (
     <div className="peek threads" onClick={e => e.stopPropagation()}>
-      {(m || note) && (
-        <div className={'msg ' + (m?.author ?? 'ai note')} title="Show the whole thread" onClick={() => x.setFull(target)}>
-          <span className="avatar">{m ? AVATAR[m.author] : '📝'}</span><div className="bubble"><Rich text={m?.text ?? note!} /></div>
+      {m && (
+        <div className={`msg ${m.author} ${m.kind}`} title="Show the whole thread" onClick={() => x.setFull(target)}>
+          <span className="avatar">{avatar(m)}</span><div className="bubble"><Rich text={m.text} /></div>
         </div>
       )}
-      {last && <div className="state">{LABEL[last.state]}</div>}
-      {x.draft && <Say text={x.draft.text} focus placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} />}
+      {last && !onlyNotes(last) && <div className="state">{LABEL[last.state]}</div>}
+      {x.draft ? <Say text={x.draft.text} focus placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} /> : <StartComment target={target} label={live ? 'Reply' : 'Comment'} />}
     </div>
   )
 }
 
-/** Whether the selected box `target` has anything for the side drawer: threads, the AI's note, a clicked debuff, or a comment being typed. */
-export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target === target) || x.notes.has(target) || !!x.detail || !!x.draft
+/** Whether the selected box `target` has anything for the side drawer: threads, a clicked debuff, or a comment being typed. */
+export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target === target) || !!x.detail || !!x.draft
 
 /**
- * The side drawer for the selected box: a clicked debuff's details, the AI's note on it, then its conversation with the AI like a chat (the
+ * The side drawer for the selected box: a clicked debuff's details, then its conversation with the AI like a chat (the
  * user right, the AI left, an avatar on the last message of a run), then the comment being typed. Typing continues
  * the current thread, or starts one if none is open.
  */
@@ -107,30 +127,36 @@ export function ThreadPanel({ target }: { target: string }) {
   const x = useContext(X)
   const ts = x.threads.filter(t => t.target === target)
   const { live, send } = sender(x, target)
-  const note = x.notes.get(target)
   const ref = useRef<HTMLDivElement>(null)
   const said = ts.reduce((n, t) => n + t.messages.length, 0)
+  // What the user just sent, shown at once until the server's copy arrives (the message count goes up).
+  const [sent, setSent] = useState<{ text: string; said: number } | null>(null)
+  const pending = sent?.said === said ? sent.text : null
+  const say = (text: string) => { setSent({ text, said }); return send(text).catch(e => { setSent(null); throw e }) }
+  // While a thread waits for Claude, a typing bubble shows Claude is on it.
+  const typing = !!pending || ['open', 'working'].includes(ts.at(-1)?.state ?? '')
   // Opening a box's thread, or a new message on it, scrolls the drawer to the latest message.
-  useEffect(() => { ref.current?.parentElement?.scrollTo({ top: 1e9 }) }, [target, said])
+  useEffect(() => { ref.current?.parentElement?.scrollTo({ top: 1e9 }) }, [target, said, pending])
   return (
     <div ref={ref} className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
+      <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" title="Close" onClick={() => { x.setFull(null); x.showDetail(target, null) }}>✕</button></div>
       {x.detail && <DebuffDetail id={x.detail.id} kind={x.detail.kind} />}
-      {(ts.length > 0 || note) && <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" onClick={() => x.setFull(null)}>✕</button></div>}
-      {note && <div className="msg ai note"><span className="avatar">📝</span><div className="bubble"><Rich text={note} /></div></div>}
       {ts.map(t => (
         <div key={t.id} className={'thread ' + t.state}>
           {t.messages.map((m, i) => (
-            <div key={i} className={'msg ' + m.author}>
-              <span className="avatar">{t.messages[i + 1]?.author === m.author ? '' : AVATAR[m.author]}</span><div className="bubble"><Rich text={m.text} /></div>
+            <div key={i} className={`msg ${m.author} ${m.kind}`}>
+              <span className="avatar" title={m.name}>{t.messages[i + 1] && avatar(t.messages[i + 1]) === avatar(m) ? '' : avatar(m)}</span><div className="bubble"><Rich text={m.text} /></div>
             </div>
           ))}
-          <div className="state">{LABEL[t.state]}
+          {!onlyNotes(t) && <div className="state">{LABEL[t.state]}
             {t.state === 'question' && <button title="No answer needed: resolves the thread" onClick={() => post(`/api/threads/${t.id}`, { text: '👍 Fine as is', resolve: true }).catch(alert)}>✓ Fine as is</button>}
-          </div>
+          </div>}
         </div>
       ))}
+      {pending && <div className="msg user sending"><span className="avatar">🧑</span><div className="bubble"><Rich text={pending} /></div></div>}
+      {typing && <div className="msg ai typing" title="Claude is on it"><span className="avatar">🤖</span><div className="bubble"><i /><i /><i /></div></div>}
       {/* Always there; typing anywhere with the box selected starts it (`draft`), remounting it with that text. */}
-      <Say key={x.draft ? 'draft' : 'idle'} text={x.draft?.text ?? ''} focus={!!x.draft} placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} />
+      <Say key={x.draft ? 'draft' : 'idle'} text={x.draft?.text ?? ''} focus={!!x.draft} placeholder={live ? 'Reply…' : 'Comment…'} send={say} done={() => x.setDraft(null)} />
     </div>
   )
 }
@@ -138,41 +164,66 @@ export function ThreadPanel({ target }: { target: string }) {
 /** How the top bar names each state, singular and plural. */
 const COUNT: Record<ThreadState, [string, string]> = { question: ['question for you', 'questions for you'], open: ['waiting for Claude', 'waiting for Claude'], working: ['in progress', 'in progress'], resolved: ['resolved', 'resolved'] }
 
-/** The unresolved threads, the ones waiting for the user first. */
-const unresolved = (threads: Thread[]) => threads.filter(t => t.state !== 'resolved').sort((a, b) => URGENCY.indexOf(a.state) - URGENCY.indexOf(b.state))
+/** When a thread last had a message. */
+const lastAt = (t: Thread) => t.messages.at(-1)?.at ?? 0
+/** The unresolved threads, the ones waiting for the user first, then the most recently active. */
+const unresolved = (threads: Thread[]) =>
+  threads.filter(t => t.state !== 'resolved').sort((a, b) => URGENCY.indexOf(a.state) - URGENCY.indexOf(b.state) || lastAt(b) - lastAt(a))
+/** The resolved conversations (not lone notes), most recently active first. */
+const resolved = (threads: Thread[]) => threads.filter(t => t.state === 'resolved' && !onlyNotes(t)).sort((a, b) => lastAt(b) - lastAt(a))
 
-/** The top bar's thread counts; clicking them opens the inbox in the drawer. */
+/** The top bar's thread counts, resolved ones included; clicking them opens the inbox in the drawer. */
 export function ThreadCounts() {
   const x = useContext(X)
-  const live = unresolved(x.threads)
-  if (!live.length) return null
+  const live = unresolved(x.threads), done = resolved(x.threads)
+  if (!live.length && !done.length) return null
   const counts = URGENCY.slice(0, 3).map(s => [s, live.filter(t => t.state === s).length] as const).filter(([, n]) => n)
   return (
-    <button className="counts" title="Show all open threads" onClick={() => x.setInbox(!x.inbox)}>
+    <button className="counts" title="Show all threads" onClick={() => x.setInbox(!x.inbox)}>
       {counts.map(([s, n]) => <span key={s} className={'talk ' + s}>{n} {COUNT[s][n === 1 ? 0 : 1]}</span>)}
+      {done.length > 0 && <span className="talk resolved">{done.length} resolved</span>}
     </button>
   )
 }
 
-/** Every unresolved thread: its box, state and last message. Clicking one shows its box among its siblings, with the whole thread open in the drawer. */
+/**
+ * The nearest box around `id` that still exists: its type, then its file, then its folders. For a thread whose box was
+ * renamed or removed, that's where the box was.
+ */
+function nearest(ix: Index, id: string) {
+  let at = id
+  while (at && !ix.items.has(at)) at = at.includes('::') ? at.slice(0, at.lastIndexOf('::')) : at.slice(0, at.lastIndexOf('/', at.length - 2) + 1)
+  return at || null
+}
+
+/**
+ * Every thread: open ones first, then resolved ones, each with its box, state and last message, most recently active
+ * first. Clicking one shows its box among its siblings, with the whole thread open in the drawer. If its box is gone
+ * (renamed or removed), it zooms into where the box was instead.
+ */
 export function Inbox() {
   const x = useContext(X)
   const go = (t: Thread) => {
-    const up = x.ix.items.get(t.target)?.parent?.id ?? null
+    const it = x.ix.items.get(t.target)
+    const up = it ? it.parent?.id ?? null : nearest(x.ix, t.target)
     if (up !== x.scope) x.zoom(up)
     x.select(t.target, true)
     x.setFull(t.target)
     x.setInbox(false)
   }
+  const row = (t: Thread) => (
+    <button key={t.id} className={'inbox thread ' + t.state} onClick={() => go(t)}>
+      <b>{x.ix.items.get(t.target)?.name ?? t.target}</b><span className="state">{LABEL[t.state]}</span>
+      <p>{t.messages.at(-1)?.text.replace(/\*\*|`/g, '')}</p>
+    </button>
+  )
+  const done = resolved(x.threads)
   return (
     <div className="threads">
-      <div className="who">Open threads<button className="close" onClick={() => x.setInbox(false)}>✕</button></div>
-      {unresolved(x.threads).map(t => (
-        <button key={t.id} className={'inbox thread ' + t.state} onClick={() => go(t)}>
-          <b>{x.ix.items.get(t.target)?.name ?? t.target}</b><span className="state">{LABEL[t.state]}</span>
-          <p>{t.messages.at(-1)?.text.replace(/\*\*|`/g, '')}</p>
-        </button>
-      ))}
+      <div className="who">Threads<button className="close" onClick={() => x.setInbox(false)}>✕</button></div>
+      {unresolved(x.threads).map(row)}
+      {done.length > 0 && <div className="who">Resolved</div>}
+      {done.map(row)}
     </div>
   )
 }

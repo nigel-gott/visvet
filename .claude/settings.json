@@ -3,7 +3,7 @@
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "cd \"$CLAUDE_PROJECT_DIR\" && visvet view && visvet threads --all" }
+          { "type": "command", "command": "cd \"$CLAUDE_PROJECT_DIR\" && visvet view && visvet threads" }
         ]
       }
     ],

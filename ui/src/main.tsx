@@ -6,13 +6,11 @@ import { createRoot } from 'react-dom/client'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
-import { flip, getModel, index, reportView, type Item, type Review, type Show } from './model'
+import { flip, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph from './Graph'
-import { X, type Ctx } from './Views'
-import { hasPanel, Inbox, Peek, ThreadCounts, ThreadPanel } from './Threads'
+import { X, type Ctx } from './context'
+import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 
-/** Git's empty tree: comparing against it shows the whole project as the change under review. */
-const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 /** The selected symbol id from the URL hash, or null. */
 const hashSel = () => { try { return decodeURIComponent(location.hash.slice(1)) || null } catch { return null } }
@@ -21,6 +19,19 @@ if (location.hash && !history.state) {
   const { hash } = location
   history.replaceState(null, '', location.pathname)
   history.pushState({ scope: null, map: false }, '', hash)
+}
+
+/**
+ * Reloads the page if the server now serves a newer UI build (it restarts with every build, so this runs on each
+ * reconnect). Waits while a comment is being typed, so a reload never loses it; the URL keeps the place on the map.
+ */
+async function reloadIfRebuilt() {
+  const page = await fetch('/', { cache: 'no-store' }).then(r => r.text(), () => '')
+  const mine = document.querySelector('script[type=module][src]')?.getAttribute('src')
+  if (!page || !mine || page.includes(mine)) return
+  const typing = () => !!document.querySelector<HTMLTextAreaElement>('textarea.say')?.value.trim()
+  const reload = () => (typing() ? setTimeout(reload, 2000) : location.reload())
+  reload()
 }
 
 /** The review model, reloaded on every server change event, the last load error, and the last `visvet show` request. */
@@ -40,6 +51,7 @@ function useModel() {
     const connect = () => {
       events = new EventSource('/api/events')
       events.addEventListener('change', load)
+      events.onopen = reloadIfRebuilt
       events.addEventListener('show', e => setShow(JSON.parse(e.data)))
       events.onerror = () => { load(); if (events.readyState === EventSource.CLOSED) setTimeout(connect, 3000) }
     }
@@ -51,6 +63,9 @@ function useModel() {
 
 /** The current history entry's state: {scope, map, level, hl (highlighted ids), vp (map viewport), scroll (of the asides)}. */
 const entry = () => history.state ?? {}
+/** A history entry's map state, with defaults for an entry that has none: {scope, map, level, hl}. */
+const viewOf = (s: { scope?: string | null; map?: boolean; level?: number; hl?: string[] }) =>
+  ({ scope: s.scope ?? null, map: s.map ?? false, level: s.level ?? 0, hl: s.hl ?? [] })
 /** The outline's and detail's scroll offsets. */
 const scrolls = () => [...document.querySelectorAll('aside')].map(a => a.scrollTop)
 
@@ -60,19 +75,20 @@ const scrolls = () => [...document.querySelectorAll('aside')].map(a => a.scrollT
  */
 function useNav() {
   const { getViewport } = useReactFlow()
+  const start = viewOf(entry())
   const [sel, setSel] = useState(hashSel)
-  const [scope, setScope] = useState<string | null>(entry().scope ?? null)
-  const [map, setMap] = useState<boolean>(entry().map ?? false)
-  const [level, setLevel] = useState<number>(entry().level ?? 0)
-  const [hl, setHl] = useState<string[]>(entry().hl ?? [])
+  const [scope, setScope] = useState(start.scope)
+  const [map, setMap] = useState(start.map)
+  const [level, setLevel] = useState(start.level)
+  const [hl, setHl] = useState(start.hl)
   const [pop, setPop] = useState(0)
   const back = () => history.state && history.back()
   useEffect(() => {
     const ac = new AbortController()
     const opts = { signal: ac.signal }
     addEventListener('popstate', () => {
-      const s = entry()
-      setSel(hashSel()); setScope(s.scope ?? null); setMap(s.map ?? false); setLevel(s.level ?? 0); setHl(s.hl ?? []); setPop(p => p + 1)
+      const s = entry(), v = viewOf(s)
+      setSel(hashSel()); setScope(v.scope); setMap(v.map); setLevel(v.level); setHl(v.hl); setPop(p => p + 1)
       requestAnimationFrame(() => document.querySelectorAll('aside').forEach((a, i) => { a.scrollTop = s.scroll?.[i] ?? 0 }))
     }, opts)
     addEventListener('keydown', e => e.key === 'Escape' && !(e.target as Element).matches('input, textarea') && back(), opts)
@@ -130,10 +146,53 @@ function Header({ error }: { error?: string }) {
         {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
       </nav>
       <ThreadCounts />
-      <span className="vs">{x.model.compared_against === EMPTY_TREE ? 'whole project' : <>vs <code>{x.model.compared_against}</code></>}</span>
+      <span className="vs">vs <code>{x.model.compared_against}</code></span>
       {error && <span className="err">Refresh failed: {error}</span>}
     </header>
   )
+}
+
+/** Typing a character with a box selected (and no field focused) starts a comment on it with that character. */
+function useTypeToComment(sel: string | null, setDraft: Ctx['setDraft']) {
+  useEffect(() => {
+    const type = (e: KeyboardEvent) => {
+      if (!sel || e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1 || (e.target as Element).matches('input, textarea')) return
+      e.preventDefault()
+      setDraft({ target: sel, text: e.key })
+    }
+    addEventListener('keydown', type)
+    return () => removeEventListener('keydown', type)
+  }, [sel])
+}
+
+/** `visvet show`: zooms into the target's box (its parent's for a member or an arrow), opens it and highlights it. */
+function useShow(show: Show | undefined, ix: Index | undefined, open: (id: string, to: string | null, ids: string[]) => void) {
+  useEffect(() => {
+    const t = show?.target ?? ''
+    const it = ix?.items.get(t.split(' -> ')[0])
+    if (show && it) open(t, (it.kids.length && !t.includes(' -> ') ? it : it.parent)?.id ?? null, [t, ...show.highlight])
+  }, [show])
+}
+
+/** Opens a symbol and centres the map on it, or on its nearest box that the map shows. */
+function useFocus(ix: Index | undefined, select: Ctx['select']) {
+  const { getInternalNode, setCenter } = useReactFlow()
+  return (id: string, replace?: boolean) => {
+    select(id, replace)
+    let it = ix?.items.get(id)
+    while (it && !getInternalNode(it.id)) it = it.parent
+    const n = it && getInternalNode(it.id)
+    if (n) setCenter(n.internals.positionAbsolute.x + 160, n.internals.positionAbsolute.y + (n.height ?? 0) / 2, { zoom: 1, duration: 300 })
+  }
+}
+
+/** The side drawer: the inbox, or the selected box's thread in full, or as a bubble with only its latest message, or for a box with no thread a button to start one. */
+function Drawer() {
+  const x = useContext(X)
+  if (x.inbox) return <aside className="drawer"><Inbox /></aside>
+  if (!x.sel) return null
+  if (!hasPanel(x, x.sel)) return <div className="peek"><StartComment target={x.sel} label="Comment" /></div>
+  return x.full || x.detail ? <aside className="drawer"><ThreadPanel target={x.sel} /></aside> : <Peek target={x.sel} />
 }
 
 /**
@@ -148,42 +207,19 @@ function App() {
   const [wide, setWide] = useState({ view, ids: new Set<string>() })
   if (wide.view !== view) setWide({ view, ids: new Set() })
   const expanded = wide.ids
-  const { getInternalNode, setCenter } = useReactFlow()
   const ix = useMemo(() => model && index(model), [model])
   useEffect(() => reportView({ scope, level, selected: sel, highlight: hl }))
   const [detail, showDetail] = useState<{ id: string; kind: string } | null>(null)
   const [draft, setDraft] = useState<{ target: string; text: string } | null>(null)
   const [inbox, setInbox] = useState(false)
   const [full, setFull] = useState<string | null>(null)
-  // Typing a character with a box selected (and no field focused) starts a comment on it with that character.
-  useEffect(() => {
-    const type = (e: KeyboardEvent) => {
-      if (!sel || e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1 || (e.target as Element).matches('input, textarea')) return
-      e.preventDefault()
-      setDraft({ target: sel, text: e.key })
-    }
-    addEventListener('keydown', type)
-    return () => removeEventListener('keydown', type)
-  }, [sel])
-  // `visvet show`: zoom into the target's box (its parent's for a member or an arrow), open it and highlight it.
-  useEffect(() => {
-    const t = show?.target ?? ''
-    const it = ix?.items.get(t.split(' -> ')[0])
-    if (show && it) nav.show(t, (it.kids.length && !t.includes(' -> ') ? it : it.parent)?.id ?? null, [t, ...show.highlight])
-  }, [show])
+  useTypeToComment(sel, setDraft)
+  useShow(show, ix, nav.show)
+  const focus = useFocus(ix, select)
   if (!model || !ix) return error ? <p className="fatal">{error}</p> : null
-  /** Opens a symbol and centres the map on it, or on its nearest box that the map shows. */
-  const focus = (id: string, replace?: boolean) => {
-    select(id, replace)
-    let it = ix.items.get(id)
-    while (it && !getInternalNode(it.id)) it = it.parent
-    const n = it && getInternalNode(it.id)
-    if (n) setCenter(n.internals.positionAbsolute.x + 160, n.internals.positionAbsolute.y + (n.height ?? 0) / 2, { zoom: 1, duration: 300 })
-  }
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
-    notes: new Map(model.annotations.notes.map(n => [n.target, n.why])),
     threads: model.annotations.threads,
     detail: detail?.id === sel ? detail : null, showDetail: (id, kind) => showDetail(kind ? { id, kind } : null),
     draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox, full: full === sel, setFull,
@@ -193,7 +229,7 @@ function App() {
       <div className="app">
         <Header error={error} />
         <main><Graph visible pop={pop} /></main>
-        {inbox ? <aside className="drawer"><Inbox /></aside> : sel && hasPanel(x, sel) && (x.full || x.detail ? <aside className="drawer"><ThreadPanel target={sel} /></aside> : <Peek target={sel} />)}
+        <Drawer />
       </div>
     </X.Provider>
   )

@@ -12,9 +12,9 @@ visvet is a multi-lens, visual way to review code changes at a higher level than
 ## Run it
 ```bash
 cd ui && npm run build && cd .. && cargo install --path . --locked
-caffeinate -is visvet serve --no-open --port 7880 --base 4b825dc642cb6eb9a060e54bf8d69288fbee4904
+caffeinate -is visvet serve --no-open --port 7880 --url https://nigels-macbook-pro.tailbc3ea9.ts.net
 ```
-- `--base` is git's empty tree, so the whole project shows as the change under review, even though it is committed.
+- The map always shows the whole project as it is now; only uncommitted edits are highlighted. The user wants this view, not a diff against `main`.
 - Run the server in the background. Restart it after every change: `pkill -f "visvet serve --no-open --port 7880"`.
 - A restart doesn't reload the page's JavaScript. Don't reload the user's tab yourself while they might be typing a comment: tell them to, and test in a separate tab.
 - Keep visvet open in the desktop app's browser pane at http://127.0.0.1:7880.
@@ -28,4 +28,9 @@ caffeinate -is visvet serve --no-open --port 7880 --base 4b825dc642cb6eb9a060e54
 - `visvet coverage` runs the Rust tests under `cargo llvm-cov`; boxes then show a 🧪 low-coverage debuff. Rerun it after changing tests.
 
 ## Comment threads
-See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`. When idle, keep `visvet wait` running in the background so new comments wake you.
+See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`, and only there: don't repeat thread answers in the chat. When idle, keep `visvet wait` running in the background so new comments wake you. The stop hook also lists threads whose box was renamed or deleted: move each with `visvet move <id> <box id>`.
+
+## Work to do, and ideas
+- `issues/`: concrete work, one Markdown file per issue, a folder per milestone (see `issues/README.md`). Pick from here.
+- `ideas/`: thinking, not plans. One idea per note, in a folder per theme whose `README.md` is its hub; front matter `kind: idea` and a `status:` of `exploring`, `parked` or `dropped`. When the user shares ideas, write them up there, with your own suggestions, and link each note from its hub with a reason.
+- Review comes first: the user wants features only as fast as they can review them. Don't start a feature nobody asked for; propose it as an issue instead.

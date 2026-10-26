@@ -1,5 +1,7 @@
-# Build output, npm dependencies and local review state.
+# Build output, npm dependencies and local review state (but not the comment threads, which are shared).
 /target
 /ui/node_modules
 /ui/dist
-/.visvet
+/.visvet/*
+!/.visvet/.gitignore
+!/.visvet/threads/
