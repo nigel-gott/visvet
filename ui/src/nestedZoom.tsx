@@ -13,6 +13,34 @@ import { mapView } from './view'
 import { STEP_BUBBLE, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { ancestorsOf, type Item } from './model'
 
+/** The speeds the map's zooms and camera moves can run at, by name: how many times faster than normal (1×). */
+export const SPEEDS = { 'instant': Infinity, '1×': 1, '2×': 2, '4×': 4, '6×': 6 }
+/** The speed every zoom and camera glide runs at, chosen in the top bar (see `SpeedPicker`). */
+const speed = { factor: speedSaved() }
+
+/** The speed chosen last in this browser, or normal. */
+function speedSaved() {
+  try { return SPEEDS[localStorage.getItem('visvet:zoom-speed') as keyof typeof SPEEDS] ?? 1 } catch { return 1 }
+}
+
+/** A time at the chosen speed: `ms` divided by it, or none at all when instant. */
+const paced = (ms: number) => (speed.factor === Infinity ? 0 : ms / speed.factor)
+
+/** In the top bar: how fast zooms and camera moves run, from instant to 6× normal, kept in this browser. */
+export function SpeedPicker() {
+  const [chosen, setChosen] = useState(() => Object.entries(SPEEDS).find(([, factor]) => factor === speed.factor)?.[0] ?? '1×')
+  const choose = (name: string) => {
+    setChosen(name)
+    speed.factor = SPEEDS[name as keyof typeof SPEEDS]
+    try { localStorage.setItem('visvet:zoom-speed', name) } catch { /* private mode: not kept */ }
+  }
+  return (
+    <label className="speed-pick" title="How fast zooms and camera moves run">
+      Speed <select value={chosen} onChange={e => choose(e.target.value)}>{Object.keys(SPEEDS).map(name => <option key={name}>{name}</option>)}</select>
+    </label>
+  )
+}
+
 /** How long a zoom from one view into another takes, in ms: slow enough to see where you go. */
 const ZOOM_TIME = 1400
 /** How long the drawing of a view stays behind its real boxes after a zoom into it, in ms, while they fade in. */
@@ -61,14 +89,14 @@ export function stopZooms() {
  * it played out, false when a newer glide took the camera first.
  */
 export function glideCamera(setCamera: (camera: Camera) => void, from: Camera, to: Camera, motion: { duration: number; ease: (progress: number) => number }) {
-  const glide = ++latestGlide
+  const glide = ++latestGlide, duration = paced(motion.duration)
   return new Promise<boolean>(done => {
     const start = performance.now()
     // A tab in the background draws few frames or none; the glide still ends on time, at its end.
-    const late = setTimeout(() => frame(start + motion.duration), motion.duration + 100)
+    const late = setTimeout(() => frame(start + duration), duration + 100)
     const frame = (now: number) => {
       if (glide !== latestGlide) return done(false)
-      const progress = motion.duration > 0 ? Math.min(1, (now - start) / motion.duration) : 1, eased = motion.ease(progress)
+      const progress = duration > 0 ? Math.min(1, (now - start) / duration) : 1, eased = motion.ease(progress)
       const zoom = from.zoom * (to.zoom / from.zoom) ** eased
       // The point under the screen's top left moves with the zoom, so the offset follows it.
       const along = from.zoom === to.zoom ? eased : (zoom - from.zoom) / (to.zoom - from.zoom)
@@ -151,8 +179,8 @@ export const zoomer: {
   prepare: ((views: (ViewSetup & { to: string | null })[]) => Promise<void>) | null
 } = { run: null, prepare: null }
 
-/** Waits `ms` milliseconds. */
-const pause = (ms: number) => new Promise(done => setTimeout(done, ms))
+/** Waits `ms` milliseconds at the chosen speed (see `paced`). */
+const pause = (ms: number) => new Promise(done => setTimeout(done, paced(ms)))
 /**
  * Waits for the browser to draw twice: long enough for a view just switched to to place its boxes. A tab in the
  * background may not draw at all, so it waits 100ms at most.
@@ -221,7 +249,7 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     setPreview(preview)
     nextOutwardGlide.motion = motion
     switchView()
-    const settle = setTimeout(() => setPreview(current => (current === preview ? settling : current)), motion.duration / 3)
+    const settle = setTimeout(() => setPreview(current => (current === preview ? settling : current)), paced(motion.duration / 3))
     await pause(motion.duration)
     clearTimeout(settle)
     setPreview(current => (current === settling || current === preview ? null : current))
@@ -247,7 +275,7 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     const landed = { ...preview, scale: 1, landed: true }
     setPreview(landed)
     // Only this drawing goes: by then the next zoom (a tour's next level) may have put up its own.
-    const gone = setTimeout(() => setPreview(current => (current === landed ? null : current)), LANDING_TIME)
+    const gone = setTimeout(() => setPreview(current => (current === landed ? null : current)), paced(LANDING_TIME))
     return () => clearTimeout(gone)
   }, [graph.view])
   return preview

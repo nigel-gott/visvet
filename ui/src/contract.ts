@@ -279,7 +279,12 @@ target_found: boolean,
  */
 view: StepView, 
 /**
- * The step's Markdown text, without its notes on code or its `view:` line.
+ * A short line on where the tour goes next and why, from a `route:` line in its text, shown while the map moves
+ * to this step; empty when it has none.
+ */
+route: string, 
+/**
+ * The step's Markdown text, without its notes on code or its `view:` and `route:` lines.
  */
 text: string, code_notes: Array<CodeNote>, };
 

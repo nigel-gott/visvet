@@ -34,21 +34,25 @@ export const stepBubbleBox = (x: Ctx) => bubbleBoxOf(x.tour ? x.model.tours.find
 
 /**
  * The route of a move between tour steps: the zoomed box at each zoom level it passes through, from where it started
- * to the step (null: the whole map), and how far along it is (the stop it is heading for).
+ * to the step (null: the whole map), how far along it is (the stop it is heading for), and the step's note on where
+ * it is going and why (its `route:` line; empty for none).
  */
-export type Route = { stops: (string | null)[]; at: number }
+export type Route = { stops: (string | null)[]; at: number; note: string }
 
-/** Over the map during a move between tour steps: its route as a line of stops, filled in up to where the camera is. */
+/** Over the map during a move between tour steps: its route as a line of stops filled in up to where the camera is, and the step's note on why. */
 export function RouteOverlay() {
   const x = useContext(X)
   if (!x.route) return null
   const name = (stop: string | null) => (stop ? x.ix.items.get(stop)?.name ?? stop : 'Map')
   return (
-    <ol className="route">
-      {x.route.stops.map((stop, index) => (
-        <li key={index} className={index < x.route!.at ? 'passed' : index === x.route!.at ? 'heading' : ''}>{name(stop)}</li>
-      ))}
-    </ol>
+    <div className="route">
+      <ol>
+        {x.route.stops.map((stop, index) => (
+          <li key={index} className={index < x.route!.at ? 'passed' : index === x.route!.at ? 'heading' : ''}>{name(stop)}</li>
+        ))}
+      </ol>
+      {x.route.note && <p className="route-note">{x.route.note}</p>}
+    </div>
   )
 }
 

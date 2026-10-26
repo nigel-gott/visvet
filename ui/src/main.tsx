@@ -9,7 +9,7 @@ import './style.css'
 import type { StepView } from './contract'
 import { ancestorsOf, flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
-import { journeyMotion, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
+import { journeyMotion, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
@@ -151,6 +151,7 @@ function Header({ error }: { error?: string }) {
         {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
       </nav>
       <TourBar />
+      <SpeedPicker />
       <ChangeTotals />
       <ThreadCounts />
       <span className="vs">vs <code>{x.model.compared_against}</code></span>
@@ -284,7 +285,7 @@ function App() {
     await zoomer.prepare?.(hops.map(hop => ({ to: hop, ...setupOf(hop) })))
     if (journey.current !== trip) return
     for (const [level, hop] of hops.entries()) {
-      setRoute({ stops: [scope, ...hops], at: level + 1 })
+      setRoute({ stops: [scope, ...hops], at: level + 1, note: step.route })
       // The step changes as its view takes over: until then the view being left keeps the old step, untouched.
       const arriving = level === hops.length - 1
       // One Back step per journey: its first level adds a history entry, the rest replace it.

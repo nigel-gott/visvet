@@ -6,8 +6,9 @@ description: A review of the tours work by touring it: syntax colours, tour file
 
 ## Tour files
 This step shows the tour you're taking, `tours/tour-feature.md`: a tour is a Markdown file in the `tours` folder. Plain Markdown means a tour is reviewed like any other file, and each box it names gets a "links" arrow on the map.
+route: Starting at the tour file itself: everything else is read from it.
 
-Each step shows its box among its neighbours, every box around it open, unless the step says `view: zoomed` on a line of its own.
+Each step shows its box among its neighbours, every box around it open, unless the step says `view: zoomed` on a line of its own. A `route:` line is the purple note shown while the map moves to the step.
 
 ### `kind: tour`
 The front matter says this file is a tour. `description:` says what it is for.
@@ -17,6 +18,7 @@ Each `##` heading is a step: this one. The first name in backticks in its text i
 
 ## What a tour is, as data
 `src/types/tours.rs::Tour` is the shape the server sends the UI. Every type in `src/types/` is part of the "contract": ts-rs writes a TypeScript copy of each into `ui/src/contract.ts`, so both sides agree.
+route: Down into src/types: first, the shape a tour takes as data.
 
 ### `#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]`
 `derive` asks the compiler to write standard code for the type. Here: `Serialize`/`Deserialize` turn it to and from JSON (serde), `Clone` lets you copy it, `Debug` prints it, `PartialEq` lets tests compare with `==`, and `TS` writes its TypeScript copy.
@@ -28,12 +30,21 @@ In Vue terms: it's like getting `JSON.stringify` support and a `.d.ts` file for 
 
 ## A step and its notes
 `src/types/tours.rs::CodeNote` is one note on a piece of code.
+route: Next door, same file: the notes a step makes on pieces of code.
 
 ### `pub span: Option<CodeSpan>,`
 Rust has no `null`. A value that may be missing is an `Option`: either `Some(span)` or `None`. The compiler makes you handle both, so "forgot to check for null" can't happen. Here `None` means the code isn't there any more: the note is stale.
 
+## Each box knows its language
+`src/types/language.rs::Language` is worked out from a file's extension on the server and sent with every box, so the UI never reads file names itself.
+route: Still in src/types: the other new type, a file's language.
+
+### `#[serde(rename_all = "lowercase")]`
+In JSON each variant becomes a lowercase string, e.g. `TypeScript` becomes `"typescript"`, which is what the TypeScript copy says too.
+
 ## Reading a tour file
 `src/review/tours.rs::parse_tour` walks the file line by line and sorts each line into the title, a step, a note, or text.
+route: Over to src/review, where the server reads tour files.
 
 ### `in_fence ^= line.trim_start().starts_with("```");`
 `^=` flips a true/false each time a code fence starts or ends, so a `# comment` inside a code block isn't taken for a heading.
@@ -43,6 +54,7 @@ Rust has no `null`. A value that may be missing is an `Option`: either `Some(spa
 
 ## Checking a step against the code
 `src/review/tours.rs::check_step` finds the step's box and where each note's code sits in it.
+route: Same file: once read, each step is checked against the code.
 
 ### `let target = MapId(text.split('`').nth(1).unwrap_or("").into());`
 Splitting on backticks puts the first name in backticks at position 1. `MapId(...)` wraps the text in a "micro type", a string that the compiler won't mix up with other strings.
@@ -52,45 +64,46 @@ Splitting on backticks puts the first name in backticks at position 1. `MapId(..
 
 ## Finding a piece of code
 `src/review/tours.rs::find_code` searches the box's current lines for the note's code.
+route: Same file: how a note finds its piece of code.
 
 ### `let start = joined.find(code).filter(|_| !code.is_empty())?;`
 The `?` at the end means "if this is `None`, return `None` from the whole function right now". It replaces a lot of `if (!x) return null` lines.
 
 ## Columns that JavaScript agrees with
 `src/review/tours.rs::position` turns a byte offset into a line and column.
+route: Same file: turning a match into a line and a column.
 
 ### `encode_utf16().count()`
 Rust strings are UTF-8 bytes; JavaScript strings count UTF-16 units. Counting the column the JavaScript way means the UI can cut a line at exactly this column, even after an emoji.
 
 ## Tours join the review
 `src/review.rs::build_review` builds everything the UI gets. Tours are read last, because checking them needs every box.
+route: Up to review.rs, where tours join everything the UI gets.
 
 ### `let tours = tours::read_tours(repo_root, &boxes);`
 `&boxes` lends the boxes to `read_tours` without giving them away. That's borrowing: Rust tracks who owns each value, and a borrow lets a function read it while the caller keeps it.
 
 ## Checking tours from the command line
 `src/cli/tours.rs::print` is `visvet tours`: it prints each tour's steps and marks stale ones, so whoever writes a tour can check it after the code changes.
-
-## Each box knows its language
-`src/types/language.rs::Language` is worked out from a file's extension on the server and sent with every box, so the UI never reads file names itself.
-
-### `#[serde(rename_all = "lowercase")]`
-In JSON each variant becomes a lowercase string, e.g. `TypeScript` becomes `"typescript"`, which is what the TypeScript copy says too.
+route: Across to the command line: checking tours by hand.
 
 ## Colouring code
 `ui/src/highlight.ts::colourLines` colours a box's code with Shiki, the highlighter VS Code's grammars run in.
+route: Over to the UI in ui/src: how code gets its colours.
 
 ### `for (const leftOut of ['del', 'add'])`
 A diff mixes two versions of the code. The loop colours each version whole: first without removed lines (the new code), then without added lines (the old code), so a line inside a multi-line comment still colours right.
 
 ## A React hook
 `ui/src/highlight.ts::useHighlighter` is a React hook: a function whose name starts with `use` and which keeps state between renders.
+route: Same file: the React hook that loads those colours.
 
 ### `useEffect(() => void loading.then(setHighlighter), [])`
 `useState` is React's `ref()`, and `useEffect` with an empty list `[]` runs once after the component first shows, like Vue's `onMounted`. When Shiki has loaded, `setHighlighter` stores it and React re-renders every box with colours.
 
 ## Picking a tour
 `ui/src/Tours.tsx::TourBar` sits in the top bar: a list of tours, then while one plays, its name, a progress bar and ✕ to leave.
+route: To Tours.tsx, where you picked this tour.
 
 ### `if (!x.model.tours.length) return null`
 A React component is a function that returns what to show. Returning `null` shows nothing, like `v-if="false"` on the whole template.
@@ -103,6 +116,7 @@ How far through the tour you are, as a plain HTML progress bar.
 
 ## The step's bubble
 `ui/src/Tours.tsx::StepBubble` is the speech bubble above the step's box: its title, text, and Back, a dot per step, and Next.
+route: Same file: the bubble you're reading now.
 
 ### `const lost = step.code_notes.filter(note => !note.span && !note.on_box)`
 A note whose code can't be found any more has nowhere to sit, so the bubble lists it in red: the tour needs updating.
@@ -112,12 +126,21 @@ A note whose code can't be found any more has nowhere to sit, so the bubble list
 
 ## Arrow keys
 `ui/src/Tours.tsx::useArrowKeys` lets ← and → step through the tour, except while you type in a field.
+route: Same file: stepping with the keyboard.
 
 ### `const by = { ArrowLeft: -1, ArrowRight: 1 }[e.key]`
 A lookup table instead of an `if`: the key's step, or `undefined` for any other key.
 
+## The route you travel
+`ui/src/Tours.tsx::RouteOverlay` draws the line of stops at the top of the map while you move between steps, filled in up to where the camera is, with the step's note on why in purple under it.
+route: Same file: the line of stops you just watched fill in.
+
+### `{x.route.note && <p className="route-note">{x.route.note}</p>}`
+The note comes from a `route:` line in the tour file, like the one in this step. It's taken out of the step's text, so it only shows while you travel.
+
 ## Bubbles go on the boxes
 `ui/src/Card.tsx::Card` draws every box. While a tour plays, the step's box gets the step bubble and its notes on code, and a box a note names gets that note in a bubble of its own.
+route: To Card.tsx: how bubbles and notes get onto boxes.
 
 ### `const stepHere = playing?.step.target === it.id`
 `?.` stops at a missing value instead of throwing: with no tour playing, `stepHere` is simply false.
@@ -127,6 +150,7 @@ This bubble is itself a note on a whole box: its `###` heading in the tour file 
 
 ## Notes under the code they explain
 `ui/src/Views.tsx::DiffView` draws a box's code. The lines a note is about get an amber band, and the note sits in a bubble right under them.
+route: To Views.tsx: notes sit under the lines they explain.
 
 ### `<div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`}>`
 A template string builds the class list, like Vue's `:class` with an object.
@@ -136,6 +160,7 @@ After each line, the notes whose code ends on it. `!` tells TypeScript "this can
 
 ## The bubble is a box of its own
 `ui/src/Graph.tsx::elkGraph` builds what ELK lays out. While a tour step shows a box, its bubble is one more node, in the same parent box, so the layout makes room for it and it never covers anything.
+route: To Graph.tsx: how the layout makes room for this bubble.
 view: zoomed
 
 ### `(nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height })`
@@ -146,6 +171,7 @@ An edge from the bubble to its box, which ELK puts left to right: so the bubble 
 
 ## Where the tour's state lives
 `ui/src/main.tsx::App` holds which tour plays and its step, and passes them down in the context `x`, React's `provide`/`inject`.
+route: To main.tsx, where the tour's state lives and journeys are planned.
 view: zoomed
 
 ### `const [tour, setTour] = useState<TourPlace | null>(null)`
@@ -159,3 +185,14 @@ Each level is one zoom, the same as double-clicking or pressing Up, but `journey
 
 ### `const journey = useRef(0)`
 `useRef` keeps a value between renders without re-rendering, like a plain variable in Vue's `setup()`. Each move gets a number; pressing Next again starts a newer one, and the older move stops at its next level.
+
+## How the camera moves
+`ui/src/nestedZoom.tsx::glideCamera` moves the camera frame by frame, so nothing can cut a move short, and a newer move always takes over from an older one.
+view: zoomed
+route: To nestedZoom.tsx: the camera moves you've been riding.
+
+### `const glide = ++latestGlide, duration = paced(motion.duration)`
+`paced` applies the speed picked in the top bar: instant, 1×, 2×, 4× or 6×.
+
+### `const zoom = from.zoom * (to.zoom / from.zoom) ** eased`
+The zoom changes by the same factor each frame, not the same amount, so zooming in and out reads at an even pace.

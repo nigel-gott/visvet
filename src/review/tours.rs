@@ -69,11 +69,14 @@ fn parse_tour(file: &RepoPath, description: &str, text: &str, code: &CodeById) -
 /// Checks a written step against the code: whether its box exists, and where each note's code is in it, or which
 /// box a note names.
 fn check_step(step: WrittenStep, code: &CodeById) -> TourStep {
-    let view = match step.text.iter().find_map(|line| chosen_view(line)) {
+    let setting = |name: &str| step.text.iter().find_map(|line| step_setting(line, name));
+    let view = match setting("view") {
         Some("zoomed") => StepView::Zoomed,
         _ => StepView::Context,
     };
-    let text = step.text.iter().filter(|line| chosen_view(line).is_none()).copied().collect::<Vec<_>>().join("\n").trim().to_string();
+    let route = setting("route").unwrap_or("").to_string();
+    let is_setting = |line: &&&str| ["view", "route"].iter().any(|name| step_setting(line, name).is_some());
+    let text = step.text.iter().filter(|line| !is_setting(line)).copied().collect::<Vec<_>>().join("\n").trim().to_string();
     // The step's box is the first name in backticks in its text.
     let target = MapId(text.split('`').nth(1).unwrap_or("").into());
     let lines = code.0.get(target.as_str());
@@ -83,12 +86,12 @@ fn check_step(step: WrittenStep, code: &CodeById) -> TourStep {
         let span = lines.filter(|_| on_box.is_none()).and_then(|lines| find_code(lines, note_code));
         CodeNote { code: note_code.into(), note: note.join("\n").trim().into(), span, on_box }
     }).collect();
-    TourStep { title: step.title.into(), target_found: lines.is_some(), target, view, text, code_notes }
+    TourStep { title: step.title.into(), target_found: lines.is_some(), target, view, route, text, code_notes }
 }
 
-/// The view a `view: …` line chooses, e.g. "zoomed"; none for any other line.
-fn chosen_view(line: &str) -> Option<&str> {
-    line.trim().strip_prefix("view:").map(str::trim)
+/// The value of a step's setting line, e.g. "zoomed" for `view: zoomed`, if `line` sets setting `name`.
+fn step_setting<'a>(line: &'a str, name: &str) -> Option<&'a str> {
+    line.trim().strip_prefix(name)?.strip_prefix(':').map(str::trim)
 }
 
 /// Where `code` first appears in `lines` (each a line number and its text); it may run across lines.
@@ -116,7 +119,7 @@ mod tests {
     use super::*;
     use crate::review::compare::tests::cmp;
 
-    const TOUR: &str = "---\nkind: tour\ndescription: A look.\n---\n# First look\n\n## The command line\nStart at `src/a.rs::Cli`.\nview: zoomed\n\n### `#[derive(Parser)]`\nclap reads this.\n\n### `missing()`\nGone.\n\n### `src/a.rs`\nThe file.\n\n## Gone\nSee `src/a.rs::Old`.\n```toml\n# not a heading\n```\n";
+    const TOUR: &str = "---\nkind: tour\ndescription: A look.\n---\n# First look\n\n## The command line\nStart at `src/a.rs::Cli`.\nview: zoomed\nroute: To the command line\n\n### `#[derive(Parser)]`\nclap reads this.\n\n### `missing()`\nGone.\n\n### `src/a.rs`\nThe file.\n\n## Gone\nSee `src/a.rs::Old`.\n```toml\n# not a heading\n```\n";
 
     #[test]
     fn steps_find_their_box_and_code() {
@@ -130,6 +133,7 @@ mod tests {
         assert_eq!((first.code_notes[0].note.as_str(), first.code_notes[1].span), ("clap reads this.", None));
         assert_eq!((first.code_notes[2].on_box.as_ref().map(MapId::as_str), first.code_notes[2].span), (Some("src/a.rs"), None));
         assert_eq!((first.view, tour.steps[1].view), (StepView::Zoomed, StepView::Context));
+        assert_eq!((first.route.as_str(), tour.steps[1].route.as_str()), ("To the command line", ""));
         assert!(!tour.steps[1].target_found);
         assert!(tour.steps[1].text.ends_with("# not a heading\n```"));
     }

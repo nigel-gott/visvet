@@ -28,7 +28,10 @@ pub struct TourStep {
     pub target_found: bool,
     /// How the map shows the step's box, from a `view:` line in its text.
     pub view: StepView,
-    /// The step's Markdown text, without its notes on code or its `view:` line.
+    /// A short line on where the tour goes next and why, from a `route:` line in its text, shown while the map moves
+    /// to this step; empty when it has none.
+    pub route: String,
+    /// The step's Markdown text, without its notes on code or its `view:` and `route:` lines.
     pub text: String,
     pub code_notes: Vec<CodeNote>,
 }
