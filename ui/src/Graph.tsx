@@ -245,12 +245,12 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const nodes = graph.laid.filter(n => byId.has(n.id)).map(n => {
     const it = byId.get(n.id)!
     const rows = v.rowsOf(it), position = clamp(n, pos.moved[n.id] ?? n.position)
-    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), x.hl.has(n.id), x.scope].join('|')
+    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope].join('|')
     const old = made.current.boxes.get(n.id)
     if (old?.key === key) return old.node
     const data: CardData = {
       it, rows, ext: v.ext.has(n.id),
-      expands: v.expands(it),
+      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [],
     }
     const extent = n.parentId ? 'parent' as const : undefined
     // Where arrows attach (mid left in, mid right out), given up front so a box being dragged keeps its arrows.

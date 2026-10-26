@@ -24,6 +24,8 @@ export type CardData = {
   it: Item; rows: Item[]; ext: boolean
   /** Whether the box has the expand button: it has members or code to show. */
   expands: boolean
+  /** On the zoomed box, its children that have More, for its Open all button; empty on other boxes. */
+  openAll: string[]
 }
 
 /** The last click on a box, so a second click on it within 300ms counts as a double click. */
@@ -107,7 +109,8 @@ function Rows({ rows, click }: Part) {
  * Clicking a box selects it, so the user can talk to the AI about it.
  * Double-clicking a folder, file or type box glides the camera into it, then zooms the map into it; double-clicking a
  * function opens or closes its More.
- * The More button expands the box in place, downwards: one level in, as rows, or a function's code. Drag a box by its header.
+ * The More button expands the box in place, downwards: one level in, as rows, or a function's code. Open all, on the
+ * zoomed box, presses More on each of its children. Drag a box by its header.
  */
 export function Card({ data }: NodeProps<Node<CardData>>) {
   const { it, rows, ext } = data
@@ -122,6 +125,8 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />
           <ThreadChip it={it} />
+          {data.openAll.length > 0 && <button className="grow" onClick={e => { e.stopPropagation(); x.expandAll(data.openAll) }}>
+            {data.openAll.every(id => x.expanded.has(id)) ? 'Close all' : 'Open all'}</button>}
           {data.expands && <button className="grow" onClick={e => { e.stopPropagation(); x.expand(it.id) }}>{x.expanded.has(it.id) ? 'Less' : 'More'}</button>}
         </div>
         <Notes it={it} />

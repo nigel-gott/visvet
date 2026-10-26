@@ -158,7 +158,9 @@ export function mapView(ix: Index, links: Dependency[], top: Item | undefined, l
   const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top ? [] : it.kids.filter(k => k.m)
   /** Whether a box can expand: it holds something not already drawn as a box to list, or code to show. */
   const expands = (it: Item) => !ext.has(it.id) && (it.kids.some(k => !ids.has(k.id)) || it.diff.length > 0)
-  return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, up }
+  /** The zoomed box's children that have More, which its Open all button opens together. */
+  const openable = top ? top.kids.filter(k => ids.has(k.id) && expands(k)).map(k => k.id) : []
+  return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up }
 }
 /** One map view, as `mapView` builds it. */
 export type View = ReturnType<typeof mapView>

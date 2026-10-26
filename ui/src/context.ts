@@ -19,6 +19,8 @@ export type Ctx = {
   /** Map boxes expanded in place to show their members and code (cleared when the view changes); `expand` flips one. */
   expanded: Set<string>
   expand: (id: string) => void
+  /** Opens all these boxes, or closes them all when they are all open already. */
+  expandAll: (ids: string[]) => void
   /** How deep the unzoomed map shows boxes, from 0 (only the top folders and files). The outline opens to the same depth. */
   level: number
   setLevel: (level: number) => void

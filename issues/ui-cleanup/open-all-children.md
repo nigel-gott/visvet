@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: One button to open every box in the current view at once, instead of clicking More on each.
 ---
 # Open all boxes in a view

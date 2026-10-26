@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
-import { flip, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
+import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph from './Graph'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
@@ -220,6 +220,7 @@ function App() {
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => go({ scope: id, map }), level, setLevel,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
+    expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,
     detail: detail?.id === sel ? detail : null, showDetail: (id, kind) => showDetail(kind ? { id, kind } : null),
     draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox, full: full === sel, setFull,

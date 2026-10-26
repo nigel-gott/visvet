@@ -60,6 +60,12 @@ export const within = (it: Item | undefined, id: string): boolean => !!it && (it
 
 /** A copy of `set` with `id` added, or removed if it was there. */
 export const flip = (set: Set<string>, id: string) => { const n = new Set(set); if (!n.delete(id)) n.add(id); return n }
+/** A copy of `set` with all of `ids` added, or all removed when every one is in it already. */
+export const flipAll = (set: Set<string>, ids: string[]) => {
+  const n = new Set(set), all = ids.every(id => set.has(id))
+  ids.forEach(id => all ? n.delete(id) : n.add(id))
+  return n
+}
 
 /** Complexity (from the extractor: 1 + branches, loops and the like, each match counted once) above which a function is hard to follow. */
 export const COMPLEX = 15
