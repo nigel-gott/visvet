@@ -10,4 +10,4 @@ Likely contents (still vague):
 - **Flows** through a UI.
 - Maybe the [data models](data-dimension.md) a box reads and writes.
 
-More abstract than the code dimension, and probably where visvet should head.
+More abstract than the code dimension, and probably where visvet should head. How it works isn't known yet: it hangs on a testing convention, and needs trying several ideas to see what holds up.

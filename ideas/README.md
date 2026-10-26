@@ -14,3 +14,4 @@ Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
 - [Methodology](methodology.md): visvet as a way to build projects, with a recommended stack, not only a review tool.
 - [Tests](tests.md): black-box, behaviour-style tests, and what they should show on the map.
 - [Behaviour dimension](behaviour-dimension.md): the system as black boxes and what they do, taken from the tests.
+- [Fog of war](fog-of-war.md): the map shows where you haven't looked or understood, without a checklist.
