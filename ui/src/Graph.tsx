@@ -60,11 +60,16 @@ export type Laid = Pick<Node, 'id' | 'parentId' | 'position' | 'width' | 'height
  */
 const flipped = (v: View) => new Set([...v.edges, ...v.detail].filter(([, d]) => v.ext.has(('es' in d ? d.es[0] : d[0]).a)).map(([id]) => id))
 
+/** The space between a tour step's bubble and its box, and how far in from the box's corner its arrows attach, in pixels. */
+const BUBBLE_GAP = 24, PORT_INSET = 24
+
 /**
  * ELK's input: a node per box, nested in its parent's node, and an edge per lifted link; while a tour step shows a box
- * in this view, its bubble too, as a node beside that box (an edge to the box puts it just left of it).
+ * in this view, its bubble too. `folded` says where the bubble went: into the box's own node, which grows by the
+ * bubble's width to its left, so ELK keeps the two together (see `unfold`); or, for a box drawing boxes inside it, as
+ * a node of its own beside the box (an edge to the box puts it just left of it).
  */
-function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): ElkNode {
+function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): { graph: ElkNode; folded: boolean } {
   // Each box starts at its place in source order, far enough apart that box heights can't change it; the interactive
   // crossing step keeps that order down each column.
   const nodes = new Map<string, ElkNode>(v.boxes.map((it, i) => [it.id, {
@@ -87,6 +92,24 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
   for (const it of v.boxes) (nodes.get(v.up(it)?.id ?? '') || root).children!.push(nodes.get(it.id)!)
   // Only beside the step's real box: not beside it drawn as an outside box of another view.
   const target = bubble && !v.ext.has(bubble.target) ? v.boxes.find(it => it.id === bubble.target) : undefined
+  const targetNode = target && nodes.get(target.id)!
+  if (bubble && targetNode && !targetNode.children!.length) {
+    const cardWidth = targetNode.width!
+    targetNode.width = bubble.width + BUBBLE_GAP + cardWidth
+    targetNode.height = Math.max(targetNode.height!, bubble.height)
+    // Arrows attach to the box's own top and right edges, never to the bubble's side.
+    const arrowsIn = `${targetNode.id}#in`, arrowsOut = `${targetNode.id}#out`
+    targetNode.ports = [
+      { id: arrowsIn, x: bubble.width + BUBBLE_GAP + PORT_INSET, y: 0, width: 1, height: 1, layoutOptions: { 'elk.port.side': 'NORTH' } },
+      { id: arrowsOut, x: targetNode.width - 1, y: PORT_INSET, width: 1, height: 1, layoutOptions: { 'elk.port.side': 'EAST' } },
+    ]
+    targetNode.layoutOptions = { ...targetNode.layoutOptions, 'elk.portConstraints': 'FIXED_POS' }
+    for (const edge of root.edges!) {
+      edge.sources = edge.sources.map(id => (id === targetNode.id ? arrowsOut : id))
+      edge.targets = edge.targets.map(id => (id === targetNode.id ? arrowsIn : id))
+    }
+    return { graph: root, folded: true }
+  }
   if (bubble && target) {
     // Starting at its box's place in the order puts it level with its box, not at the top of its column.
     const besideTarget = nodes.get(target.id)!.y
@@ -94,10 +117,23 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
     root.edges!.push({ id: `${STEP_BUBBLE} -> ${target.id}`, sources: [STEP_BUBBLE], targets: [target.id] })
     // ELK centres a box in its column, which a wider box beside it can make far wider; the step's box keeps to the
     // column's left edge instead, next to its bubble.
-    const targetNode = nodes.get(target.id)!
-    targetNode.layoutOptions = { ...targetNode.layoutOptions, 'elk.alignment': 'LEFT' }
+    targetNode!.layoutOptions = { ...targetNode!.layoutOptions, 'elk.alignment': 'LEFT' }
   }
-  return root
+  return { graph: root, folded: false }
+}
+
+/** Moves a step's bubble that ELK laid out as a node of its own (see `elkGraph`) level with the top of its box. */
+const levelWithBox = (laid: Laid[], bubble: StepBubbleBox): Laid[] => {
+  const box = laid.find(n => n.id === bubble.target)
+  return laid.map(n => (n.id === STEP_BUBBLE && box && n.parentId === box.parentId ? { ...n, position: { x: n.position.x, y: box.position.y } } : n))
+}
+
+/** Splits a step's box node that ELK laid out with the bubble folded in (see `elkGraph`) into the bubble, then the box. */
+function unfold(laid: Laid[], bubble: StepBubbleBox, cardHeight: number): Laid[] {
+  return laid.flatMap(n => n.id !== bubble.target ? [n] : [
+    { id: STEP_BUBBLE, parentId: n.parentId, position: n.position, width: bubble.width, height: bubble.height },
+    { ...n, position: { x: n.position.x + bubble.width + BUBBLE_GAP, y: n.position.y }, width: n.width! - bubble.width - BUBBLE_GAP, height: cardHeight },
+  ])
 }
 
 /** ELK's nested result as xyflow nodes, each positioned inside its parent. */
@@ -128,14 +164,16 @@ export async function layOut(view: string, v: View, size: (it: Item) => number, 
     return known
   }
   const turned = flipped(v)
-  const g = await elk.layout(elkGraph(v, size, wide, bubble))
+  const { graph, folded } = elkGraph(v, size, wide, bubble)
+  const g = await elk.layout(graph)
   const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
     const s = e.sections?.[0], pts = s ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint] : []
     return s ? [[e.id, turned.has(e.id) ? pts.reverse() : pts]] : []
   }))
   // Kept for the views of recent zooms; the oldest go once there are many.
   if (laidOut.size > 100) laidOut.delete(laidOut.keys().next().value!)
-  const layout = { view, width: g.width!, height: g.height!, laid: flat(g), routes }
+  const target = folded && v.boxes.find(it => it.id === bubble!.target)
+  const layout = { view, width: g.width!, height: g.height!, laid: target ? unfold(flat(g), bubble!, size(target)) : bubble ? levelWithBox(flat(g), bubble) : flat(g), routes }
   laidOut.set(key, layout)
   return layout
 }

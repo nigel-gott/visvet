@@ -159,15 +159,18 @@ A template string builds the class list, like Vue's `:class` with an object.
 After each line, the notes whose code ends on it. `!` tells TypeScript "this can't be missing here": only notes with a place in the code reach `DiffView`.
 
 ## The bubble is a box of its own
-`ui/src/Graph.tsx::elkGraph` builds what ELK lays out. While a tour step shows a box, its bubble is one more node, in the same parent box, so the layout makes room for it and it never covers anything.
+`ui/src/Graph.tsx::elkGraph` builds what ELK lays out. While a tour step shows a box, its bubble is part of the layout, so the layout makes room for it and it never covers anything.
 route: To Graph.tsx: how the layout makes room for this bubble.
 view: zoomed
 
-### `;(nodes.get(v.up(target)?.id ?? '') || root).children!.push({ id: STEP_BUBBLE, width: bubble.width, height: bubble.height, x: 0, y: besideTarget })`
-The bubble goes in beside the step's box. Its height is worked out from its text before it is drawn (`stepBubbleBox`), since the layout needs every size up front. It starts at its box's place in the order (`besideTarget`), so it sits level with its box, not at the top of the column.
+### `targetNode.width = bubble.width + BUBBLE_GAP + cardWidth`
+The bubble is folded into its box's own node: the node grows by the bubble's width, and once ELK has placed it, `unfold` splits it back into the bubble on the left and the box on the right. ELK can't separate what it sees as one box, so the bubble always sits right beside its box, level with its top. Its height is worked out from its text before it is drawn (`stepBubbleBox`), since the layout needs every size up front.
+
+### `{ id: arrowsIn, x: bubble.width + BUBBLE_GAP + PORT_INSET, y: 0, width: 1, height: 1, layoutOptions: { 'elk.port.side': 'NORTH' } },`
+Ports: fixed points where arrows attach. Arrows into the box come in at its own top edge, and arrows out leave its right edge, so none ends at the bubble.
 
 ### `sources: [STEP_BUBBLE], targets: [target.id]`
-An edge from the bubble to its box, which ELK puts left to right: so the bubble always lands just left of the box, pointing at it.
+A box that draws boxes inside it (a zoomed step) can't grow sideways without moving them, so its bubble is a node of its own, with an edge to the box. ELK puts an edge's start to the left, so the bubble lands just left of the box; after layout, `levelWithBox` lines it up with the box's top.
 
 ## Where the tour's state lives
 `ui/src/main.tsx::App` holds which tour plays and its step, and passes them down in the context `x`, React's `provide`/`inject`.
