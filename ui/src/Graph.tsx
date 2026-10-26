@@ -12,8 +12,8 @@ import { mapView, type View } from './view'
 import { showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
-/** How long boxes glide to their new places after a new layout of the same view, in ms (CSS `.relayout`). */
-const RELAYOUT_TIME = 600
+/** How long the camera takes to glide to a selected box, in ms. */
+const SELECT_GLIDE_TIME = 600
 /** The name of the unzoomed view, the whole map, among views named by their zoomed box. */
 export const WHOLE_MAP = 'map'
 /** ELK settings for every box: fewer crossings, straighter edges, source order kept, right-angle routes around boxes. */
@@ -180,25 +180,37 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
 }
 
 /**
- * Glides the camera, at its current zoom, to centre the selected box (or the box its selected row sits in), when the
- * selection changes and again when the new layout it brings (its peers) arrives, so it never ends up off screen. A box
- * too big for the map is centred from its top left. Zooming into a view, or a highlight, is `useFit`'s to place.
+ * Selecting a box glides the camera, at its current zoom, to centre it (or the box its selected row sits in); a box
+ * too big for the map is centred from its top left. The new layout the selection brings (its peers) then moves the
+ * camera by exactly as much as the box moved, so it stays still on screen while the new boxes appear around it, and
+ * an unfinished glide carries on from there. Zooming into a view, or a highlight, is `useFit`'s to place.
  */
 function useCentreSelection(map: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout, view: string, sel: string | null, scope: string | null, hl: Set<string>) {
   const { getViewport, setViewport } = useReactFlow()
-  const lastView = useRef(view)
+  /** The selected box's place in the last layout handled, and when the glide to it started. */
+  const last = useRef({ view, graph, sel, place: undefined as ReturnType<typeof absolute>, glideStart: 0 })
   useEffect(() => {
-    const viewChanged = lastView.current !== view
-    if (graph.view === view) lastView.current = view
-    if (viewChanged || !sel || sel === scope || hl.has(sel) || graph.view !== view) return
-    let it = ix.items.get(sel), hit = it && absolute(graph.laid, it.id)
-    while (it && !hit) { it = it.parent; hit = it && absolute(graph.laid, it.id) }
+    const before = last.current
+    let it = sel ? ix.items.get(sel) : undefined, place = it && absolute(graph.laid, it.id)
+    while (it && !place) { it = it.parent; place = it && absolute(graph.laid, it.id) }
+    last.current = { view, graph, sel, place, glideStart: before.glideStart }
     const rect = map.current?.getBoundingClientRect()
-    if (!hit || !rect || it?.id === scope) return
-    const { zoom } = getViewport()
-    const x = Math.max((rect.width - hit.width * zoom) / 2, 16) - hit.x * zoom
-    const y = 48 + Math.max((rect.height - 48 - hit.height * zoom) / 2, 0) - hit.y * zoom
-    setViewport({ x, y, zoom }, { duration: RELAYOUT_TIME })
+    if (graph.view !== view || before.view !== view || !sel || sel === scope || hl.has(sel) || !place || !rect || it?.id === scope) return
+    const vp = getViewport()
+    const centred = (zoom: number) => ({
+      x: Math.max((rect.width - place.width * zoom) / 2, 16) - place.x * zoom,
+      y: 48 + Math.max((rect.height - 48 - place.height * zoom) / 2, 0) - place.y * zoom, zoom,
+    })
+    if (before.sel !== sel) {
+      last.current.glideStart = Date.now()
+      return void setViewport(centred(vp.zoom), { duration: SELECT_GLIDE_TIME })
+    }
+    if (before.graph === graph || !before.place) return
+    // A new layout for the same selection: keep the box where it is on screen, then finish any glide from there.
+    const moved = { x: place.x - before.place.x, y: place.y - before.place.y }
+    setViewport({ x: vp.x - moved.x * vp.zoom, y: vp.y - moved.y * vp.zoom, zoom: vp.zoom })
+    const left = SELECT_GLIDE_TIME - (Date.now() - before.glideStart)
+    if (left > 0) setViewport(centred(vp.zoom), { duration: left })
   }, [sel, graph])
 }
 
@@ -316,20 +328,12 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     return node
   })
   // Until a new view is laid out, the last frame of the old one stays up, so the map never blanks or flashes.
-  const frame = useRef({ nodes, edges: [] as Edge[], view: '', graph: null as Layout | null, glideUntil: 0 })
-  if (ready) {
-    // A new layout of the same view (a selection, More) glides boxes and arrows to their new places for a moment;
-    // a new view's boxes go straight to theirs.
-    const relaidOut = frame.current.graph !== graph && frame.current.view === view
-    const glideUntil = frame.current.graph === graph ? frame.current.glideUntil : relaidOut ? Date.now() + RELAYOUT_TIME : 0
-    frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel), view, graph, glideUntil }
-  }
-  const relayout = Date.now() < frame.current.glideUntil
+  const frame = useRef({ nodes, edges: [] as Edge[] })
+  if (ready) frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel) }
   const shown = frame.current
   return (
     <ReactFlow
       ref={box}
-      className={relayout ? 'relayout' : undefined}
       nodes={shown.nodes}
       edges={shown.edges}
       onEdgeClick={(_, e) => x.select(e.id)}

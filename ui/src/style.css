@@ -313,8 +313,3 @@ main { grid-area: 2 / 1; min-height: 0 }
 .preview-arrows { position: absolute; left: 0; top: 0; overflow: visible }
 .preview-arrows polyline { fill: none; stroke: var(--muted); stroke-width: 1.5; opacity: .6 }
 @keyframes fade-away { to { opacity: 0 } }
-
-/* Within one view, a new layout (selecting a box brings in its peers, More opens a box) glides boxes and arrows to
-   their new places, and new boxes fade in, instead of everything jumping. Not while a box is dragged. */
-.relayout .react-flow__node:not(.dragging) { transition: transform .45s ease, width .45s ease, height .45s ease; animation-duration: .45s }
-.relayout .react-flow__edge-path { transition: d .45s ease }
