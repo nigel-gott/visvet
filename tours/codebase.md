@@ -1,6 +1,6 @@
 ---
 kind: tour
-description: The whole of visvet, from the command line to the map, teaching the Rust, TypeScript and React it uses as they come up. For an experienced engineer who knows JavaScript and Vue.
+description: The whole of visvet, from the command line to the map, teaching the Rust, TypeScript and React it uses as they come up. For an experienced engineer who knows JavaScript well and TypeScript and Vue somewhat.
 ---
 # visvet from end to end
 
@@ -12,17 +12,17 @@ description: The whole of visvet, from the command line to the map, teaching the
 3. The review goes to the browser as JSON, and the UI draws the map (TypeScript and React).
 4. Comments on boxes are saved as files, so the AI can answer them.
 
-Each step teaches the language features its code uses, next to their JavaScript or Vue twins. The purple note at the bottom says where the camera goes next and why.
+Each step teaches the language features its code uses. The Rust steps explain Rust on its own terms; the UI steps compare React with Vue and build on the TypeScript you know. The purple note at the bottom says where the camera goes next and why.
 route: Starting at the top of the repository, with what visvet is for.
 
 ### `## Review a repo`
 `visvet serve` is the command this tour follows. `--base main` compares against the `main` branch instead of the last commit.
 
 ## Rust's package.json
-`Cargo.toml` is to Rust what `package.json` is to JavaScript. Cargo is Rust's npm: it fetches packages ("crates"), builds, tests and installs. `Cargo.lock` is its lock file.
+`Cargo.toml` is the Rust package's manifest. Cargo is Rust's build tool and package manager: it fetches packages ("crates"), builds, tests and installs. `Cargo.lock` pins the exact versions.
 route: Next door: the file that lists the Rust libraries visvet uses.
 
-The crates you will meet on this tour: **clap** reads the command line, **tokio** runs async code, **axum** is the web server (like Express), **serde** turns types to and from JSON, **ts-rs** writes TypeScript copies of Rust types, **tree-sitter** parses code into syntax trees, **similar** makes line diffs, **notify** watches files, **anyhow** makes error handling short, and **rust-embed** puts the built UI inside the program.
+The crates you will meet on this tour: **clap** reads the command line, **tokio** runs async code, **axum** is the web server, **serde** turns types to and from JSON, **ts-rs** writes TypeScript copies of Rust types, **tree-sitter** parses code into syntax trees, **similar** makes line diffs, **notify** watches files, **anyhow** makes error handling short, and **rust-embed** puts the built UI inside the program.
 
 ### `edition = "2024"`
 An edition is a version of the language's rules. Crates of different editions work together, so old code never breaks.
@@ -35,23 +35,23 @@ A "feature" switches on an optional part of a crate. Here, `derive` adds the `#[
 route: Into src, where the Rust program lives, starting at its entry point.
 
 ### `mod cli;`
-`mod` declares a module. In JavaScript every file is a module by itself; in Rust a parent file says which modules exist, and `mod cli;` loads `src/cli.rs`. A module named like a folder (`src/review.rs`) holds the files in that folder (`src/review/`), which is why the map draws `review/` inside `review.rs`.
+`mod` declares a module. A file isn't a module until its parent declares it: `mod cli;` loads `src/cli.rs`. A module named like a folder (`src/review.rs`) holds the files in that folder (`src/review/`), which is why the map draws `review/` inside `review.rs`.
 
 ### `#[tokio::main]`
-`#[...]` is an attribute: a note to the compiler, here a macro that rewrites the function. Rust has no built-in event loop like Node's. tokio is a library that supplies one, and this attribute starts it before `main` runs.
+`#[...]` is an attribute: a note to the compiler, here a macro that rewrites the function. Rust has no built-in async runtime. tokio is a library that supplies one, and this attribute starts it before `main` runs.
 
 ### `async fn main() -> anyhow::Result<()> {`
 `-> T` is the return type. `Result<T, E>` is either `Ok(value)` or `Err(error)`: Rust has no exceptions, so a function that can fail says so in its type. `()` is the "unit" type, Rust's `void`. `anyhow::Result<()>` is a `Result` whose error can be any error.
 
 ### `cli::run().await`
-`.await` comes after the call in Rust, not before. The line has no `;` and no `return`: the last expression in a block is its value, so this is what `main` returns.
+`.await` comes after the call. The line has no `;` and no `return`: the last expression in a block is its value, so this is what `main` returns.
 
 ## The command line, as a type
-`src/cli.rs::Cli` describes the command line as a struct, and clap writes the parser for it. A `struct` is a named group of fields, like a TypeScript object type, but it is also a real runtime type.
+`src/cli.rs::Cli` describes the command line as a struct, and clap writes the parser for it. A `struct` is a named group of fields, laid out in memory with no extra cost.
 route: Over to src/cli.rs: what the program reads first is its command line.
 
 ### `#[derive(Parser)]`
-`derive` asks a macro to write code for the type. clap's `Parser` writes the code that reads the arguments into a `Cli`, and turns the `///` doc comments into the `--help` text. In JavaScript you would write a schema for a library like yargs; here the type is the schema.
+`derive` asks a macro to write code for the type. clap's `Parser` writes the code that reads the arguments into a `Cli`, and turns the `///` doc comments into the `--help` text. The type is the schema: no separate description of the arguments.
 
 ### `#[arg(long, global = true, default_value = ".")]`
 Settings for one argument: `--repo`, allowed after any subcommand, `.` when not given.
@@ -60,7 +60,7 @@ Settings for one argument: `--repo`, allowed after any subcommand, `.` when not 
 Rust has no `null` or `undefined`. A value that may be missing is an `Option`: `Some(value)` or `None`. The compiler won't let you use it until you have handled `None`.
 
 ## Commands are an enum with data
-`src/cli.rs::Cmd` lists every subcommand. A Rust `enum` is more than a list of names: each variant can carry its own fields. It is what TypeScript calls a discriminated union, `{ kind: 'explain', symbol: string } | { kind: 'wait' }`, with the compiler checking every case.
+`src/cli.rs::Cmd` lists every subcommand. A Rust `enum` is more than a list of names: each variant can carry its own fields. A value is exactly one variant, with that variant's fields, and the compiler checks that code handles every variant.
 route: Same file: the subcommands the command line can hold.
 
 ### `Serve(ServeArgs),`
@@ -70,17 +70,17 @@ A variant that holds one value, written like a function call.
 A variant with named fields, like a small struct of its own.
 
 ### `#[arg(value_parser = |s: &str| Ok::<_, String>(ThreadId(s.trim_start_matches('#').into())))]`
-`|s: &str| ...` is a closure: Rust's arrow function. It turns the text `#k3f9a2` into a `ThreadId`. `::<_, String>` (the "turbofish") names a generic type that the compiler can't work out alone; `_` means "work this one out". `.into()` converts a value to the type the place needs, here `&str` to `String`.
+`|s: &str| ...` is a closure: an inline function that can use the variables around it. It turns the text `#k3f9a2` into a `ThreadId`. `::<_, String>` (the "turbofish") names a generic type that the compiler can't work out alone; `_` means "work this one out". `.into()` converts a value to the type the place needs, here `&str` to `String`.
 
 ## Running the chosen command
 `src/cli.rs::run` reads the command line and runs the command. This is where you see Rust's two biggest ideas: ownership and `match`.
 route: Same file: the function that picks what to run.
 
 ### `let top = git::git(&cli.repo, &["rev-parse", "--show-toplevel"])?;`
-Two new things. `&` lends a value: `git` borrows `cli.repo` to read, and `cli` still owns it. The `?` at the end means "if this is an `Err`, return it from `run` now; else take the value out of the `Ok`". It does the work of `try`/`catch` and `throw` in one character.
+Two new things. `&` lends a value: `git` borrows `cli.repo` to read, and `cli` still owns it. The `?` at the end means "if this is an `Err`, return it from `run` now; else take the value out of the `Ok`".
 
 ### `match cli.cmd.unwrap_or(Cmd::Serve(cli.serve)) {`
-`match` is a `switch` that must cover every variant, or the code doesn't compile. Each arm can take a variant apart and name its fields. `unwrap_or` gives the value inside an `Option`, or the default when it is `None`: no subcommand means serve.
+`match` picks an arm by the value's shape, and must cover every variant, or the code doesn't compile. Each arm can take a variant apart and name its fields. `unwrap_or` gives the value inside an `Option`, or the default when it is `None`: no subcommand means serve.
 
 ### `Cmd::Serve(s) => server::serve(repo_root, s.base, s.addr, !s.no_open).await,`
 Ownership: every value has one owner, and the value is freed when its owner ends. Most calls here lend with `&repo_root`. This one passes `repo_root` with no `&`, which moves it: the server now owns the path, and `run` can't use it again. The compiler checks this, which is how Rust frees memory without a garbage collector and without use-after-free bugs.
@@ -89,7 +89,7 @@ Ownership: every value has one owner, and the value is freed when its owner ends
 A pattern can test values, not only shapes: this arm matches only when `stop_hook` is true. `..` means "ignore the other fields". The arms are tried in order, so the next arm takes the rest.
 
 ### `let state = if resolve { ThreadState::Resolved } else if ask { ThreadState::Question } else { ThreadState::Working };`
-`if` is an expression with a value, so Rust needs no `? :` operator.
+`if` is an expression with a value, so its result can go straight into a variable.
 
 ## The server's shared state
 `src/server.rs::App` is what every web request can read: the repository, the git ref to compare with, a channel for events, and the host names the server answers to.
@@ -99,7 +99,7 @@ route: Over to src/server.rs: `visvet serve` starts a web server.
 axum gives each request handler its own copy of the state, so the state must be cloneable. Rust never copies a value behind your back: a copy is always an explicit `.clone()`, or a type marked `Copy`, such as a number.
 
 ### `tx: broadcast::Sender<RepoEvent>`
-`<RepoEvent>` is a generic, as in TypeScript. A broadcast channel sends each message to every listener: here, each browser tab.
+`<RepoEvent>` is a generic: the channel carries `RepoEvent`s. A broadcast channel sends each message to every listener: here, each browser tab.
 
 ## Starting the server
 `src/server.rs::serve` sets up the routes, starts watching the files and listens for requests.
@@ -109,23 +109,23 @@ route: Same file: the function `run` handed the repository to.
 `pub` makes it visible outside its module; everything is private by default. `PathBuf` and `String` are owned values: `serve` keeps them. Their borrowed views are `&Path` and `&str`. A function that only reads text takes `&str`; one that keeps it takes `String`.
 
 ### `let (tx, _) = broadcast::channel(16);`
-A pair of values taken apart, like `const [tx] = ...` in JavaScript. `_` drops the receiver that comes with it; each browser subscribes its own later.
+A pair of values taken apart into two names. `_` drops the receiver that comes with it; each browser subscribes its own later.
 
 ### `let _watcher = watch::watch(repo_root.clone(), move |e| _ = to_ui.send(e))?;`
 `move` makes the closure own what it uses (`to_ui`), so it can run on another thread after this function's variables are gone. `_watcher` is never read, but keeping it in a variable keeps the watcher alive: when a value's owner ends, Rust drops it (here, at the end of `serve`), and dropping a watcher stops it. This "clean up when dropped" rule replaces `finally` and `close()` calls.
 
 ### `.route("/api/model", get(model))`
-As in Express, each route maps a URL to a handler, and handlers are plain async functions. The UI calls these five routes.
+Each route maps a URL to a handler, and handlers are plain async functions. The UI calls these five routes.
 
 ### `.layer(middleware::from_fn_with_state(app.clone(), check_host))`
-A layer wraps every route, like Express middleware: each request goes through `check_host` first.
+A layer wraps every route: each request goes through `check_host` first.
 
 ## Answering only known hosts
 `src/server.rs::check_host` refuses requests addressed to any other host name, so a web page can't read visvet through DNS rebinding.
 route: Same file: the check every request passes before its handler.
 
 ### `let host = req.headers().get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("").to_string();`
-This is what JavaScript writes as `req.headers.host?.toString() ?? ""`. `and_then` goes on only when there is a value, `ok()` turns a `Result` into an `Option`, and `unwrap_or` gives a default.
+Each step works on an `Option`: `and_then` goes on only when there is a value, `ok()` turns a `Result` into an `Option`, and `unwrap_or` gives a default.
 
 ### `return (StatusCode::FORBIDDEN, format!("visvet: unknown host {host:?}; use 127.0.0.1 or the --url address")).into_response();`
 `format!` is Rust's template string: `{host}` puts a value in, `{host:?}` puts in its debug form, with quotes. `into_response` comes from axum's `IntoResponse` trait; a trait is like an interface that a type can take on, even a type from another crate, such as this tuple.
@@ -135,7 +135,7 @@ This is what JavaScript writes as `req.headers.host?.toString() ?? ""`. `and_the
 route: Same file: the handler that builds the review the map draws.
 
 ### `async fn model(State(app): State<App>) -> Res<Json<Review>> {`
-axum reads the function's parameter types to know what to give it ("extractors"): `State<App>` asks for the shared state. `State(app)` takes the value out of its wrapper right in the parameter list, as `({ app })` would in JavaScript. Returning `Json<Review>` tells axum to send the review as JSON, which serde writes.
+axum reads the function's parameter types to know what to give it ("extractors"): `State<App>` asks for the shared state. `State(app)` is a pattern: it takes the value out of its wrapper right in the parameter list. Returning `Json<Review>` tells axum to send the review as JSON, which serde writes.
 
 ### `let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {`
 Building a review reads and parses every file, which takes a while and doesn't await. tokio runs many requests on a few threads, so slow, blocking work goes to a thread of its own, where it holds up no other request.
@@ -148,7 +148,7 @@ Two `Result`s, one inside the other: the thread may have crashed (the outer one)
 route: Same file: how the browser hears about changes.
 
 ### `-> Sse<impl Stream<Item = Result<Event, Infallible>>> {`
-`impl Stream<...>` means "some type that is a stream of these": the real type is long, and the caller only needs to know it is a stream, like returning an `AsyncIterable` in TypeScript. `Infallible` is an error type that can't happen.
+`impl Stream<...>` means "some type that is a stream of these": the real type is long, and the caller only needs to know it is a stream. `Infallible` is an error type that can't happen.
 
 ### `let pushes = tokio_stream::once(Ok(RepoEvent::Changed)).chain(BroadcastStream::new(app.tx.subscribe()));`
 One `change` event straight away, then every event the watcher sends.
@@ -187,7 +187,7 @@ Compile what follows only for `cargo test`. visvet's map leaves test modules out
 route: Over to src/review.rs, which the request handler called to build the review.
 
 ### `let cur: HashSet<RepoPath> = git::current_files(repo_root)?.into_iter().collect();`
-`collect` builds whatever collection the variable's type asks for: here a `HashSet`, JavaScript's `Set`. Rust infers types backwards from where a value goes, so one `collect` can build a list, a set or a map.
+`collect` builds whatever collection the variable's type asks for: here a `HashSet`. Rust infers types backwards from where a value goes, so one `collect` can build a list, a set or a map.
 
 ### `for f in cur.union(&old).filter(|f| !visvet_dir::holds(&f.0)).collect::<BTreeSet<_>>() {`
 Every file in either version, except visvet's own folder. A `BTreeSet` is a set kept in sorted order, so the files are read in path order. `f.0` is the first field of a struct with unnamed fields: `RepoPath` wraps a `PathBuf`.
@@ -196,7 +196,7 @@ Every file in either version, except visvet's own folder. A `BTreeSet` is a set 
 `then` turns a `bool` into an `Option`: `Some(...)` when true, `None` when false. So `new` is the file's bytes, or `None` when the file is gone now.
 
 ### `Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, ..Default::default() })`
-As in JavaScript, `boxes` alone means `boxes: boxes`. `..Default::default()` fills every other field with its default, like spreading a defaults object first.
+`boxes` alone means `boxes: boxes`. `..Default::default()` fills every other field with its default.
 
 ## Asking git
 `src/git.rs::git` runs a git command and returns what it printed. visvet calls the `git` program instead of using a git library: what you see is what `git` says.
@@ -216,7 +216,7 @@ If git failed, return an error built from this message and git's own error text.
 route: Same file: turning git's output into paths.
 
 ### `String::from_utf8_lossy(&out).split('\0').filter(|p| !p.is_empty()).map(|p| RepoPath(p.into())).collect()`
-This looks like JavaScript's array methods, but works differently. JavaScript's `filter` and `map` each build a new array. Rust's iterators are lazy: nothing runs until `collect` asks for the result, and then the compiler joins the steps into one loop, as fast as a hand-written one. `'\0'` is a `char`, written in single quotes, unlike a string.
+Iterators are lazy: nothing runs until `collect` asks for the result, and then the compiler joins the steps into one loop, as fast as a hand-written one. `'\0'` is a `char`, written in single quotes, unlike a string.
 
 ## Comparing a file's two versions
 `src/review/compare.rs::compare_file` parses both versions of a file into boxes, pairs the old and new boxes by name, and compares each pair. That is how every box knows whether it was added, changed, removed or is the same.
@@ -226,17 +226,17 @@ route: Back in src/review, into the first step of building: comparing each file.
 `Option<&[u8]>`: a file's bytes, borrowed, or `None` when that version doesn't exist (the file was added or deleted).
 
 ### `let parsed = |b: Option<&[u8]>| b.map_or(vec![], |b| parse(file, &std::str::from_utf8(b).unwrap_or("").replace("\r\n", "\n")));`
-A closure kept in a variable, which uses `file` from around it, as an arrow function would. `map_or` gives `vec![]` (an empty list) for `None`, else parses the text.
+A closure kept in a variable, which uses `file` from around it. `map_or` gives `vec![]` (an empty list) for `None`, else parses the text.
 
 ### `let (now, before) = (parsed(new), (new != old).then(|| parsed(old)));`
 An unchanged file isn't parsed twice: the old version is parsed only when the bytes differ.
 
 ## Generics and lifetimes
-`src/review/compare.rs::pair` pairs the boxes of two versions by name. Its signature shows lifetimes, the part of Rust that has no JavaScript twin.
+`src/review/compare.rs::pair` pairs the boxes of two versions by name. Its signature shows lifetimes.
 route: Same file: how old and new boxes find each other.
 
 ### `fn pair<'a, T>(new: &'a [T], old: &'a [T], key: fn(&T) -> &str) -> Vec<(Option<&'a T>, Option<&'a T>)> {`
-`T` is a generic type, as in TypeScript. `'a` is a lifetime: a name for "as long as `new` and `old` exist". The result holds references into those two lists, not copies, and `'a` tells the compiler that the result can't outlive them. Get it wrong and the code doesn't compile, so there are no dangling pointers. `fn(&T) -> &str` is the type of a plain function that gives an item's name.
+`T` is a generic type. `'a` is a lifetime: a name for "as long as `new` and `old` exist". The result holds references into those two lists, not copies, and `'a` tells the compiler that the result can't outlive them. Get it wrong and the code doesn't compile, so there are no dangling pointers. `fn(&T) -> &str` is the type of a plain function that gives an item's name.
 
 ### `let mut v: Vec<_> = new.iter().map(|n| (Some(n), oi.get(key(n)).copied())).collect();`
 `mut`: variables can't change unless you say so. `.copied()` turns an `Option<&&T>` into an `Option<&T>`.
@@ -246,7 +246,7 @@ route: Same file: how old and new boxes find each other.
 route: Same file: added, removed, changed or the same.
 
 ### `fn status<T: PartialEq>(new: Option<T>, old: Option<T>) -> ChangeStatus {`
-`T: PartialEq` is a trait bound: `T` can be any type that can be compared with `==`. In TypeScript, `<T extends Comparable>`.
+`T: PartialEq` is a trait bound: `T` can be any type that can be compared with `==`.
 
 ### `(n, o) if n == o => ChangeStatus::Same,`
 The `match` takes a pair apart. `if n == o` is a guard: the arm matches only when it is also true.
@@ -299,7 +299,7 @@ The file's text, borrowed, not copied. Each box's text is a slice of it until it
 route: Same type: the method that sorts each item of a file.
 
 ### `pub(super) fn item(&mut self, n: Node) {`
-`&mut self` is a method that may change the value it is called on (here, add boxes). A method that only reads takes `&self`; JavaScript's `this` is always changeable.
+`&mut self` is a method that may change the value it is called on (here, add boxes). A method that only reads takes `&self`, and the compiler holds it to that.
 
 ### `"function_item" | "function_declaration" => {`
 A `match` on text. `|` matches either: one name from the Rust grammar, one from TypeScript's.
@@ -335,10 +335,10 @@ A loop over a small fixed array of pairs, taking each pair apart, so one loop bo
 route: Same file: looking up what a name means.
 
 ### `struct Index<'a> { types: HashMap<&'a str, Vec<&'a MapBox>>, fns: HashMap<&'a str, Vec<(&'a MapBox, &'a Member)>> }`
-A `HashMap` is JavaScript's `Map`. Every key and value here is a reference with lifetime `'a`: the index lives no longer than the boxes it points into.
+A `HashMap` is a hash table of keys to values. Every key and value here is a reference with lifetime `'a`: the index lives no longer than the boxes it points into.
 
 ### `ix.types.entry(&o.name).or_default().push(o);`
-The "entry" API: find the list for this name, or put in an empty one, then push. In JavaScript, `(map.get(k) ?? map.set(k, []).get(k)).push(o)`.
+The "entry" API: find the list for this name, or put in an empty one, then push, with one lookup.
 
 ## Patterns on lists
 `src/review/dependencies.rs::pick` chooses what a name means: the one match in the same box, else in the same file, else anywhere. Two matches is unclear, so it draws no arrow.
@@ -353,7 +353,7 @@ view: zoomed
 route: Same folder: arrows that parsing alone can't see.
 
 ### `type Detector = fn(file: &RepoPath, text: &str) -> Option<RepoPath>;`
-A type alias for a function type, as in TypeScript. Adding a generator means writing one function of this type.
+A type alias for a function type. Adding a generator means writing one function of this type.
 
 ### `const DETECTORS: &[Detector] = &[ts_rs];`
 A `const` is fixed when the program is compiled. This one is a list of functions.
@@ -370,17 +370,17 @@ route: Over to src/types.rs: the types the review is made of.
 A macro writes code at compile time from a pattern. This one gives each string wrapper type `.as_str()` and printing, without writing them out each time.
 
 ### `pub use annotations::*;`
-Passes on everything in the `annotations` module, so other code can write `crate::types::Thread` and needn't know the file it is in. Like `export * from './annotations'`.
+Passes on everything in the `annotations` module, so other code can write `crate::types::Thread` and needn't know the file it is in.
 
 ## Micro types
 `src/types/ids.rs::RepoPath` is a file's path in the repository. It wraps a `PathBuf`, so the compiler won't let you pass a box id or any other text where a path should go.
 route: Into src/types: first, the small types that say where things are.
 
 ### `pub struct RepoPath(pub PathBuf);`
-A struct with one unnamed field, read as `.0`. In memory it is just the `PathBuf`, so the type costs nothing at runtime. TypeScript has no direct twin: two types of the same shape are interchangeable there.
+A struct with one unnamed field, read as `.0`. In memory it is just the `PathBuf`, so the type costs nothing at runtime.
 
 ### `fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {`
-This method comes from `impl std::fmt::Display for RepoPath`. Implementing the `Display` trait is Rust's `toString()`: it lets `format!("{file}")` print a path.
+This method comes from `impl std::fmt::Display for RepoPath`. Implementing the `Display` trait says how the type prints as text: it lets `format!("{file}")` print a path.
 
 ### `pub fn as_str(&self) -> &str {`
 Returns a borrowed view of the path as text, which lives as long as the `RepoPath` does. No text is copied.
@@ -499,7 +499,7 @@ The `code` variant as a TypeScript object type. The `|` that follows it joins th
 route: Over to model.ts: the UI's end of the request.
 
 ### `export const getModel = (): Promise<Review> => req('/api/model').then(r => r.json())`
-`(): Promise<Review>` is the return type. `r.json()` could be anything at runtime: the type is a promise that TypeScript trusts, and the shared contract is what makes it true.
+`(): Promise<Review>` is the return type. `r.json()` is untyped at runtime: TypeScript trusts the annotation, and the generated contract is what makes it true.
 
 ## The tree the UI draws
 `ui/src/model.ts::Item` is one folder, file, box or member, in a tree the UI builds from the review.
@@ -516,7 +516,7 @@ route: Same file: from the server's flat list to a tree.
 Utility types: `Partial<Item>` is `Item` with every field optional, `Pick` takes some fields, and `&` joins them. So: "any fields of an item, but `id`, `kind` and `name` are a must".
 
 ### `;(parent?.kids ?? roots).push(item)`
-`?.` and `??` you know. The leading `;` stops JavaScript from joining this line to the one before, since the line starts with `(`.
+Adds the item to its parent's children, or to the roots when it has none.
 
 ### `return { items, roots, all, order: all.filter(it => !it.ctx) }`
 No return type is written: TypeScript infers it, and `type Index = ReturnType<typeof index>` names it for the rest of the UI.
@@ -663,9 +663,6 @@ Sending posts to `/api/threads`, which `store::new_thread` saves as a file, and 
 ## An effect on every draw
 `ui/src/Tours.tsx::useArrowKeys` steps through a tour with the arrow keys.
 route: Over to Tours.tsx: the tour you are taking now.
-
-### `const by = { ArrowLeft: -1, ArrowRight: 1 }[e.key]`
-An object used as a lookup table: `-1`, `1`, or `undefined` for any other key.
 
 ### `return () => removeEventListener('keydown', press)`
 This effect has no dependency list, so it runs after every draw: the old listener is removed and a new one, which sees the current step, is added. A listener added once would keep the step from when it was made.
