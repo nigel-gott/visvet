@@ -28,6 +28,7 @@ caffeinate -is visvet serve --no-open --port 7880 --url https://nigels-macbook-p
 - `cargo clippy --all-targets`
 - `cd ui && npx tsc --noEmit -p .`
 - `visvet graph` prints coupling, cycles and complexity.
+- `visvet tours` checks the tours in `tours/` against the code. After changing code a tour shows, fix its stale steps.
 - `visvet coverage` runs the Rust tests under `cargo llvm-cov`; boxes then show a 🧪 low-coverage debuff. Rerun it after changing tests.
 
 ## Comment threads

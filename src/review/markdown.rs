@@ -14,6 +14,7 @@ pub fn labels(src: &str) -> DocLabels {
             Some("milestone") => Some(DocKind::Milestone),
             Some("idea") => Some(DocKind::Idea),
             Some("hub") => Some(DocKind::Hub),
+            Some("tour") => Some(DocKind::Tour),
             _ => None,
         },
         status: match field("status") {

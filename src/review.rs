@@ -6,6 +6,7 @@ pub mod coverage;
 pub mod dependencies;
 pub mod markdown;
 pub mod parse;
+pub mod tours;
 
 use crate::{git, state::visvet_dir};
 use compare::compare_file;
@@ -29,6 +30,7 @@ pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
         all.extend(compare_file(f, new.as_deref(), prev.as_deref()));
     }
     let (boxes, dependencies) = find_dependencies(all, &cur);
-    Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, ..Default::default() })
+    let tours = tours::read_tours(repo_root, &boxes);
+    Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, ..Default::default() })
 }
 

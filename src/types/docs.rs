@@ -23,6 +23,8 @@ pub enum DocKind {
     Idea,
     /// A note that gathers other notes on one theme.
     Hub,
+    /// A guided path through the code, see `Tour`.
+    Tour,
 }
 
 /// Where an issue, milestone or idea stands, from `status:` in its front matter.

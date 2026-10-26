@@ -31,6 +31,24 @@ export type BoxKind = "struct" | "enum" | "trait" | "class" | "interface" | "typ
 export type ChangeStatus = "same" | "added" | "removed" | "changed";
 
 /**
+ * A note on an exact piece of a step's code: a `### ` heading holding that code in backticks, then the note.
+ */
+export type CodeNote = { 
+/**
+ * The code the note is about, as written in the heading, e.g. "#[derive(Parser)]".
+ */
+code: string, note: string, 
+/**
+ * Where that code is in the step's box, the first time it appears; none when it isn't there any more (stale).
+ */
+span: CodeSpan | null, };
+
+/**
+ * Where a piece of code is in its file: from `start` up to `end`.
+ */
+export type CodeSpan = { start: TextPosition, end: TextPosition, };
+
+/**
  * How many of a function's or file's coverable lines the tests ran (`visvet coverage`).
  */
 export type Coverage = { covered: number, coverable: number, };
@@ -58,7 +76,7 @@ export type DiffLineKind = "ctx" | "add" | "del";
 /**
  * What a Markdown file is, from `kind:` in its front matter.
  */
-export type DocKind = "issue" | "milestone" | "idea" | "hub";
+export type DocKind = "issue" | "milestone" | "idea" | "hub" | "tour";
 
 /**
  * What a Markdown file's front matter says about it, e.g. `kind: issue` and `status: open`. Other keys are ignored.
@@ -161,7 +179,11 @@ export type Review = {
 /**
  * What the working tree is compared against, to highlight what changed (`visvet serve --base`, `HEAD` by default).
  */
-compared_against: GitRef, boxes: Array<MapBox>, dependencies: Array<Dependency>, annotations: ReviewAnnotations, };
+compared_against: GitRef, boxes: Array<MapBox>, dependencies: Array<Dependency>, 
+/**
+ * The guided tours in `tours/`, each step checked against the code as it is now.
+ */
+tours: Array<Tour>, annotations: ReviewAnnotations, };
 
 /**
  * The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`.
@@ -172,6 +194,11 @@ export type ReviewAnnotations = { threads: Array<Thread>, };
  * The AI asks the UI to open `target` and highlight these boxes and arrows (`visvet show`).
  */
 export type Show = { target: MapId, highlight: Array<MapId>, };
+
+/**
+ * A place in a file: its 1-based line, and the characters before it on that line.
+ */
+export type TextPosition = { line: number, column: number, };
 
 /**
  * A conversation between the user and the AI about one box, folder or arrow.
@@ -205,6 +232,41 @@ at: number, };
  * Where a comment thread stands.
  */
 export type ThreadState = "open" | "working" | "question" | "resolved";
+
+/**
+ * A guided path through the code, in an order that builds understanding: a Markdown file with `kind: tour`.
+ */
+export type Tour = { 
+/**
+ * The tour's Markdown file, e.g. "tours/first-look.md".
+ */
+file: RepoPath, 
+/**
+ * The file's `# ` heading.
+ */
+title: string, 
+/**
+ * The file's `description:`.
+ */
+description: string, steps: Array<TourStep>, };
+
+/**
+ * One stop on a tour: a `## ` heading, the box it shows (the first name in backticks under it), its text, and
+ * notes on pieces of that box's code.
+ */
+export type TourStep = { title: string, 
+/**
+ * The box, member or file the step shows.
+ */
+target: MapId, 
+/**
+ * False when no box has that id any more, e.g. after a rename: the step is stale.
+ */
+target_found: boolean, 
+/**
+ * The step's Markdown text, without its notes on code.
+ */
+text: string, code_notes: Array<CodeNote>, };
 
 /**
  * A trait, interface or base class a box implements or extends. `box_id` is set when it is defined in this repo.

@@ -1,7 +1,8 @@
 //! The command line: `visvet serve` (the default) runs the review UI; the other commands are for agents: notes,
-//! comment threads, what the user sees, the map as text, and test coverage.
+//! comment threads, what the user sees, the map as text, tours, and test coverage.
 mod graph;
 mod threads;
+mod tours;
 mod view;
 
 use crate::review::coverage;
@@ -55,6 +56,8 @@ enum Cmd {
         #[arg(long, default_value = "HEAD")]
         base: String,
     },
+    /// Print the tours in tours/, flagging steps whose box or code is gone
+    Tours,
     /// Run the Rust tests under cargo llvm-cov, so boxes show a low-coverage debuff
     Coverage,
     /// Print the user's comment threads waiting for you; --all adds working and question ones
@@ -110,6 +113,7 @@ pub async fn run() -> anyhow::Result<()> {
         Cmd::Graph { base } => graph::print(&repo_root, &base),
         Cmd::View => view::print(&repo_root),
         Cmd::Coverage => coverage::run(&repo_root),
+        Cmd::Tours => tours::print(&repo_root),
         Cmd::Threads { stop_hook: true, .. } => threads::stop_hook(&repo_root),
         Cmd::Threads { all, .. } => threads::print(&repo_root, all),
         Cmd::Reply { id, text, resolve, ask } => {

@@ -1,7 +1,7 @@
 //! The top of the contract: one review, and the git ref it compares against.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{Dependency, MapBox, ReviewAnnotations};
+use super::{Dependency, MapBox, ReviewAnnotations, Tour};
 
 /// A git commit, branch or tag name, e.g. "HEAD", "main" or "a1b2c3d".
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
@@ -19,5 +19,7 @@ pub struct Review {
     pub compared_against: GitRef,
     pub boxes: Vec<MapBox>,
     pub dependencies: Vec<Dependency>,
+    /// The guided tours in `tours/`, each step checked against the code as it is now.
+    pub tours: Vec<Tour>,
     pub annotations: ReviewAnnotations,
 }

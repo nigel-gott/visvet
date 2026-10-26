@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: A tour is a Markdown file in tours/; each ## heading is a step on one box, with notes on exact pieces of its code.
 ---
 # Tour files

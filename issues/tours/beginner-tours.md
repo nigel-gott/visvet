@@ -1,11 +1,11 @@
 ---
 kind: issue
 status: open
-description: Tours of visvet's key code for someone who knows JavaScript and Vue but not Rust, React or the libraries.
+description: One tour of the whole codebase for someone who knows JavaScript and Vue, teaching the Rust, TypeScript and React fundamentals as they come up.
 ---
 # Beginner tours of visvet
 
-Short tours rather than one long one, each teaching the concepts as the code needs them:
+One tour through the whole codebase (the user asked for one, 2026-10-26), in parts that teach the concepts as the code needs them:
 
 - **Rust through visvet's backend:** modules, structs and enums, `match`, `Option`/`Result`/`?`, ownership and borrowing, `&str` vs `String`, traits and `derive`, closures and iterators, lifetimes.
 - **The libraries:** clap, serde and ts-rs, axum and tokio (async), tree-sitter, similar, notify.
