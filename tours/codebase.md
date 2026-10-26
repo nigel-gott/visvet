@@ -12,7 +12,7 @@ description: The whole of visvet, from the command line to the map, teaching the
 3. The review goes to the browser as JSON, and the UI draws the map (TypeScript and React).
 4. Comments on boxes are saved as files, so the AI can answer them.
 
-Each step teaches the language features its code uses. The Rust steps explain Rust on its own terms; the UI steps compare React with Vue and build on the TypeScript you know. The purple note at the bottom says where the camera goes next and why.
+Each step teaches the language features its code uses. The Rust steps explain Rust on its own terms; the UI steps compare React with Vue and build on the TypeScript you know. A purple note says where you go next and why: over the map while the camera moves you, or under the breadcrumbs when you drive yourself.
 route: Starting at the top of the repository, with what visvet is for.
 
 ### `## Review a repo`

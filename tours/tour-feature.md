@@ -149,7 +149,7 @@ Whether this box is the one the tour's step shows. `stepBox` is empty with no to
 This bubble is itself a note on a whole box: its `###` heading in the tour file names a box instead of code, so the server sets `on_box`, and `BoxBubble` draws the note above that box.
 
 ## Notes under the code they explain
-`ui/src/Views.tsx::DiffView` draws a box's code. The lines a note is about get an amber band, and the note sits in a bubble right under them.
+`ui/src/Views.tsx::DiffView` draws a box's code. The lines a note is about get a purple band, and the note sits in a bubble right under them.
 route: To Views.tsx: notes sit under the lines they explain.
 
 ### `<div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`}>`
@@ -172,6 +172,26 @@ Ports: fixed points where arrows attach. Arrows into the box come in at its own 
 ### `sources: [STEP_BUBBLE], targets: [target.id]`
 A box that draws boxes inside it (a zoomed step) can't grow sideways without moving them, so its bubble is a node of its own, with an edge to the box. ELK puts an edge's start to the left, so the bubble lands just left of the box; after layout, `levelWithBox` lines it up with the box's top.
 
+## Boxes slide into place
+`ui/src/Graph.tsx::useRelayoutMotion` makes a new layout of the same view slide in: when a box opens or a step's bubble arrives, every box moves and grows to its new place instead of jumping, and arrows wait out of sight.
+route: Up to Graph.tsx: how a layout change animates.
+
+### `motion.current = { graph, until: sameView ? Date.now() + RELAYOUT_TIME : 0 }`
+Worked out while drawing, not in an effect: the boxes' new positions must already have the motion on, or they would jump before it starts. A new view's layout appears as it is.
+
+### `const sliding = Date.now() < motion.current.until`
+While this is true, the map has the `relayout` class, whose CSS transitions the boxes' place and size with the camera's easing.
+
+## Framing the step
+`ui/src/Graph.tsx::useFit` places the camera for each view. For a tour step it frames the step's box and bubble, as close as shows them whole.
+route: Same file: where the camera goes for a step.
+
+### `const closest = absolute(graph.laid, STEP_BUBBLE) ? CLOSEST_FRAMING : 1`
+A step's box with its bubble may be framed past full size, up to 1.6×, so a small box fills the screen; a box on its own (after Next closes it) at full size at most.
+
+### `const hit = c && graph.view === view ? around(withBubble(graph.laid, absolute(graph.laid, c)), alsoShow ? absolute(graph.laid, alsoShow) : undefined) : undefined`
+What to frame: the highlighted box, its bubble if laid out, and with "you drive" after Next, also the box to click next, so the box you left and the way on are both in view.
+
 ## Where the tour's state lives
 `ui/src/main.tsx::App` holds which tour plays and its step, and passes them down in the context `x`, React's `provide`/`inject`.
 route: To main.tsx, where the tour's state lives and journeys are planned.
@@ -186,8 +206,30 @@ Moving to the next step passes through each zoom level between the two places: o
 ### `await (zoomer.run ? zoomer.run(hop, enter, setupOf(hop), journeyMotion(level, hops.length)) : enter())`
 Each level is one zoom, the same as double-clicking or pressing Up, but `journeyMotion` gives it a slice of one long ease, so the camera only slows at the start and the end, never between levels. `await` waits for each level before the next, as in JavaScript. The step itself only changes as its view takes over (`arriving`), so the view you leave stays as it was.
 
+### `if (moves.byHand && jump) {`
+With "you drive", the top bar's Back and Next, the step list, Resume and the arrow keys jump: the step's view opens at once, framed, with no journey.
+
+### `if (moves.byHand) {`
+Otherwise, with "you drive", the move is left to you: the step to reach is kept as `heading`, and the cues (`guide`) say what to do next.
+
+### `const stayOpenFor = (id: string) => [...expanded].filter(open => within(ix.items.get(id), open) || within(ix.items.get(open), id))`
+Boxes that hold the next step's box, or sit inside it, stay open, so moving between steps in one file only moves the bubble.
+
+### `const reached = !!headingStep && !way.length && (headingStep.view === 'zoomed' || sel === headingStep.target)`
+You've reached a step when you are in its view and, unless it is zoomed, have clicked its box. Then it opens, bubble and all.
+
 ### `const journey = useRef(0)`
 `useRef` keeps a value between renders without re-rendering, like a plain variable in Vue's `setup()`. Each move gets a number; pressing Next again starts a newer one, and the older move stops at its next level.
+
+## The way on, in the breadcrumbs
+`ui/src/main.tsx::WayAhead` continues the breadcrumbs with the way to the next step when you drive: the stops ahead in purple, the next move pulsing, then the step's title and note.
+route: Up to main.tsx's breadcrumbs: the way on, when you drive.
+
+### `const ahead = guide.stops.slice(1).filter((stop): stop is string => stop !== null && !here.has(stop))`
+The stops still to come: those not already in the breadcrumbs. `stop is string` tells TypeScript that the filter leaves only strings, no `null`.
+
+### `onClick={() => x.zoom(stop)}>{name(stop)}</a>)}`
+Each stop goes there when clicked; the next one to double-click into pulses.
 
 ## How the camera moves
 `ui/src/nestedZoom.tsx::glideCamera` moves the camera frame by frame, so nothing can cut a move short, and a newer move always takes over from an older one.
@@ -195,7 +237,7 @@ view: zoomed
 route: To nestedZoom.tsx: the camera moves you've been riding.
 
 ### `const glide = ++latestGlide, duration = paced(motion.duration)`
-`paced` applies the speed picked in the top bar: instant, 1×, 2×, 4× or 6×.
+`paced` applies the speed picked in the top bar: instant, 1×, 2×, 4× or 6×. The menu's last choice, "you drive", leaves the moves between steps to you (see `App` and `WayAhead`), and your own zooms run at 1×.
 
 ### `const zoom = from.zoom * (to.zoom / from.zoom) ** eased`
 The zoom changes by the same factor each frame, not the same amount, so zooming in and out reads at an even pace.
