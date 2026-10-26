@@ -1,8 +1,11 @@
+---
+kind: idea
+description: Boxes and arrows added by agents are first-class map content, recording their origin; never a hidden layer.
+---
 # Added content
 
-Everything on the map that wasn't extracted from the code: the AI's notes, extra arrows, highlights, [widgets](widgets.md), pictures. Permanent, unlike a [view](views.md), which you open and close.
+Things on the map that weren't extracted from the code: notes, extra arrows, [widgets](widgets.md), pictures. Permanent, unlike a [view](views.md).
 
-- **First-class:** added things are ordinary boxes and arrows on the map, shown like any other. Each one records where it came from: extracted from code, or added (by which agent or person). That origin can be shown, and filtered, but nothing is hidden by default.
-- **One format** for all of it, the same format extractors produce ([extending visvet](extending-visvet.md)). An added box and an extracted box differ only in their origin.
-- **Claude canvases:** don't rebuild them. See [Claude integration](claude-integration.md).
-- **Images:** e.g. a UI component's box shows what it looks like. See [live components](live-components.md).
+- **First-class:** ordinary boxes and arrows, shown like any other. Each records its origin: extracted from code, or added (by which agent or person). Can be shown or filtered; nothing hidden by default.
+- **One format:** the same one [plugins](plugins-as-programs.md) print. An added box and an extracted box differ only in origin.
+- Images: e.g. [live components](live-components.md).

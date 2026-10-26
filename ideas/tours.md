@@ -1,17 +1,15 @@
+---
+kind: idea
+status: exploring
+description: A guided path through the code in an order that builds understanding; a view with steps.
+---
 # Tours
 
-A guided path through a codebase: first these concepts, then these, in an order that builds understanding. Code review has always lacked this; the map makes it possible, and the AI can write it.
+A guided path: first these concepts, then these, in an order that builds understanding. Code review has always lacked this; the map makes it possible, and the AI can write it. The problem it solves: today you start at a random box and get lost.
 
-- **Simplest form:** an ordered list of steps. Each step is a box on the map plus some text from the AI.
-- **A tour is a [view](views.md) with steps:** walk forwards and backwards; each step can pick boxes and add notes, arrows, images or [widgets](widgets.md).
-- **Not from the code.** A tour is its own state, written for understanding. Like [threads](../.visvet/threads/), it would live in git next to the code.
-- **The problem it solves:** today you jump into the graph at a random box and get lost.
+- A tour is a [view](views.md) with steps: walk forwards and backwards; each step picks boxes and adds notes, arrows, images or [widgets](widgets.md).
+- Its own state, written for understanding, committed next to the code.
+- Can be [derived from a test](tours-from-tests.md), or [teach the language](learning-tours.md), or stop for [option questions](option-questions.md).
+- Natural first stop: the [concept dimension](concept-dimension.md). Finishing one clears [fog of war](fog-of-war.md) along its path.
 
-- **A tour from a test:** a behaviour test already reads like a tour: given this state, when this happens, then this. With tracing, the test's [flow](flows.md) gives the boxes in order and the test's own steps give the text. A tour derived from a test can't go stale: it's re-derived on every run.
-
-First wanted: a tour of visvet itself.
-
-Open questions:
-
-- When code moves or is renamed, steps point at boxes that no longer exist. The same thing already strands notes.
-- How does a tour tell its reader that the code changed since it was written?
+First wanted: a tour of visvet itself. Open: steps strand when code moves (like notes today), and how a tour says the code changed since it was written.

@@ -1,0 +1,12 @@
+---
+kind: hub
+description: Tours, views and learning: guided ways through the map instead of a random starting box.
+---
+# Guided reading
+
+- [Views](views.md): the AI arranges and annotates part of the map to show something.
+- [Tours](tours.md): views with steps. Can be [derived from tests](tours-from-tests.md).
+- [Learning tours](learning-tours.md): tours that teach the language, using [code span annotations](code-span-annotations.md), [koans](koans.md) and [understanding checks](understanding-checks.md).
+- [Option questions](option-questions.md): the AI asks with options, in threads and at tour branches.
+- [Private threads](private-threads.md): learning conversations that stay out of git.
+- [Fog of war](fog-of-war.md): shows what's left to explore, and suggests the next tour.

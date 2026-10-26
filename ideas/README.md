@@ -1,31 +1,20 @@
 ---
-description: Ideas not yet ready to be issues: short notes that link to each other.
+kind: hub
+description: Ideas not yet ready to be issues: one idea per note, linked, gathered by theme hubs.
 ---
 # Ideas
 
-Thinking, not plans. When one becomes concrete work, it moves to `issues/`.
+Thinking, not plans. One idea per note; each link says why it's there. When an idea becomes concrete work, it moves to `issues/` and its note gets `status: done` or a link to the issue.
 
-- [Tours](tours.md): a guided path through the code, in an order that builds understanding.
-- [Learning tours](learning-tours.md): tours that teach the language: annotated syntax, doc excerpts and koans.
-- [Views](views.md): quick annotated arrangements the AI makes to show something; a tour is a view with steps.
-- [Added content](added-content.md): what the AI adds to the map permanently: boxes, arrows, widgets, shown like everything else.
-- [Live components](live-components.md): seeing, and one day playing with, UI components on their boxes.
-- [Dimensions](dimensions.md): other ways to look at the same project, e.g. its data instead of its code.
-- [Stacked dimensions](stacked-dimensions.md): dimensions as stacked planes; the camera tilts to move between them.
-- [Concept dimension](concept-dimension.md): the ideas people use to explain the app, from code annotations and docs; backlinks for agents.
-- [Data dimension](data-dimension.md): databases, schemas and the data models inside the code.
-- [State machines](state-machines.md): a kind of picture that fits inside any dimension; spread over the code, so a candidate for annotations.
-- [Methodology](methodology.md): visvet as a way to build projects, with a recommended stack, not only a review tool.
-- [Tests](tests.md): black-box, behaviour-style tests, and what they should show on the map.
-- [Behaviour dimension](behaviour-dimension.md): the system as black boxes and what they do, taken from the tests.
-- [Flows](flows.md): highlighted paths through the code, derived from tests or tracing.
-- [Architecture dimension](architecture-dimension.md): services, containers, people and teams, C4-style.
-- [Questions](questions.md): the AI asks, in threads and tours: option lists and mini conversations.
-- [AI helpers](ai-helpers.md): an orchestrator with sub-agents, and a cheap background model.
-- [Activity](activity.md): who's working on what: agents, open PRs and ownership, as avatars and stripes.
-- [Claude integration](claude-integration.md): use artifacts, canvases and the browser pane instead of rebuilding them.
-- [Widgets](widgets.md): boxes with custom insides (live components, media, small apps), with an API.
-- [Extending visvet](extending-visvet.md): settings, plugins as programs, WebAssembly, a scripting language.
-- [Voice](voice.md): talk at the boxes: click and talk.
-- [Fog of war](fog-of-war.md): the map shows where you haven't looked or understood, without a checklist.
-- [Node signals](node-signals.md): churn, hotspots, dead code, and which visual channel shows what.
+Labels in each note's front matter: `kind: idea` or `kind: hub`, and a `status:` of `exploring` (being thought through), `parked` (later, or doubted) or `dropped` (decided against, kept for the reason). No status means just written down.
+
+Hubs, one per theme:
+
+- [Dimensions](hub-dimensions.md): other ways to look at the same project than its code.
+- [Box signals](hub-box-signals.md): what a box tells you at a glance about its health and its people.
+- [Tests and flows](hub-tests-and-flows.md): behaviour tests, and the paths they trace through the code.
+- [Guided reading](hub-guided-reading.md): tours, views and learning, so you're never dropped at a random box.
+- [AI in visvet](hub-ai.md): more agents, a cheap model, voice, and using the Claude apps.
+- [Extending visvet](hub-extending.md): new languages, plugins, widgets and things added to the map.
+
+Two notes cut across all of them: [methodology](methodology.md), visvet as a way to build projects, and [extracted, not drawn](extracted-not-drawn.md), the rule that the map comes from tools.
