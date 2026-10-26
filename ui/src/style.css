@@ -317,3 +317,17 @@ main { grid-area: 2 / 1; min-height: 0 }
 .preview-arrows { position: absolute; left: 0; top: 0; overflow: visible }
 .preview-arrows polyline { fill: none; stroke: var(--muted); stroke-width: 1.5; opacity: .6 }
 @keyframes fade-away { to { opacity: 0 } }
+
+/* A move between tour steps: new boxes appear at once, and its route shows as a line of stops over the map, filled in
+   up to where the camera is, like a route on a map. */
+.travelling .react-flow__node { animation: none }
+.route { grid-area: 2 / 1; align-self: start; justify-self: center; z-index: 6; display: flex; gap: 0; margin: 14px 0 0; padding: 8px 16px;
+  list-style: none; border: 1px solid var(--line); border-radius: 20px; background: var(--bg); box-shadow: 0 6px 20px rgb(0 0 0 / .15); pointer-events: none }
+.route li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 76px; color: var(--muted); font-size: 12px; white-space: nowrap }
+.route li::before { content: ''; z-index: 1; width: 10px; height: 10px; border: 2px solid var(--line); border-radius: 50%; background: var(--bg) }
+.route li + li::after { content: ''; position: absolute; top: 6px; right: 50%; width: 100%; height: 2px; background: var(--line) }
+.route li.passed, .route li.heading { color: var(--fg) }
+.route li.passed::before { border-color: var(--ai); background: var(--ai) }
+.route li.passed::after, .route li.heading::after { background: var(--ai) }
+.route li.heading::before { border-color: var(--ai); animation: pulse 1s ease-in-out infinite }
+@keyframes pulse { 50% { transform: scale(1.4) } }

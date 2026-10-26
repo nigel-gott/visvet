@@ -2,7 +2,7 @@
 
 import { createContext } from 'react'
 import type { Index, Review, Thread } from './model'
-import type { TourPlace } from './Tours'
+import type { Route, TourPlace } from './Tours'
 
 /** What every view reads: the model, the item index, the selection, navigation and review state. */
 export type Ctx = {
@@ -16,6 +16,8 @@ export type Ctx = {
   focus: (id: string, replace?: boolean) => void
   /** The tour playing and its step, if one is. */
   tour: TourPlace | null
+  /** The route of a move between tour steps under way, if one is. */
+  route: Route | null
   /** The box the playing tour's current step shows, if a tour is playing. */
   stepBox?: string
   /** Shows a tour's step, zooming into its box; null leaves the tour. */

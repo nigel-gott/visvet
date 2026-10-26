@@ -9,11 +9,11 @@ import './style.css'
 import type { StepView } from './contract'
 import { flip, flipAll, getModel, index, reportView, type Index, type Item, type Review, type Show } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
-import { zoomer } from './nestedZoom'
+import { journeyMotion, zoomer } from './nestedZoom'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { LineCounts } from './Views'
-import { StepBubble, stepTarget, TourBar, useTourStep, type TourPlace } from './Tours'
+import { bubbleBoxOf, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Route, type TourPlace } from './Tours'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -236,6 +236,8 @@ function App() {
   const [tour, setTour] = useState<TourPlace | null>(null)
   /** Which move between tour steps is the latest, so a quick Next stops an older one between zoom levels. */
   const journey = useRef(0)
+  /** The route of the move between tour steps under way, shown over the map; null when none is. */
+  const [route, setRoute] = useState<Route | null>(null)
   useTypeToComment(sel, setDraft)
   useShow(show, ix, nav.show)
   const focus = useFocus(ix, select)
@@ -276,20 +278,25 @@ function App() {
     setTour(place)
     const trip = ++journey.current
     const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
-    if (!step) return
-    const to = zoomedFor(step.target, step.view)
-    for (const hop of hopsBetween(scope, to)) {
-      const opened = hop === to ? openFor(step.target, step.view) : new Set<string>()
-      const enter = () => { go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: opened }) }
-      await (zoomer.run ? zoomer.run(hop, enter, opened) : enter())
+    if (!step) return setRoute(null)
+    const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
+    const openedAt = (hop: string | null) => (hop === to ? openFor(step.target, step.view) : new Set<string>())
+    // Every view on the way is laid out before setting off, so the camera never waits for one.
+    await zoomer.prepare?.(hops.map(hop => ({ to: hop, opened: openedAt(hop) })), bubbleBoxOf(step))
+    if (journey.current !== trip) return
+    for (const [level, hop] of hops.entries()) {
+      setRoute({ stops: [scope, ...hops], at: level + 1 })
+      const enter = () => { go({ scope: hop, map }); setWide({ view: hop ?? WHOLE_MAP, ids: openedAt(hop) }) }
+      await (zoomer.run ? zoomer.run(hop, enter, openedAt(hop), journeyMotion(level, hops.length)) : enter())
       // A newer step (a quick Next) takes over the journey.
       if (journey.current !== trip) return
     }
+    setRoute(null)
     showBox(step.target, step.view)
   }
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
-    tour, showStep, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,
+    tour, showStep, route, stepBox: tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step)?.target : undefined,
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,
@@ -302,6 +309,7 @@ function App() {
         <Header error={error} />
         <main><Graph visible pop={pop} /></main>
         <LostStep />
+        <RouteOverlay />
         <Drawer />
       </div>
     </X.Provider>

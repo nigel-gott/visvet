@@ -9,7 +9,7 @@ import { STEP_BUBBLE, StepBubble, stepBubbleBox, useTourStep, type StepBubbleBox
 import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
 import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
-import { showsIn, useNestedZoom } from './nestedZoom'
+import { glideCamera, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
 /** How long the camera takes to glide to a selected box, in ms. */
@@ -102,27 +102,43 @@ const flat = (n: ElkNode, parentId?: string): Laid[] => (n.children ?? []).flatM
 /** One view laid out by ELK: which view, its size, each box's place, and each arrow's route. */
 export type Layout = { view: string; width: number; height: number; laid: Laid[]; routes: Record<string, XYPosition[]> }
 
-/** Lays view `view` (its boxes and arrows, `v`) out with ELK, with each box's height and width. */
+/** Everything that shapes a view's layout: its name, each box and its size, its arrows, and a tour step's bubble in it. */
+const layoutKey = (view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox) => {
+  const bubbleHere = bubble && v.boxes.some(it => it.id === bubble.target) ? `${bubble.target} ${bubble.height}` : ''
+  return [view, ...v.boxes.map(it => `${it.id} ${size(it)}x${wide(it)}`), ...v.edges.keys(), ...v.detail.keys(), bubbleHere].join('|')
+}
+
+/** Layouts worked out already, by `layoutKey`: a view a zoom laid out ahead opens at once, with no wait for ELK. */
+const laidOut = new Map<string, Layout>()
+
+/** Lays view `view` (its boxes and arrows, `v`) out with ELK, with each box's height and width, or reuses that layout. */
 export async function layOut(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): Promise<Layout> {
+  const key = layoutKey(view, v, size, wide, bubble), known = laidOut.get(key)
+  if (known) return known
   const turned = flipped(v)
   const g = await elk.layout(elkGraph(v, size, wide, bubble))
   const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
     const s = e.sections?.[0], pts = s ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint] : []
     return s ? [[e.id, turned.has(e.id) ? pts.reverse() : pts]] : []
   }))
-  return { view, width: g.width!, height: g.height!, laid: flat(g), routes }
+  // Kept for the views of recent zooms; the oldest go once there are many.
+  if (laidOut.size > 100) laidOut.delete(laidOut.keys().next().value!)
+  const layout = { view, width: g.width!, height: g.height!, laid: flat(g), routes }
+  laidOut.set(key, layout)
+  return layout
 }
 
 /** Lays a view out with ELK again whenever its boxes, their sizes, its edges or the tour step's bubble change. */
 function useLayout(view: string, v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox) {
   const [graph, setGraph] = useState<Layout>({ view: '', width: 0, height: 0, laid: [], routes: {} })
-  const key = [...v.boxes.map(it => `${it.id} ${size(it)}x${wide(it)}`), ...v.edges.keys(), ...v.detail.keys(), bubble && `${bubble.target} ${bubble.height}`].join('|')
+  const key = layoutKey(view, v, size, wide, bubble), known = laidOut.get(key)
   useEffect(() => {
+    if (known) return
     let live = true
     layOut(view, v, size, wide, bubble).then(laid => live && setGraph(laid))
     return () => { live = false }
   }, [key])
-  return graph
+  return known ?? graph
 }
 
 /** A laid-out box's position on the whole map (ELK gives positions inside the parent box) and width. */
@@ -158,6 +174,8 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
   useLayoutEffect(() => {
     const leaving = was.current
     was.current = view
+    // Each visit to a view is placed afresh, even one placed before (e.g. the whole map, passed on the way out).
+    fitted.current = ''
     if (anchor.box) return // a double click already chose the clicked box
     // Zooming in to a box drawn too deep to see here (e.g. a file, from the whole map) starts from the box around it.
     let inside = ix.items.get(view), drawn = inside && getInternalNode(inside.id)
@@ -190,7 +208,12 @@ function useFit(box: RefObject<HTMLDivElement | null>, ix: Index, graph: Layout,
     const at = from && absolute(graph.laid, from.id)
     if (!from || !at) return void setViewport(target, same ? GLIDE : undefined)
     const zoom0 = from.w / at.width
-    setViewport({ x: from.x - at.x * zoom0, y: from.y - at.y * zoom0, zoom: zoom0 }).then(() => setViewport(target, GLIDE))
+    // A zoom out of a tour's journey glides at the journey's pace (see nestedZoom.tsx); anything else, the usual glide.
+    const outward = nextOutwardGlide.motion
+    nextOutwardGlide.motion = null
+    const start = { x: from.x - at.x * zoom0, y: from.y - at.y * zoom0, zoom: zoom0 }
+    setViewport(start)
+    void glideCamera(setViewport, start, target, outward ?? GLIDE)
   }, [graph, view, visible, pop, centre])
 }
 
@@ -352,6 +375,8 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   return (
     <ReactFlow
       ref={box}
+      // During a tour's move, each new view's boxes appear at once, exactly where their drawing was.
+      className={x.route ? 'travelling' : undefined}
       nodes={shown.nodes}
       edges={shown.edges}
       onEdgeClick={(_, e) => x.select(e.id)}

@@ -10,15 +10,72 @@ import { anchor } from './Card'
 import { Head, Notes } from './Views'
 import { height, showsCode, width } from './size'
 import { mapView } from './view'
-import { STEP_BUBBLE, stepBubbleBox } from './Tours'
+import { STEP_BUBBLE, stepBubbleBox, type StepBubbleBox } from './Tours'
 import type { Item } from './model'
 
 /** How long a zoom from one view into another takes, in ms: slow enough to see where you go. */
 export const ZOOM_TIME = 1400
 /** How long the drawing of a view stays behind its real boxes after a zoom into it, in ms, while they fade in. */
 const LANDING_TIME = 500
-/** The camera move of a zoom: eased in and out over `ZOOM_TIME`. */
-const ZOOM_GLIDE = { duration: ZOOM_TIME, interpolate: 'linear' as const, ease: (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2) }
+/** Eased in and out: slow at both ends, fastest in the middle, for `t` from 0 to 1. */
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2)
+
+/**
+ * How a zoom's camera moves: how long, and its easing. A journey through several zoom levels gives each level its
+ * slice of one ease (see `journeyMotion`), so the camera only slows at the journey's two ends; `lands` is false for
+ * every level but the last, which moves straight on.
+ */
+export type ZoomMotion = { duration: number; ease: (t: number) => number; lands: boolean }
+
+/** A single zoom: eased in and out over `ZOOM_TIME`, then landing. */
+const ONE_ZOOM: ZoomMotion = { duration: ZOOM_TIME, ease: easeInOut, lands: true }
+
+/** How long each zoom level of a journey takes, in ms: quicker than a single zoom, since the camera doesn't stop. */
+const JOURNEY_LEVEL_TIME = 900
+
+/** The motion of level `level` (from 0) of a journey through `levels` zoom levels: its slice of one ease in and out. */
+export function journeyMotion(level: number, levels: number): ZoomMotion {
+  const [from, to] = [level / levels, (level + 1) / levels]
+  const [start, end] = [easeInOut(from), easeInOut(to)]
+  return { duration: JOURNEY_LEVEL_TIME, ease: t => (easeInOut(from + t * (to - from)) - start) / (end - start), lands: level === levels - 1 }
+}
+
+/** Where the camera is: its offset and its zoom. */
+type Camera = { x: number; y: number; zoom: number }
+
+/** The latest camera glide, which stops any older one still running. */
+let latestGlide = 0
+
+/**
+ * Glides the camera from `from` to `to` with `motion`, setting it frame by frame. React Flow's own glides can be cut
+ * short without a word (as one zoom level of a tour's journey hands over to the next); this one always plays out.
+ * The zoom changes evenly in scale (its logarithm), so zooming in and out reads at a steady pace.
+ */
+export function glideCamera(setCamera: (camera: Camera) => void, from: Camera, to: Camera, motion: { duration: number; ease: (t: number) => number }) {
+  const glide = ++latestGlide
+  return new Promise<void>(done => {
+    const start = performance.now()
+    // A tab in the background draws few frames or none; the glide still ends on time, at its end.
+    const late = setTimeout(() => frame(start + motion.duration), motion.duration + 100)
+    const frame = (now: number) => {
+      // A newer glide has taken the camera.
+      if (glide !== latestGlide) return done()
+      const t = Math.min(1, (now - start) / motion.duration), k = motion.ease(t)
+      const zoom = from.zoom * (to.zoom / from.zoom) ** k
+      // The point under the screen's top left moves with the zoom, so the offset follows it.
+      const along = from.zoom === to.zoom ? k : (zoom - from.zoom) / (to.zoom - from.zoom)
+      setCamera({ x: from.x + (to.x - from.x) * along, y: from.y + (to.y - from.y) * along, zoom })
+      if (t < 1) return void requestAnimationFrame(frame)
+      clearTimeout(late)
+      latestGlide++
+      done()
+    }
+    requestAnimationFrame(frame)
+  })
+}
+
+/** The motion for the camera's glide right after the next zoom out switches views; `useFit` takes it, once. */
+export const nextOutwardGlide: { motion: ZoomMotion | null } = { motion: null }
 
 /** Which arrow kinds a view shows: the user's choice, else all but "has" in a folder, where it buries the rest. */
 export const showsIn = (kinds: Record<string, boolean>, top: Item | undefined) => (kind: string) => kinds[kind] ?? !(kind === 'has' && top?.kind === 'folder')
@@ -36,21 +93,30 @@ export type ZoomPreview = {
 }
 
 /** Lays out the view zoomed into `top` (the whole map when none), as the map will show it with the boxes `opened` open. */
-function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>, opened: Set<string>) {
+function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>, opened: Set<string>, bubble = stepBubbleBox(x)) {
   const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened }
   const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null)
   const rowsOf = (it: Item) => (showsCode(it, scoped) ? [] : v.rowsOf(it))
-  return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped), stepBubbleBox(x))
+  return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped), bubble)
 }
 
 /**
  * What the map asks of a zoom: runs it, given the box to zoom into (or out to), how to switch to that view at the right
  * moment, and which boxes that view opens with; done once the new view has fully taken over.
  */
-export const zoomer: { run: ((to: string | null, switchView: () => void, opened?: Set<string>) => Promise<void>) | null } = { run: null }
+export const zoomer: {
+  run: ((to: string | null, switchView: () => void, opened?: Set<string>, motion?: ZoomMotion) => Promise<void>) | null
+  /**
+   * Lays out ahead the views a journey will pass through (each with the boxes it opens, and the new step's `bubble`),
+   * so none keeps it waiting.
+   */
+  prepare: ((views: { to: string | null; opened: Set<string> }[], bubble?: StepBubbleBox) => Promise<void>) | null
+} = { run: null, prepare: null }
 
 /** Waits `ms` milliseconds. */
 const pause = (ms: number) => new Promise(done => setTimeout(done, ms))
+/** Waits for the browser to draw twice: long enough for a view just switched to to place its boxes. */
+const drawn = () => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))
 
 /**
  * Runs the map's zooms between views (see the top of this file), and gives the box currently drawing a view inside
@@ -58,13 +124,13 @@ const pause = (ms: number) => new Promise(done => setTimeout(done, ms))
  */
 export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layout, kinds: Record<string, boolean>) {
   const x = useContext(X)
-  const { getInternalNode, setViewport } = useReactFlow()
+  const { getInternalNode, getViewport, setViewport } = useReactFlow()
   const [preview, setPreview] = useState<ZoomPreview | null>(null)
   const latest = useRef({ x, graph, kinds })
   latest.current = { x, graph, kinds }
 
   /** Zooming into box `to`, drawn in this view: glide in while its view fades in inside it, then switch to that view. */
-  const zoomIn = async (to: string, switchView: () => void, opened: Set<string>) => {
+  const zoomIn = async (to: string, switchView: () => void, opened: Set<string>, motion: ZoomMotion) => {
     const { x, kinds } = latest.current, node = getInternalNode(to), rect = map.current?.getBoundingClientRect()
     const inner = await layOutView(x, x.ix.items.get(to), kinds, opened)
     const box = absolute(inner.laid, to)
@@ -76,16 +142,14 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     setPreview({ box: to, inner, scale: nodeWidth / box.width, inward: true })
     // Glide until the box sits exactly where the inner view will draw it; then switching views changes nothing on screen.
     const zoom = screen.w / nodeWidth, at = node.internals.positionAbsolute
-    // Waits the glide's time rather than for the glide: an interrupted glide never says it has ended.
-    void setViewport({ x: screen.x - at.x * zoom, y: screen.y - at.y * zoom, zoom }, ZOOM_GLIDE)
-    await pause(ZOOM_TIME)
+    await glideCamera(setViewport, getViewport(), { x: screen.x - at.x * zoom, y: screen.y - at.y * zoom, zoom }, motion)
     anchor.box = { id: to, x: screen.x, y: screen.y, w: screen.w }
     switchView()
-    await pause(LANDING_TIME)
+    await (motion.lands ? pause(LANDING_TIME) : drawn())
   }
 
   /** Zooming out of the current box to `to`: switch to the outer view with the current one drawn inside its box, fading. */
-  const zoomOut = async (to: string | null, switchView: () => void, opened: Set<string>) => {
+  const zoomOut = async (to: string | null, switchView: () => void, opened: Set<string>, motion: ZoomMotion) => {
     const { x, graph, kinds } = latest.current, from = x.scope
     const outer = await layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, opened)
     const inOuter = from && outer.laid.find(n => n.id === from), box = from && absolute(graph.laid, from)
@@ -93,24 +157,29 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     const preview = { box: from, inner: graph, scale: inOuter.width! / box.width, inward: false }
     const settling = { ...preview, settling: true }
     setPreview(preview)
+    nextOutwardGlide.motion = motion
     switchView()
-    setTimeout(() => setPreview(current => (current === preview ? settling : current)), ZOOM_TIME / 3)
-    await pause(ZOOM_TIME)
+    setTimeout(() => setPreview(current => (current === preview ? settling : current)), motion.duration / 3)
+    await pause(motion.duration)
     setPreview(current => (current === settling || current === preview ? null : current))
   }
 
   useEffect(() => {
-    zoomer.run = async (to, switchView, opened = new Set()) => {
+    zoomer.run = async (to, switchView, opened = new Set(), motion = ONE_ZOOM) => {
       const { x } = latest.current
       const around: string[] = []
       for (let it = x.scope ? x.ix.items.get(x.scope)?.parent : undefined; it; it = it.parent) around.push(it.id)
       const inward = to !== null && to !== x.scope && getInternalNode(to)
       const outward = to === null ? x.scope !== null : around.includes(to)
-      if (inward) await zoomIn(to, switchView, opened)
-      else if (outward) await zoomOut(to, switchView, opened)
+      if (inward) await zoomIn(to, switchView, opened, motion)
+      else if (outward) await zoomOut(to, switchView, opened, motion)
       else switchView()
     }
-    return () => { zoomer.run = null }
+    zoomer.prepare = async (views, bubble) => {
+      const { x, kinds } = latest.current
+      await Promise.all(views.map(({ to, opened }) => layOutView(x, to ? x.ix.items.get(to) : undefined, kinds, opened, bubble)))
+    }
+    return () => { zoomer.run = null; zoomer.prepare = null }
   })
   // Zoomed in: once the inner view is laid out and on screen, its real boxes fade in over the drawing, which then goes.
   useEffect(() => {

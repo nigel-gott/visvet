@@ -23,10 +23,31 @@ const bubbleHeight = (step: TourStep) => {
   return Math.min(BUBBLE_MOST_HEIGHT, 180 + lines * 22)
 }
 
+/** A step's bubble, as a box for the layout, if the step's box still exists. */
+export const bubbleBoxOf = (step: TourStep | undefined): StepBubbleBox | undefined =>
+  step?.target_found ? { target: step.target, width: BUBBLE_WIDTH, height: bubbleHeight(step) } : undefined
+
 /** The playing tour's step bubble, as a box for the layout, if a step is showing a box that still exists. */
-export function stepBubbleBox(x: Ctx): StepBubbleBox | undefined {
-  const step = x.tour && x.model.tours.find(t => t.file === x.tour!.file)?.steps[x.tour.step]
-  return step?.target_found ? { target: step.target, width: BUBBLE_WIDTH, height: bubbleHeight(step) } : undefined
+export const stepBubbleBox = (x: Ctx) => bubbleBoxOf(x.tour ? x.model.tours.find(t => t.file === x.tour!.file)?.steps[x.tour.step] : undefined)
+
+/**
+ * The route of a move between tour steps: the zoomed box at each zoom level it passes through, from where it started
+ * to the step (null: the whole map), and how far along it is (the stop it is heading for).
+ */
+export type Route = { stops: (string | null)[]; at: number }
+
+/** Over the map during a move between tour steps: its route as a line of stops, filled in up to where the camera is. */
+export function RouteOverlay() {
+  const x = useContext(X)
+  if (!x.route) return null
+  const name = (stop: string | null) => (stop ? x.ix.items.get(stop)?.name ?? stop : 'Map')
+  return (
+    <ol className="route">
+      {x.route.stops.map((stop, index) => (
+        <li key={index} className={index < x.route!.at ? 'passed' : index === x.route!.at ? 'heading' : ''}>{name(stop)}</li>
+      ))}
+    </ol>
+  )
 }
 
 /** Which tour is playing and which of its steps (from 0) is showing. */
