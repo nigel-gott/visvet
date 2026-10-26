@@ -10,6 +10,12 @@ use std::path::PathBuf;
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct RepoPath(pub PathBuf);
 
+impl std::fmt::Display for RepoPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 impl RepoPath {
     /// The path as text. Every `RepoPath` is built from git's text output, so it is always valid text.
     pub fn as_str(&self) -> &str {

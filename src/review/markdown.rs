@@ -34,7 +34,7 @@ pub fn links(path: &str, src: &str) -> Vec<String> {
     let targets = src.split("](").skip(1).filter_map(|s| s.split(')').next())
         .map(|t| t.split('#').next().unwrap_or(""))
         .filter(|t| !t.is_empty() && !t.contains("://"))
-        .map(|t| join(dir(path), t));
+        .map(|t| join(dir(path), t).to_string());
     spans.chain(targets).collect()
 }
 

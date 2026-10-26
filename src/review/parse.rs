@@ -5,8 +5,9 @@ mod rust;
 mod ts;
 mod walk;
 
-use crate::types::{MemberKind, UnitKind};
+use crate::types::{MemberKind, RepoPath, UnitKind};
 use std::collections::{BTreeSet, HashSet};
+use std::path::{Component, Path, PathBuf};
 use tree_sitter::Parser;
 use walk::Ex;
 
@@ -83,17 +84,19 @@ pub fn dir(path: &str) -> &str {
     path.rsplit_once('/').map_or("", |(d, _)| d)
 }
 
-/// Joins a relative path onto a repo-relative dir, resolving `.` and `..`.
-pub fn join(dir: &str, rel: &str) -> String {
-    let mut out = vec![];
-    for s in dir.split('/').chain(rel.split('/')) {
-        match s {
-            "" | "." => {}
-            ".." => _ = out.pop(),
-            s => out.push(s),
+/// Joins a relative path, as written in a file (an import, a link), onto a repo-relative dir, resolving `.` and `..`
+/// as text; a `rel` starting with `/` starts from the repo root. Rust's own paths leave `..` in, because on disk a symlink can make `a/b/..` differ from `a`; repo paths
+/// come from git, which never follows symlinks, so resolving as text is right here.
+pub fn join(dir: impl AsRef<Path>, rel: &str) -> RepoPath {
+    let mut out = PathBuf::new();
+    for c in dir.as_ref().join(rel).components() {
+        match c {
+            Component::ParentDir => _ = out.pop(),
+            Component::Normal(s) => out.push(s),
+            Component::CurDir | Component::RootDir | Component::Prefix(_) => {}
         }
     }
-    out.join("/")
+    RepoPath(out)
 }
 
 /// A file's leading comment block. Markdown: the one-line frontmatter `description:`, else the first heading.
@@ -144,6 +147,13 @@ mod tests {
 
     fn set(xs: &[&str]) -> BTreeSet<String> {
         xs.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn join_resolves_dots() {
+        for (dir, rel, out) in [("issues", "../src/a.rs", "src/a.rs"), ("ui/src", "./model", "ui/src/model"), ("", "a/../../b", "b"), ("a", "/b", "b")] {
+            assert_eq!(join(dir, rel).as_str(), out);
+        }
     }
 
     #[test]

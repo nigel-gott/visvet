@@ -20,7 +20,7 @@ fn ts_rs(file: &str, text: &str) -> Option<String> {
     let attr = text.split("#[ts(").nth(1)?.split(")]").next()?;
     let to = attr.split("export_to = \"").nth(1)?.split('"').next()?;
     let krate = &file[..file.rfind("src/")?];
-    Some(join(&format!("{krate}bindings"), to))
+    Some(join(format!("{krate}bindings"), to).to_string())
 }
 
 #[cfg(test)]
