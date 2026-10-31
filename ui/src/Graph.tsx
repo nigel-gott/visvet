@@ -6,7 +6,7 @@ import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
 import { reportView, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
 import { STEP_BUBBLE, StepBubble, stepBubbleBox, type StepBubbleBox } from './Tours'
-import { anchor, Card, lastDrag, placeOf, type CardData } from './Card'
+import { anchor, Card, lastDrag, MAP_ZOOM, placeOf, type CardData } from './Card'
 import { height, showsCode, width } from './size'
 import { mapView, type View } from './view'
 import { easeInOut, glideCamera, moves, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
@@ -505,7 +505,8 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
       nodesConnectable={false}
       zoomOnDoubleClick={false}
       elementsSelectable={false}
-      minZoom={0.05}
+      minZoom={MAP_ZOOM.least}
+      maxZoom={MAP_ZOOM.most}
       // Only the user's own pans and zooms are saved (an event comes with them); a camera glide's end would
       // otherwise land in the next view's history entry. Leaving a view saves its viewport anyway (`push`).
       onMoveEnd={(e, vp) => { if (e) history.replaceState({ ...history.state, vp }, ''); reportView() }}

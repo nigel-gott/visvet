@@ -3,6 +3,8 @@
 :root {
   --bg: #fff; --fg: #1f2328; --muted: #656d76; --line: #d0d7de; --panel: #f6f8fa; --sel: #0969da; --sel-bg: #ddf4ff; --hl: #bf8700;
   --add: #1a7f37; --add-bg: #dafbe1; --chg: #9a6700; --del: #cf222e; --del-bg: #ffebe9; --ai: #8250df; --tour-bg: #f6f0ff;
+  /* A tour note beside code, and the code it is about: filled, so both stand out against the code around them. */
+  --note-bg: #ece2ff; --note-fg: #1f2328; --mark-bg: rgb(130 80 223 / .22);
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --k-folder: #8250df; --k-file: #57606a; --k-struct: #0969da; --k-class: #1b7c83; --k-enum: #bc4c00; --k-trait: #1a7f37;
   --k-type: #9a6700; --k-fn: #bf3989; --k-field: #0550ae;
@@ -12,6 +14,7 @@
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --line: #30363d; --panel: #161b22; --sel: #4493f8; --sel-bg: #172c4a; --hl: #d29922;
     --add: #3fb950; --add-bg: #12261e; --chg: #d29922; --del: #f85149; --del-bg: #2d1214; --ai: #a371f7; --tour-bg: #261a3d;
+    --note-bg: #3d2b63; --note-fg: #f5f0ff; --mark-bg: rgb(163 113 247 / .4);
     --k-folder: #a371f7; --k-file: #8d96a0; --k-struct: #4493f8; --k-class: #39c5cf; --k-enum: #f0883e; --k-trait: #3fb950;
     --k-type: #d29922; --k-fn: #db61a2; --k-field: #79c0ff;
   }
@@ -360,20 +363,20 @@ main { grid-area: 2 / 2; min-height: 0 }
 /* A tour note on code: its lines get a faint band, the exact code it is about an outline, and the note sits right
    under them, or in the margin beside the code. Pointing at a note or its code makes both stand out. */
 .ln.noted { background: color-mix(in srgb, var(--ai) 8%, transparent); box-shadow: inset 4px 0 var(--ai) }
-mark.noted-code { border-radius: 3px; background: color-mix(in srgb, var(--ai) 20%, transparent); color: inherit; box-shadow: 0 0 0 1.5px var(--ai) }
-mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 38%, transparent); box-shadow: 0 0 0 2.5px var(--ai) }
+mark.noted-code { border-radius: 3px; background: var(--mark-bg); color: inherit; box-shadow: 0 0 0 2px var(--ai) }
+mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent); box-shadow: 0 0 0 3px var(--ai) }
 .beside-notes { position: relative }
 .side-notes { position: absolute; inset: 0; pointer-events: none }
 /* The gap in a line of code, right after a note's code, that a note on the right sits in. */
 .note-gap { display: inline-block }
-.side-note { position: absolute; z-index: 1; width: max-content; padding: 3px 9px; border: 1.5px solid var(--ai); border-radius: 8px; pointer-events: auto;
-  background: var(--tour-bg); color: var(--fg); font: 12px/1.45 system-ui, sans-serif; white-space: normal; text-indent: 0;
+.side-note { position: absolute; z-index: 1; width: max-content; padding: 3px 9px; border: 2px solid var(--ai); border-radius: 8px; pointer-events: auto;
+  background: var(--note-bg); color: var(--note-fg); font: 12px/1.45 system-ui, sans-serif; white-space: normal; text-indent: 0;
   box-shadow: 0 2px 8px rgb(0 0 0 / .25); transition: top .2s ease, left .2s ease }
 .side-note.unplaced { visibility: hidden }
 /* A small arrow on the note's side nearest the code, pointing back at it. */
-.side-note::before { content: ''; position: absolute; top: 7px; width: 8px; height: 8px; background: var(--tour-bg); transform: rotate(45deg) }
-.side-note.right::before { left: -6px; border-left: 1.5px solid var(--ai); border-bottom: 1.5px solid var(--ai) }
-.side-note.left::before { right: -6px; border-right: 1.5px solid var(--ai); border-top: 1.5px solid var(--ai) }
+.side-note::before { content: ''; position: absolute; top: 7px; width: 8px; height: 8px; background: var(--note-bg); transform: rotate(45deg) }
+.side-note.right::before { left: -6px; border-left: 2px solid var(--ai); border-bottom: 2px solid var(--ai) }
+.side-note.left::before { right: -6px; border-right: 2px solid var(--ai); border-top: 2px solid var(--ai) }
 .side-note.hot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ai) 45%, transparent) }
 .side-note p { margin: 0 0 4px }
 .side-note p:last-child { margin-bottom: 0 }

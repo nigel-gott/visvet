@@ -1,6 +1,6 @@
 // One box on the map: its header, doc, fields, pills, member rows and code. A click selects it; a double click zooms into it.
 
-import { useContext, useMemo } from 'react'
+import { useCallback, useContext, useMemo } from 'react'
 import { Handle, Position, useReactFlow, type InternalNode, type Node, type NodeProps, type Viewport } from '@xyflow/react'
 import { codeOf, type Item } from './model'
 import type { CodeNote } from './contract'
@@ -16,6 +16,35 @@ import { allLines, codeHeight, fieldTable, pills, showsCode } from './size'
 export const anchor = { box: null as { id: string; x: number; y: number; w: number } | null }
 /** When the last drag of a box ended, so the click that ends a drag doesn't also zoom or open the box. */
 export const lastDrag = { endedAt: 0 }
+/** How far the map zooms out and in: its scale at the least and the most. */
+export const MAP_ZOOM = { least: 0.05, most: 2 }
+/** How much a trackpad pinch zooms the map for each pixel it scrolls, as React Flow's own zoom does (a power of 2). */
+const PINCH_ZOOM_SPEED = 0.02
+
+/**
+ * A trackpad pinch over a box's code zooms the map, as it does anywhere else; plain scrolling still scrolls the code.
+ * The code is marked `nowheel` so the map leaves its scrolling alone, which also kept pinches from reaching the map.
+ * A pinch comes as a wheel event with Ctrl held. Returns a ref for the code's element.
+ */
+function usePinchZoomsMap() {
+  const { getViewport, setViewport } = useReactFlow()
+  return useCallback((code: HTMLDivElement | null) => {
+    if (!code) return
+    const pinch = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      const map = code.closest('.react-flow')?.getBoundingClientRect()
+      if (!map) return
+      const { x, y, zoom } = getViewport()
+      const next = Math.min(MAP_ZOOM.most, Math.max(MAP_ZOOM.least, zoom * 2 ** (-e.deltaY * PINCH_ZOOM_SPEED)))
+      // The point under the pointer stays where it is.
+      const pointer = { x: e.clientX - map.left, y: e.clientY - map.top }
+      setViewport({ x: pointer.x - (pointer.x - x) * next / zoom, y: pointer.y - (pointer.y - y) * next / zoom, zoom: next })
+    }
+    code.addEventListener('wheel', pinch, { passive: false })
+    return () => code.removeEventListener('wheel', pinch)
+  }, [getViewport, setViewport])
+}
 
 /** A folder box's summary: how many files and folders it holds. */
 const stats = (it: Item) => `${it.kids.length} inside`
@@ -124,6 +153,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   const { it, rows, ext } = data
   const x = useContext(X)
   const click = useClick(it, ext)
+  const pinchZooms = usePinchZoomsMap()
   const implemented = codeOf(it.o)?.implements ?? []
   // Made once per box, so its syntax colours are worked out once, not on every render.
   const code = useMemo(() => allLines(it), [it])
@@ -154,7 +184,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <Rows it={it} rows={rows} click={click} />
         {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
         {showsCode(it, x) &&
-          <div className="code nowheel nopan nodrag" style={{ height: codeHeight(it, x) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} beside={x.notesBeside} /></div>}
+          <div ref={pinchZooms} className="code nowheel nopan nodrag" style={{ height: codeHeight(it, x) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} beside={x.notesBeside} /></div>}
         {data.zoomPreview && <InnerPreview preview={data.zoomPreview} />}
       </div>
       <Handle type="source" position={Position.Right} />

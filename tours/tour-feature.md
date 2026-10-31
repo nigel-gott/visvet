@@ -155,8 +155,8 @@ This bubble is itself a note on a whole box: its `###` heading in the tour file 
 `ui/src/Views.tsx::DiffView` draws a box's code. The lines a note is about get a purple band, and the note sits in a bubble right under them.
 route: To Views.tsx: notes sit under the lines they explain.
 
-### `<div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} style={{ marginTop: beside && l.kind !== 'del' ? roomAbove.get(l.line) : undefined }}>`
-A template string builds the class list, like Vue's `:class` with an object. With notes beside the code, some lines get extra space above them, so two notes on one side never overlap.
+### `<div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} style={{ marginTop: beside && l.kind !== 'del' ? room.above.get(l.line) : undefined }}>`
+A template string builds the class list, like Vue's `:class` with an object. With notes beside the code, some lines get extra space above them, so no note covers code or another note.
 
 ### `{!beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)}`
 After each line, the notes whose code ends on it, unless they sit in the margin beside the code. `!` tells TypeScript "this can't be missing here": only notes with a place in the code reach `DiffView`.
