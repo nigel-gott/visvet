@@ -1,4 +1,4 @@
-// The outline and detail views.
+// The file tree beside the map, and the detail view.
 
 import { Debuffs } from './Debuffs'
 import { X, type Ctx } from './context'
@@ -7,6 +7,7 @@ import { within, type DiffCount, type DiffLine, type Item, type ChangeStatus } f
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
+import { ThreadChip } from './Threads'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -41,19 +42,38 @@ export function Notes({ it }: { it: Item }) {
   return it.doc && <div className="doc">{it.doc}</div>
 }
 
-/** A clickable outline row, scrolled into view when it becomes the selection. */
+/**
+ * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, lines changed, threads and
+ * debuffs. It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
+ * view when it becomes the selection. A click shows its box on the map.
+ */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
   const x = useContext(X)
   const ref = useRef<HTMLDivElement>(null)
   const sel = x.sel === it.id
   useEffect(() => { if (sel) ref.current?.scrollIntoView({ block: 'nearest' }) }, [sel])
+  const kind = it.labels?.kind ?? it.kind
+  const tourMark = x.stepBox === it.id ? 'tour-step' : x.guide?.next === it.id ? 'tour-cue' : ''
   return (
-    <div ref={ref} className={sel ? 'orow sel' : 'orow'} onClick={() => x.focus(it.id)}>
+    <div ref={ref} className={`orow ${sel ? 'sel' : ''} ${tourMark}`} title={it.doc ?? it.m?.signature} onClick={() => x.goTo(it.id)}>
       {children}
-      <Head it={it} />
-      <Notes it={it} />
+      <span className={'mk ' + it.status}>{MARK[it.status]}</span>
+      <span className={'badge k-' + kind} title={kind} />
+      <span className={'name ' + it.status}>{it.name}</span>
+      <StepNumbers id={it.id} />
+      <LineCounts count={it.diffCount} />
+      <ThreadChip it={it} />
+      <Debuffs it={it} />
     </div>
   )
+}
+
+/** The numbers of the playing tour's steps that show box `id`, e.g. "3" or "3·7"; nothing when none do. */
+function StepNumbers({ id }: { id: string }) {
+  const x = useContext(X)
+  const tour = x.tour && x.model.tours.find(t => t.file === x.tour!.file)
+  const numbers = tour ? tour.steps.flatMap((step, index) => (step.target === id ? [index + 1] : [])) : []
+  return numbers.length > 0 && <span className="tree-step" title="Tour steps on this box">{numbers.join('·')}</span>
 }
 
 const FILTERS: [string, (it: Item, x: Ctx) => boolean][] = [
@@ -61,7 +81,7 @@ const FILTERS: [string, (it: Item, x: Ctx) => boolean][] = [
   ['Has threads', (it, x) => x.threads.some(t => t.target === it.id)],
 ]
 
-/** The review outline: search, filters and the folder → file → box → member tree. */
+/** The file tree: search, filters and the folder → file → box → member tree, opened to where the map is zoomed. */
 export function Outline() {
   const x = useContext(X)
   const [q, setQ] = useState('')
@@ -74,12 +94,11 @@ export function Outline() {
     setToggled(new Map())
   }
   const filtering = q !== '' || f > 0
-  const match = (it: Item): boolean => !it.ctx &&
+  const match = (it: Item): boolean =>
     ((FILTERS[f][1](it, x) && `${it.id} ${it.doc}`.toLowerCase().includes(q.toLowerCase())) || it.kids.some(match))
   const scope = x.scope ? x.ix.items.get(x.scope) : undefined
-  /** Whether a row shows its children: zoomed in, the path to the zoomed box and the box's own children; else none. */
-  const open = (it: Item) => (toggled.get(it.id) ??
-    (!!scope && (within(scope, it.id) || (within(it, scope.id) && it.depth <= scope.depth + 1))))
+  /** Whether a row shows its children: as on the map, the rows down to the zoomed box and the box itself are open. */
+  const open = (it: Item) => toggled.get(it.id) ?? within(scope, it.id)
   /** Opens or closes a row. */
   const toggle = (it: Item) => setToggled(t => new Map(t).set(it.id, !open(it)))
   const tree = (items: Item[]): ReactNode => items.filter(match).map(it => (
@@ -98,6 +117,17 @@ export function Outline() {
       </div>
       {tree(x.ix.roots)}
     </div>
+  )
+}
+
+/** The file tree down the left of the map. Its button hides it to a thin strip and shows it again; drag its edge to resize it. */
+export function FileTree() {
+  const [shown, setShown] = useState(true)
+  return (
+    <aside className={shown ? 'tree' : 'tree hidden'}>
+      <button className="tree-toggle" title={shown ? 'Hide the file tree' : 'Show the file tree'} onClick={() => setShown(!shown)}>{shown ? '‹' : '›'}</button>
+      {shown && <Outline />}
+    </aside>
   )
 }
 

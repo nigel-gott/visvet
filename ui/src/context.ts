@@ -15,6 +15,8 @@ export type Ctx = {
   /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
   select: (id: string, replace?: boolean) => void
   focus: (id: string, replace?: boolean) => void
+  /** Shows box `id` on the map: zooms (gliding) into the box around it, then selects and outlines it. */
+  goTo: (id: string) => void
   /** The tour playing and its step, if one is. */
   tour: TourPlace | null
   /** The route of a move between tour steps under way, if one is. */

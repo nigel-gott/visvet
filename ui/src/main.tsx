@@ -12,7 +12,7 @@ import Graph, { WHOLE_MAP } from './Graph'
 import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
-import { LineCounts } from './Views'
+import { FileTree, LineCounts } from './Views'
 import { bubbleBoxOf, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
 
 
@@ -249,8 +249,8 @@ function Drawer() {
 }
 
 /**
- * Header and map, kept in sync with history and server events. The outline and detail (in Views.tsx) are hidden for
- * now, so the map is the whole review; the user talks to the AI about what they select.
+ * Header, file tree and map, kept in sync with history and server events. The detail view (in Views.tsx) is hidden for
+ * now; the user talks to the AI about what they select.
  */
 function App() {
   const { model, error, show } = useModel()
@@ -292,6 +292,13 @@ function App() {
     // Opened in the view being opened, since a new view starts with nothing open; in this view, related boxes stay open.
     const staying = (to ?? WHOLE_MAP) === (scope ?? WHOLE_MAP) ? stayOpenFor(id) : []
     setWide({ view: to ?? WHOLE_MAP, ids: new Set([...openFor(id), ...staying]) })
+  }
+  /** Shows box `id` in the view of the box around it, as the file tree asks, gliding there if that is another view. */
+  const goTo = (id: string) => {
+    const to = zoomedFor(id, 'context')
+    const enter = () => showBox(id, 'context')
+    if (to === scope || !zoomer.run) enter()
+    else void zoomer.run(to, enter)
   }
   /** The box a step's view zooms into: the step's box itself when zoomed, else the box around it (null: the whole map). */
   const zoomedFor = (id: string, view: StepView) => (view === 'zoomed' ? id : ix.items.get(id)?.parent?.id ?? null)
@@ -372,7 +379,7 @@ function App() {
   const guide: Guide | null = headingStep && !reached ? { stops: [scope, ...way], ...nextMove(), title: headingStep.title, note: headingStep.route } : null
   const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
   const x: Ctx = {
-    model, ix, sel, hl: new Set(hl), select, focus, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
+    model, ix, sel, hl: new Set(hl), select, focus, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     // While the user drives to the next step, the step they left hides its bubble and notes.
     tour, showStep, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
@@ -385,6 +392,7 @@ function App() {
     <X.Provider value={x}>
       <div className="app">
         <Header error={error} />
+        <FileTree />
         <main><Graph visible pop={pop} /></main>
         <LostStep />
         <RouteOverlay />
