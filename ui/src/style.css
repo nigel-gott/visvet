@@ -4,7 +4,7 @@
   --bg: #fff; --fg: #1f2328; --muted: #656d76; --line: #d0d7de; --panel: #f6f8fa; --sel: #0969da; --sel-bg: #ddf4ff; --hl: #bf8700;
   --add: #1a7f37; --add-bg: #dafbe1; --chg: #9a6700; --del: #cf222e; --del-bg: #ffebe9; --ai: #8250df; --tour-bg: #f6f0ff;
   /* A tour note beside code, and the code it is about: filled, so both stand out against the code around them. */
-  --note-bg: #ece2ff; --note-fg: #1f2328; --mark-bg: rgb(130 80 223 / .22);
+  --note-bg: #e4d6ff; --note-fg: #1f2328; --mark-bg: rgb(130 80 223 / .28);
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --k-folder: #8250df; --k-file: #57606a; --k-struct: #0969da; --k-class: #1b7c83; --k-enum: #bc4c00; --k-trait: #1a7f37;
   --k-type: #9a6700; --k-fn: #bf3989; --k-field: #0550ae;
@@ -14,7 +14,7 @@
   :root {
     --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --line: #30363d; --panel: #161b22; --sel: #4493f8; --sel-bg: #172c4a; --hl: #d29922;
     --add: #3fb950; --add-bg: #12261e; --chg: #d29922; --del: #f85149; --del-bg: #2d1214; --ai: #a371f7; --tour-bg: #261a3d;
-    --note-bg: #3d2b63; --note-fg: #f5f0ff; --mark-bg: rgb(163 113 247 / .4);
+    --note-bg: #4f3787; --note-fg: #ffffff; --mark-bg: rgb(163 113 247 / .5);
     --k-folder: #a371f7; --k-file: #8d96a0; --k-struct: #4493f8; --k-class: #39c5cf; --k-enum: #f0883e; --k-trait: #3fb950;
     --k-type: #d29922; --k-fn: #db61a2; --k-field: #79c0ff;
   }
