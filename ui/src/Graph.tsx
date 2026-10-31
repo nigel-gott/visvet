@@ -406,6 +406,26 @@ function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl:
     }))
 }
 
+/**
+ * Zoomed into a box: a tab pinned to the map's top left corner, the same size however far the map is zoomed, that
+ * zooms out one level, to the box around (or the whole map). With "you drive", it pulses when going up is the next
+ * move on the way to the tour's next step.
+ */
+function ZoomOut() {
+  const x = useContext(X)
+  const zoomed = x.scope ? x.ix.items.get(x.scope) : undefined
+  if (!zoomed) return null
+  const outTo = zoomed.parent?.id ?? null
+  const isNextMove = x.guide?.move === 'up' && x.guide.next === outTo
+  return (
+    <Panel position="top-left">
+      <button className={`zoom-out ${isNextMove ? 'tour-cue' : ''}`} title="Zoom out a level" onClick={() => x.zoom(outTo)}>
+        ↑ {zoomed.parent?.name ?? 'Map'}
+      </button>
+    </Panel>
+  )
+}
+
 /** Map options: Reset, once boxes were dragged. */
 function MapPanel({ moved, reset }: { moved: boolean; reset: () => void }) {
   return <Panel position="top-right" className="chips">{moved && <button onClick={reset}>Reset</button>}</Panel>
@@ -514,6 +534,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
       onMoveEnd={(e, vp) => { if (e) history.replaceState({ ...history.state, vp }, ''); reportView() }}
     >
       <MapPanel moved={Object.keys(pos.moved).length > 0} reset={pos.reset} />
+      <ZoomOut />
       <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} />
     </ReactFlow>
   )

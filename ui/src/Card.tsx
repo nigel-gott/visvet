@@ -137,21 +137,6 @@ function useClick(it: Item, ext: boolean) {
   }
 }
 
-/**
- * On the zoomed box, a tab above its corner that zooms the map out one level, to the box it sits in (or the whole
- * map). With "you drive", it pulses when going up is the next move on the way to the tour's next step.
- */
-function ZoomOut({ it }: { it: Item }) {
-  const x = useContext(X)
-  const outTo = it.parent?.id ?? null
-  const isNextMove = x.guide?.move === 'up' && x.guide.next === outTo
-  return (
-    <button className={`zoom-out nodrag ${isNextMove ? 'tour-cue' : ''}`} title="Zoom out a level" onClick={e => { e.stopPropagation(); x.zoom(outTo) }}>
-      ↑ {it.parent?.name ?? 'Map'}
-    </button>
-  )
-}
-
 /** What a part of a card shows, and what a click on one of its rows does. */
 type Part = { it: Item; rows: Item[]; click: (t: Item) => void }
 
@@ -210,7 +195,6 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
     <>
       {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
       {cue && <span className="cue-label">{cue === 'into' ? 'Double-click to go in' : 'Click to view'}</span>}
-      {it.id === x.scope && <ZoomOut it={it} />}
       <Handle type="target" position={Position.Left} />
       <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${stepHere ? 'tour-step' : ''} ${cue ? 'tour-cue' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
         onClick={() => click(it)}>
