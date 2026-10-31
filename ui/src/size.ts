@@ -14,7 +14,7 @@ const CHROME = 170
  * A box's width: enough to show its name (or signature) and its member rows' signatures in full, from 320px up
  * to 640px. Anything longer wraps onto more lines (see `wraps`) instead of being cut off.
  */
-export const width = (it: Item, rows: Item[], x: Ctx) => showsCode(it, x) ? codeWidth(it) + (notesBeside(it, x) ? MARGIN_NOTE_WIDTH : 0) : Math.min(640, Math.max(320, CHROME + measure(it.m?.signature ?? it.name, HEAD_FONT),
+export const width = (it: Item, rows: Item[], x: Ctx) => showsCode(it, x) ? codeWidth(it) + (notesBeside(it, x) ? 2 * MARGIN_NOTE_WIDTH : 0) : Math.min(640, Math.max(320, CHROME + measure(it.m?.signature ?? it.name, HEAD_FONT),
   ...rows.map(r => CHROME + measure(r.m?.signature ?? r.name, ROW_FONT))))
 /** Extra height for a name that wraps in a box `w` wide: 18px per line after the first. */
 const wraps = (text: string, font: string, w: number) => 18 * (Math.ceil(measure(text, font) / (w - CHROME)) - 1)
@@ -56,26 +56,25 @@ const CODE_ROWS = 30, STEP_CODE_ROWS = 60
 const NOTE_FONT = '13px system-ui, sans-serif'
 /** A tour note under a line of code: its padding, border and margins, the room its text loses beside it, and a text line's height. */
 const NOTE_FRAME_HEIGHT = 36, NOTE_SIDE_ROOM = 90, NOTE_LINE_HEIGHT = 20
-/** How wide the margin beside the code is, for the tour's notes when they sit there instead of in between the lines. */
+/** How wide the room is on each side of the code for the tour's notes beside it, instead of in between its lines. */
 export const MARGIN_NOTE_WIDTH = 300
-/** How wide a margin note's text is: the margin less the note's padding, border and space around it. */
+/** How wide a note beside the code is at most, less its padding and border. */
 const MARGIN_NOTE_TEXT_WIDTH = MARGIN_NOTE_WIDTH - 40
-/** Whether box `it` is the tour step's box, with notes on its code that sit in the margin beside it. */
+/** Whether box `it` is the tour step's box, with notes on its code that sit beside it. */
 const notesBeside = (it: Item, x: Ctx) => x.notesBeside && it.id === x.stepBox && x.stepNotes.some(note => note.span)
 /** How tall the tour's notes on code `w` wide are, each a bubble of wrapped text under its lines. */
 const notesHeight = (notes: CodeNote[], w: number) => notes.reduce((total, note) => total + NOTE_FRAME_HEIGHT +
   note.note.split('\n').filter(line => line.trim()).reduce((lines, line) => lines + Math.ceil(measure(line, NOTE_FONT) * 1.1 / (w - NOTE_SIDE_ROOM)), 0) * NOTE_LINE_HEIGHT, 0)
 /**
  * The height of an expanded box's code: up to 30 rows of 16px (a wrapped line takes several), scrolling beyond that.
- * The tour step's box shows up to 60, plus room for the step's notes between its lines (or stacked in the margin),
- * so it can be read whole.
+ * The tour step's box shows up to 60, plus room for the step's notes between its lines, so it can be read whole.
  */
 export const codeHeight = (it: Item, x: Ctx) => {
   const isStep = it.id === x.stepBox
   const rows = Math.min(allLines(it).reduce((n, l) => n + Math.max(1, Math.ceil(l.text.length / cols(it))), 0), isStep ? STEP_CODE_ROWS : CODE_ROWS)
   const codeRows = rows * 16 + 8, notes = x.stepNotes.filter(note => note.span)
-  // Notes in the margin don't push the code apart, but stacked there they can run past its end.
-  if (notesBeside(it, x)) return Math.max(codeRows, notesHeight(notes, MARGIN_NOTE_TEXT_WIDTH + NOTE_SIDE_ROOM))
+  // Notes beside the code add space between lines only where two on one side would overlap: about half of them.
+  if (notesBeside(it, x)) return codeRows + notesHeight(notes, MARGIN_NOTE_TEXT_WIDTH + NOTE_SIDE_ROOM) / 2
   return codeRows + (isStep ? notesHeight(notes, codeWidth(it)) : 0)
 }
 /** An enum's values, shown as pills when its box lists no member rows and it has fewer than 20. */

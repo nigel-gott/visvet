@@ -164,7 +164,7 @@ export function TourBar() {
 }
 
 /**
- * While a tour plays: where its notes on code sit, in between the lines under their code, or in the margin beside
+ * While a tour plays: where its notes on code sit, in between the lines under their code, or beside it, next to
  * it so the code stays in one piece. Kept in this browser.
  */
 function NotesPlace() {
@@ -172,7 +172,7 @@ function NotesPlace() {
   return (
     <label className="speed-pick" title="Where the tour's notes on code sit">
       Notes <select value={x.notesBeside ? 'beside' : 'in'} onChange={e => x.setNotesBeside(e.target.value === 'beside')}>
-        <option value="beside">in the margin</option><option value="in">in the code</option>
+        <option value="beside">beside the code</option><option value="in">between the lines</option>
       </select>
     </label>
   )

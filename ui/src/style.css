@@ -351,16 +351,22 @@ main { grid-area: 2 / 2; min-height: 0 }
 .ln.noted { background: color-mix(in srgb, var(--ai) 8%, transparent); box-shadow: inset 4px 0 var(--ai) }
 mark.noted-code { border-radius: 3px; background: color-mix(in srgb, var(--ai) 20%, transparent); color: inherit; box-shadow: 0 0 0 1.5px var(--ai) }
 mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 38%, transparent); box-shadow: 0 0 0 2.5px var(--ai) }
-.with-margin { position: relative; display: grid; align-items: start }
-.margin { position: relative; border-left: 1px dashed var(--line) }
-.margin-note { position: absolute; left: 8px; right: 8px; padding: 6px 10px; border: 2px solid var(--ai); border-radius: 10px;
-  background: var(--tour-bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; white-space: normal; text-indent: 0; transition: top .2s ease }
-.margin-note.hot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ai) 35%, transparent) }
-.margin-note p { margin: 0 0 6px }
-.margin-note p:last-child { margin-bottom: 0 }
-.margin-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none }
-.margin-lines polyline { fill: none; stroke: var(--ai); stroke-width: 1.5; stroke-dasharray: 2 3; opacity: .6 }
-.margin-lines polyline.hot { stroke-width: 2.5; stroke-dasharray: none; opacity: 1 }
+.beside-notes { position: relative }
+.side-notes { position: absolute; inset: 0; pointer-events: none }
+.side-note { position: absolute; z-index: 1; width: max-content; padding: 3px 9px; border: 1.5px solid var(--ai); border-radius: 8px; pointer-events: auto;
+  background: var(--tour-bg); color: var(--fg); font: 12px/1.45 system-ui, sans-serif; white-space: normal; text-indent: 0;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .25); transition: top .2s ease, left .2s ease }
+.side-note.unplaced { visibility: hidden }
+/* A small arrow on the note's side nearest the code, pointing back at it. */
+.side-note::before { content: ''; position: absolute; top: 7px; width: 8px; height: 8px; background: var(--tour-bg); transform: rotate(45deg) }
+.side-note.right::before { left: -6px; border-left: 1.5px solid var(--ai); border-bottom: 1.5px solid var(--ai) }
+.side-note.left::before { right: -6px; border-right: 1.5px solid var(--ai); border-top: 1.5px solid var(--ai) }
+.side-note.hot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ai) 45%, transparent) }
+.side-note p { margin: 0 0 4px }
+.side-note p:last-child { margin-bottom: 0 }
+.side-brackets { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible }
+.side-brackets polyline { fill: none; stroke: var(--ai); stroke-width: 1.5 }
+.side-brackets polyline.hot { stroke-width: 2.5 }
 .code-bubble { position: relative; margin: 6px 12px 10px calc(8px + 5ch); padding: 8px 12px; border: 2px solid var(--ai); border-radius: 10px;
   background: var(--tour-bg); color: var(--fg); font: 13px/1.5 system-ui, sans-serif; white-space: normal; text-indent: 0 }
 .code-bubble::before { content: ''; position: absolute; left: 18px; top: -8px; width: 12px; height: 12px; background: var(--tour-bg);
