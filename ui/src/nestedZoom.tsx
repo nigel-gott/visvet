@@ -49,6 +49,8 @@ export function SpeedPicker() {
   )
 }
 
+/** The most of the map a box being zoomed into grows to fill before its view takes over. */
+const MAP_FILL = 0.9
 /** How long a zoom from one view into another takes, in ms: slow enough to see where you go. */
 const ZOOM_TIME = 1400
 /** How long the drawing of a view stays behind its real boxes after a zoom into it, in ms, while they fade in. */
@@ -233,10 +235,17 @@ export function useNestedZoom(map: RefObject<HTMLDivElement | null>, graph: Layo
     const nodeWidth = node.width ?? node.measured.width ?? box.width
     setPreview({ box: to, inner, scale: nodeWidth / box.width, inward: true })
     // Glide until the box sits exactly where the inner view will draw it; then switching views changes nothing on screen.
-    const cameraZoom = screen.w / nodeWidth, at = node.internals.positionAbsolute
-    await glideCamera(setViewport, getViewport(), { x: screen.x - at.x * cameraZoom, y: screen.y - at.y * cameraZoom, zoom: cameraZoom }, motion)
+    // When that is far bigger than the map (a box holding a big view), the camera would zoom around a point off the
+    // screen and swing everything away: then it stops once the box fills the map, centred, and the inner view's own
+    // glide takes it from there (see `useFit`).
+    const nodeHeight = node.height ?? node.measured.height ?? box.height
+    const fillsMap = Math.min(rect.width * MAP_FILL / nodeWidth, rect.height * MAP_FILL / nodeHeight)
+    const lineUp = screen.w / nodeWidth, cameraZoom = Math.min(lineUp, fillsMap), at = node.internals.positionAbsolute
+    const lands = cameraZoom === lineUp ? screen
+      : { x: (rect.width - nodeWidth * cameraZoom) / 2, y: (rect.height - nodeHeight * cameraZoom) / 2, w: nodeWidth * cameraZoom }
+    await glideCamera(setViewport, getViewport(), { x: lands.x - at.x * cameraZoom, y: lands.y - at.y * cameraZoom, zoom: cameraZoom }, motion)
     if (zoom !== latestZoom) return false
-    anchor.box = { id: to, x: screen.x, y: screen.y, w: screen.w }
+    anchor.box = { id: to, x: lands.x, y: lands.y, w: lands.w }
     switchView()
     await (motion.lands ? pause(LANDING_TIME) : drawn())
     return true
