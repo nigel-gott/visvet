@@ -284,7 +284,10 @@ function NotesBeside({ notes, code, hotNote, setHotNote, room, setRoom }: {
         [...some.below].reduce((total, [roomy, extra]) => total + (roomy < line ? extra : 0), 0)
       // Where each note's line would be with no extra space.
       const plainTops = notes.map((_, index) => (gapOf(index)?.closest<HTMLElement>('.ln')?.offsetTop ?? 0) - roomUpTo(roomOnScreen.current, lineOf(index)))
-      const topDown = notes.map((_, index) => index).sort((upper, lower) => plainTops[upper] - plainTops[lower])
+      // Top to bottom by where each note's code starts in the file, not on screen: the space made below moves the code,
+      // and an order read from the screen could then swap two notes' sides back and forth for ever.
+      const startOf = (index: number) => notes[index].span!.start
+      const topDown = notes.map((_, index) => index).sort((upper, lower) => startOf(upper).line - startOf(lower).line || startOf(upper).column - startOf(lower).column)
       const made: NoteRoom = { above: new Map(), below: new Map(), inLine: new Map() }
       const addAbove = (line: number, extra: number) => made.above.set(line, (made.above.get(line) ?? 0) + extra)
       const addBelow = (line: number, extra: number) => made.below.set(line, Math.max(made.below.get(line) ?? 0, extra))
