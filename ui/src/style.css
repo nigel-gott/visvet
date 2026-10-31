@@ -461,6 +461,11 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .route-note { max-width: 560px; margin: 8px auto 0; color: var(--ai); font-size: 13px; text-align: center }
 /* "You drive": the move to make next pulses, the ↑ button or the box to click or double-click, with a label saying which. */
 @keyframes cue-pulse { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--ai) 40%, transparent) } }
+/* The tab above the zoomed box that zooms out a level; it pulses when that is the tour's next move. */
+.zoom-out { position: absolute; bottom: 100%; left: 12px; z-index: 5; pointer-events: auto; padding: 3px 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0;
+  background: var(--panel); color: var(--sel); font: 600 13px system-ui, sans-serif; cursor: pointer }
+.zoom-out:hover { background: var(--bg) }
+.zoom-out.tour-cue { border: 2px solid var(--ai); border-bottom: 0; background: var(--tour-bg); color: var(--ai); animation: cue-pulse 1.4s ease-in-out infinite }
 .react-flow__node .card.tour-cue { outline: 3px solid var(--ai); outline-offset: 3px; animation: cue-pulse 1.4s ease-in-out infinite }
 .cue-label { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 10; padding: 4px 10px; border-radius: 8px; background: var(--ai); color: #fff;
   font-size: 13px; font-weight: 600; white-space: nowrap; pointer-events: none }

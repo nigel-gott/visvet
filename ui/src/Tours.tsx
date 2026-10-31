@@ -101,7 +101,9 @@ function useArrowKeys() {
       const to = playing.number + (by ?? 0)
       if (typing || !by || to < 0 || to >= playing.tour.steps.length) return
       e.preventDefault()
-      x.showStep({ file: playing.tour.file, step: to }, true)
+      // → does what Next does: on the way to the next step, takes the next move; otherwise sets off for it. ← jumps back.
+      if (by === 1 && x.guide) takeNextMove(x)
+      else x.showStep({ file: playing.tour.file, step: to }, by === -1)
     }
     addEventListener('keydown', press)
     return () => removeEventListener('keydown', press)
@@ -157,11 +159,30 @@ export function TourBar() {
       <span className="tour-count">{number + 1} / {tour.steps.length}</span>
       <span className="tour-step-title">{tour.steps[number].title}</span>
       <button className="tour-back" title="Back a step (←)" disabled={number === 0} onClick={() => go(tour.file, number - 1)}>‹ Back</button>
-      <button className="tour-next" title="Next step (→)" onClick={() => x.showStep(last ? null : { file: tour.file, step: number + 1 })}>{last ? 'Finish ✓' : 'Next ›'}</button>
+      {x.guide
+        ? <button className="tour-next" title="The next move on the way to the next step (→)" onClick={() => takeNextMove(x)}>{nextMoveLabel(x, x.guide)} ›</button>
+        : <button className="tour-next" title="Next step (→)" onClick={() => x.showStep(last ? null : { file: tour.file, step: number + 1 })}>{last ? 'Finish ✓' : 'Next ›'}</button>}
       <button className="tour-leave" title="Leave the tour" onClick={() => x.showStep(null)}>✕</button>
       {menu && <StepList tour={tour} number={number} go={go} />}
     </div>
   )
+}
+
+/**
+ * With "you drive", on the way to the next step: makes the next move for the user, one zoom level at a time, as
+ * clicking Next again and again walks the route: up to the box around, into the next box, or once in the step's view,
+ * to the step's box itself.
+ */
+function takeNextMove(x: Ctx) {
+  const { next, move } = x.guide!
+  if (move === 'view') x.select(next!)
+  else x.zoom(next)
+}
+
+/** What Next does on the way to the next step, e.g. "Into server.rs", "Up to src/" or "Show Cmd". */
+function nextMoveLabel(x: Ctx, guide: Guide) {
+  const name = guide.next === null ? 'the map' : x.ix.items.get(guide.next)?.name ?? guide.next
+  return { up: `Up to ${name}`, into: `Into ${name}`, view: `Show ${name}` }[guide.move]
 }
 
 /**
