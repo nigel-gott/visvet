@@ -153,7 +153,7 @@ export function DiffView({ diff, language, notes = [], beside = false }: { diff:
   /** The note the pointer is over, or whose code it is over: both stand out. */
   const [hotNote, setHotNote] = useState<number | null>(null)
   /** With notes beside the code: the space they make in it, so none covers code or another note. */
-  const [room, setRoom] = useState<NoteRoom>({ above: new Map(), inLine: new Map() })
+  const [room, setRoom] = useState<NoteRoom>({ above: new Map(), below: new Map(), inLine: new Map() })
   const view = useRef<HTMLDivElement>(null)
   useScrollToFirstNote(view, notes)
   const highlighter = useHighlighter()
@@ -167,7 +167,7 @@ export function DiffView({ diff, language, notes = [], beside = false }: { diff:
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
     : lines.map((l, k) => (
       <Fragment key={start + k}>
-        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} style={{ marginTop: beside && l.kind !== 'del' ? room.above.get(l.line) : undefined }}>
+        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} style={beside && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
           <span className="no">{l.line}</span>
           {markedText(l, coloured?.[start + k], notedColumns(l, notes), room.inLine, hotNote, setHotNote)}
         </div>
@@ -245,10 +245,10 @@ const NOTE_GAP = 10
 /** How far above its code's top a note starts, so its text sits level with the code's text, in pixels. */
 const NOTE_RAISE = 3
 /**
- * The space notes beside the code make in it: extra space above some lines (by line number), and a gap in a line
- * right after a note's code (by note), where a note on the right sits.
+ * The space notes beside the code make in it: extra space above and below some lines (by line number), and a gap in a
+ * line right after a note's code (by note), where a note on the right sits.
  */
-type NoteRoom = { above: Map<number, number>; inLine: Map<number, number> }
+type NoteRoom = { above: Map<number, number>; below: Map<number, number>; inLine: Map<number, number> }
 /** Which side of the code a note sits on. */
 type NoteSide = 'left' | 'right'
 /** Where a note sits: its side, left and top, its size, and the top of its code's line, which it points at. */
@@ -276,26 +276,30 @@ function NotesBeside({ notes, code, hotNote, setHotNote, room, setRoom }: {
       const noteBoxes = [...layer.current.querySelectorAll<HTMLElement>('.side-note')]
       const gapOf = (index: number) => code.current!.querySelector<HTMLElement>(`[data-gap="${index}"]`)
       const lineOf = (index: number) => notes[index].span!.end.line
-      /** The extra space above line `line` and every line before it. */
-      const roomUpTo = (above: Map<number, number>, line: number) => [...above].reduce((total, [roomy, extra]) => total + (roomy <= line ? extra : 0), 0)
+      /** The extra space above line `line`: above it and every line before it, and below every line before it. */
+      const roomUpTo = (some: NoteRoom, line: number) =>
+        [...some.above].reduce((total, [roomy, extra]) => total + (roomy <= line ? extra : 0), 0) +
+        [...some.below].reduce((total, [roomy, extra]) => total + (roomy < line ? extra : 0), 0)
       // Where each note's line would be with no extra space.
-      const plainTops = notes.map((_, index) => (gapOf(index)?.closest<HTMLElement>('.ln')?.offsetTop ?? 0) - roomUpTo(roomOnScreen.current.above, lineOf(index)))
+      const plainTops = notes.map((_, index) => (gapOf(index)?.closest<HTMLElement>('.ln')?.offsetTop ?? 0) - roomUpTo(roomOnScreen.current, lineOf(index)))
       const topDown = notes.map((_, index) => index).sort((upper, lower) => plainTops[upper] - plainTops[lower])
-      const made: NoteRoom = { above: new Map(), inLine: new Map() }
+      const made: NoteRoom = { above: new Map(), below: new Map(), inLine: new Map() }
       const addAbove = (line: number, extra: number) => made.above.set(line, (made.above.get(line) ?? 0) + extra)
+      const addBelow = (line: number, extra: number) => made.below.set(line, Math.max(made.below.get(line) ?? 0, extra))
       const placed: NotePlace[] = []
       let lowestLeft: NotePlace | null = null
       topDown.forEach((index, order) => {
         const side: NoteSide = order % 2 === 0 ? 'right' : 'left'
         const width = noteBoxes[index]?.offsetWidth ?? 0, height = noteBoxes[index]?.offsetHeight ?? 0
-        const codeTop = plainTops[index] + roomUpTo(made.above, lineOf(index))
+        const codeTop = plainTops[index] + roomUpTo(made, lineOf(index))
         const place: NotePlace = { side, left: 0, top: codeTop - NOTE_RAISE, width, height, codeTop }
         if (side === 'right') {
           place.left = (gapOf(index)?.offsetLeft ?? 0) + NOTE_GAP
           made.inLine.set(index, width + 2 * NOTE_GAP)
           const lineHeight = gapOf(index)?.closest<HTMLElement>('.ln')?.offsetHeight ?? 0
           const overhang = place.top + height + NOTE_GAP / 2 - (codeTop + lineHeight)
-          if (overhang > 0) addAbove(lineOf(index) + 1, overhang)
+          // Below the note's own line, so whatever row comes next moves down, a removed line included.
+          if (overhang > 0) addBelow(lineOf(index), overhang)
         } else {
           place.left = MARGIN_NOTE_WIDTH - NOTE_GAP - width
           const clash = lowestLeft ? lowestLeft.top + lowestLeft.height + NOTE_GAP - place.top : 0
@@ -310,7 +314,7 @@ function NotesBeside({ notes, code, hotNote, setHotNote, room, setRoom }: {
         placed[index] = place
       })
       const same = (before: unknown, after: unknown) => JSON.stringify(before) === JSON.stringify(after)
-      const asLists = (some: NoteRoom) => [[...some.above], [...some.inLine]]
+      const asLists = (some: NoteRoom) => [[...some.above], [...some.below], [...some.inLine]]
       if (!same(asLists(roomOnScreen.current), asLists(made))) setRoom(made)
       setPlaces(before => (same(before, placed) ? before : placed))
     }
