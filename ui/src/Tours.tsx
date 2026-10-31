@@ -172,7 +172,7 @@ function NotesPlace() {
   return (
     <label className="speed-pick" title="Where the tour's notes on code sit">
       Notes <select value={x.notesBeside ? 'beside' : 'in'} onChange={e => x.setNotesBeside(e.target.value === 'beside')}>
-        <option value="in">in the code</option><option value="beside">in the margin</option>
+        <option value="beside">in the margin</option><option value="in">in the code</option>
       </select>
     </label>
   )

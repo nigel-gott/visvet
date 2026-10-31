@@ -239,9 +239,9 @@ function useFocus(ix: Index | undefined, select: Ctx['select']) {
   }
 }
 
-/** Where the tour's notes on code sit: in the margin (true) or in between the lines, as last chosen in this browser. */
+/** Where the tour's notes on code sit: in the margin beside the code (true, the default) or in between its lines, if chosen in this browser. */
 function useNotesPlace() {
-  const saved = () => { try { return localStorage.getItem('visvet:notes-place') === 'beside' } catch { return false } }
+  const saved = () => { try { return localStorage.getItem('visvet:notes-place') !== 'in' } catch { return true } }
   const [beside, setBeside] = useState(saved)
   const choose = (chosen: boolean) => {
     setBeside(chosen)
