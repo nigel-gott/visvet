@@ -113,14 +113,15 @@ const diveTo = (it: Item, t: Item, zoomable: boolean) =>
 /**
  * Handles a click on box `it`, or on one of its rows, pills or field rows (`t`): selects it; a double click zooms the
  * map into it, or for a member, into the box it lives in, and selects it. A box in view that can't be zoomed into (a
- * function) opens or closes its More instead.
+ * function) opens instead, as More does; a double click never closes it (its first click may already have opened it,
+ * e.g. by reaching a tour step).
  */
 function useClick(it: Item, ext: boolean) {
   const x = useContext(X)
   const { getViewport, getInternalNode } = useReactFlow()
   const zoomable = it.id !== x.scope && !it.m && it.kids.length > 0
   const dive = (t: Item) => {
-    if (t === it && !zoomable && !ext) return x.expand(it.id)
+    if (t === it && !zoomable && !ext) return x.expanded.has(it.id) ? undefined : x.expand(it.id)
     const to = diveTo(it, t, zoomable)
     if (!to || to === x.scope) return
     // The new view opens with `to` (or this box) where this box is now, then glides to its fit (see `useFit`).
