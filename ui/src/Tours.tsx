@@ -156,7 +156,13 @@ export function TourBar() {
       <span className="tour-count">{number + 1} / {tour.steps.length}</span>
       <button title="Next step" disabled={number === tour.steps.length - 1} onClick={() => go(tour.file, number + 1)}>›</button>
       <button title="Leave the tour" onClick={() => x.showStep(null)}>✕</button>
-      {!hasBubble(tour.steps[number]) && <span className="tour-step-title">{tour.steps[number].title}</span>}
+      {!hasBubble(tour.steps[number]) && <>
+        <span className="tour-step-title">{tour.steps[number].title}</span>
+        {/* With no bubble, its Next button is here instead. */}
+        <button className="tour-next" onClick={() => x.showStep(number + 1 < tour.steps.length ? { file: tour.file, step: number + 1 } : null)}>
+          {number === tour.steps.length - 1 ? 'Finish ✓' : 'Next ›'}
+        </button>
+      </>}
       <NotesPlace />
       {menu && <StepList tour={tour} number={number} go={go} />}
     </div>

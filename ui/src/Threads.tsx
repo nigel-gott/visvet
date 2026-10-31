@@ -7,9 +7,6 @@ import { DebuffDetail } from './Debuffs'
 import { X, type Ctx } from './context'
 import { Rich } from './Rich'
 
-/** The threads on box `id` or anything inside it (a folder id ends in "/"). */
-export const threadsIn = (id: string, threads: Thread[]) =>
-  threads.filter(t => t.target === id || t.target.startsWith(id.endsWith('/') ? id : id + '::'))
 
 /** Whether a thread holds only the AI's note, so it has nothing to answer or resolve. */
 const onlyNotes = (t: Thread) => t.messages.every(m => m.kind === 'note')
@@ -18,10 +15,10 @@ const onlyNotes = (t: Thread) => t.messages.every(m => m.kind === 'note')
 const URGENCY: ThreadState[] = ['question', 'open', 'working', 'resolved']
 const urgent = (ts: Thread[]) => URGENCY.find(s => ts.some(t => t.state === s))!
 
-/** A box's header chip: how many unresolved threads are on it or inside it, coloured by the most urgent. */
+/** A box's header chip: how many unresolved threads are on the box itself (not the boxes inside it), coloured by the most urgent. */
 export function ThreadChip({ it }: { it: Item }) {
   const x = useContext(X)
-  const ts = threadsIn(it.id, x.threads)
+  const ts = x.threads.filter(t => t.target === it.id)
   const live = ts.filter(t => t.state !== 'resolved')
   if (!ts.length) return null
   if (ts.every(onlyNotes)) return <span className="talk note" title={ts[0].messages[0].text}>📝</span>
