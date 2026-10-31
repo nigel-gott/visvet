@@ -45,8 +45,8 @@ export function Notes({ it }: { it: Item }) {
 }
 
 /**
- * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, lines changed, threads and
- * debuffs. It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
+ * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, its threads and debuffs, then
+ * in columns lines added and removed. It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
  * view when it becomes the selection. A click shows its box on the map; a double click zooms into it.
  */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
@@ -65,11 +65,15 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
       {children}
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
       <span className={'badge k-' + kind} title={kind} />
-      <span className={'name ' + it.status}>{it.name}</span>
-      <StepNumbers id={it.id} />
-      <LineCounts count={it.diffCount} />
-      <ThreadChip it={it} />
-      <Debuffs it={it} />
+      <span className="tree-name">
+        <span className={'name ' + it.status}>{it.name}</span>
+        <StepNumbers id={it.id} />
+        <ThreadChip it={it} compact />
+        <Debuffs it={it} compact />
+      </span>
+      {/* Columns, so every row's line counts line up: lines added, then lines removed. */}
+      <span className="tree-added">{it.diffCount.added > 0 && `+${it.diffCount.added}`}</span>
+      <span className="tree-removed">{it.diffCount.removed > 0 && `−${it.diffCount.removed}`}</span>
     </div>
   )
 }

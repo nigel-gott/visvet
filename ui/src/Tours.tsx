@@ -128,8 +128,9 @@ function useClosesOnClickOutside(box: RefObject<HTMLElement | null>, open: boole
 }
 
 /**
- * In the top bar: a Tours button opening the list of tours, each to resume where this browser left it or start over;
- * while one plays, its title (opening a list of its steps to jump to), Back and Next, the step number, and ✕ to leave.
+ * In the top bar: a Tours button opening the list of tours, each to resume where this browser left it or start over.
+ * While one plays it becomes a strip of its own under the top bar: the tour's title (opening a list of its steps to
+ * jump to), the step number and title, then Back, Next and ✕ to leave at the end.
  */
 export function TourBar() {
   const x = useContext(X)
@@ -149,31 +150,25 @@ export function TourBar() {
     </div>
   )
   const { tour, number } = playing
+  const last = number === tour.steps.length - 1
   return (
-    <div className="tour-bar" ref={bar}>
+    <div className="tour-bar playing" ref={bar}>
       <button className="tour-open" title="Jump to any step" onClick={() => setMenu(!menu)}>🧭 {tour.title} ▾</button>
-      <button title="Back a step" disabled={number === 0} onClick={() => go(tour.file, number - 1)}>‹</button>
       <span className="tour-count">{number + 1} / {tour.steps.length}</span>
-      <button title="Next step" disabled={number === tour.steps.length - 1} onClick={() => go(tour.file, number + 1)}>›</button>
-      <button title="Leave the tour" onClick={() => x.showStep(null)}>✕</button>
-      {!hasBubble(tour.steps[number]) && <>
-        <span className="tour-step-title">{tour.steps[number].title}</span>
-        {/* With no bubble, its Next button is here instead. */}
-        <button className="tour-next" onClick={() => x.showStep(number + 1 < tour.steps.length ? { file: tour.file, step: number + 1 } : null)}>
-          {number === tour.steps.length - 1 ? 'Finish ✓' : 'Next ›'}
-        </button>
-      </>}
-      <NotesPlace />
+      <span className="tour-step-title">{tour.steps[number].title}</span>
+      <button className="tour-back" title="Back a step (←)" disabled={number === 0} onClick={() => go(tour.file, number - 1)}>‹ Back</button>
+      <button className="tour-next" title="Next step (→)" onClick={() => x.showStep(last ? null : { file: tour.file, step: number + 1 })}>{last ? 'Finish ✓' : 'Next ›'}</button>
+      <button className="tour-leave" title="Leave the tour" onClick={() => x.showStep(null)}>✕</button>
       {menu && <StepList tour={tour} number={number} go={go} />}
     </div>
   )
 }
 
 /**
- * While a tour plays: where its notes on code sit, in between the lines under their code, or beside it, next to
- * it so the code stays in one piece. Kept in this browser.
+ * In the settings menu: where a tour's notes on code sit, beside the code so it stays in one piece, or in between
+ * its lines under their code. Kept in this browser.
  */
-function NotesPlace() {
+export function NotesPlace() {
   const x = useContext(X)
   return (
     <label className="speed-pick" title="Where the tour's notes on code sit">

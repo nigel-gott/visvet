@@ -29,22 +29,31 @@ label { display: inline-flex; align-items: center; gap: 4px }
 
 .app { height: 100vh; height: 100dvh; display: grid; grid-template: auto 1fr / auto 1fr }
 /* The header: the tour and review controls, then a row of its own for where the map is (the breadcrumbs). */
-header { grid-area: 1 / 1 / 2 / 3; display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--panel) }
-.header-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px }
-.header-path { display: flex; align-items: center; gap: 10px; min-width: 0 }
-.steps { display: flex; gap: 4px }
-.steps button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 18px; line-height: 1; cursor: pointer }
-.steps button:disabled { opacity: .35; cursor: default }
-.path { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 15px; font-weight: 600 }
-.path a { padding: 4px 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); color: var(--sel); white-space: nowrap; cursor: pointer }
-.path a.here { border-color: var(--fg); color: var(--fg); cursor: default }
+/* The top bar: one row of navigation, the path, then the review's status and settings; a playing tour adds a strip below. */
+header { grid-area: 1 / 1 / 2 / 3; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px; border-bottom: 1px solid var(--line);
+  background: var(--panel); font-size: 13px }
+.steps { display: flex; gap: 2px }
+.steps button { width: 30px; height: 30px; border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer }
+.steps button:hover:not(:disabled) { background: var(--bg) }
+.steps button:disabled { opacity: .3; cursor: default }
+.path { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 14px; font-weight: 600 }
+.path a { padding: 3px 10px; border: 1px solid transparent; border-radius: 6px; color: var(--sel); white-space: nowrap; cursor: pointer }
+.path a:hover:not(.here) { background: var(--bg) }
+.path a.here { color: var(--fg); cursor: default }
 .path > span { color: var(--muted) }
-/* "You drive": the way on to the next tour step continues the breadcrumbs in purple; the next move pulses. */
+/* "You drive": the way on to the next tour step continues the breadcrumbs in purple. */
 .path a.ahead { border-style: dashed; border-color: var(--ai); color: var(--ai) }
-.path a.cue { border: 2px solid var(--ai); color: var(--ai); animation: cue-pulse 1.4s ease-in-out infinite }
 .path .way { color: var(--ai) }
 .path .path-next { color: var(--ai); font-size: 13px; font-weight: 400; white-space: normal }
+.review-status { display: flex; align-items: center; gap: 10px }
 .vs { color: var(--muted); font-size: 12px; white-space: nowrap }
+.settings { position: relative }
+.settings summary { width: 30px; height: 30px; border-radius: 6px; color: var(--muted); font-size: 16px; line-height: 30px; text-align: center; list-style: none; cursor: pointer }
+.settings summary::-webkit-details-marker { display: none }
+.settings summary:hover, .settings[open] summary { background: var(--bg); color: var(--fg) }
+.settings-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--bg); box-shadow: 0 8px 24px rgb(0 0 0 / .25) }
+.settings-menu .speed-pick { justify-content: space-between; gap: 12px }
 main { grid-area: 2 / 2; min-height: 0 }
 /* The file tree: one line per row, resized by dragging its right edge. */
 .tree { grid-area: 2 / 1; position: relative; width: 300px; min-width: 180px; max-width: 60vw; min-height: 0; overflow: auto; resize: horizontal; border-right: 1px solid var(--line); background: var(--panel); font-size: 13px }
@@ -52,7 +61,14 @@ main { grid-area: 2 / 2; min-height: 0 }
 .tree-toggle { position: sticky; top: 0; float: right; z-index: 2; padding: 2px 7px; border: 0; background: none; color: var(--muted); cursor: pointer }
 .tree .body { padding: 8px }
 .tree input[type=search] { width: calc(100% - 28px) }
-.tree .orow { flex-wrap: nowrap; gap: 5px; padding: 2px 4px; border: 0; border-radius: 4px; white-space: nowrap }
+.tree .orow { display: grid; grid-template-columns: 16px 10px 18px minmax(0, 1fr) auto auto; align-items: center; column-gap: 4px;
+  padding: 2px 4px; border: 0; border-radius: 4px; white-space: nowrap }
+.tree-name { display: flex; align-items: center; gap: 5px; min-width: 0 }
+.tree-added, .tree-removed { font: 600 11px var(--mono); text-align: right; font-variant-numeric: tabular-nums }
+.tree-added { color: var(--add) } .tree-removed { color: var(--del) }
+.tree-added { min-width: 34px } .tree-removed { min-width: 30px }
+.talk.compact { padding: 0; background: none; font-size: 11px }
+.debuff.compact { padding: 0; background: none; font-size: 12px }
 .tree .orow:hover { background: var(--bg) }
 .tree .orow.sel { background: var(--sel-bg) }
 .tree .orow.tour-step { outline: 2px solid var(--ai); outline-offset: -2px }
@@ -310,14 +326,24 @@ main { grid-area: 2 / 2; min-height: 0 }
 /* The tour player. In the top bar: a picker, or while playing, the tour's name, progress and ✕. */
 /* The tours button and, while a tour plays, its title, Back and Next and step number; each opens a list below. */
 .tour-bar { position: relative; display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap }
-.tour-open { height: 30px; padding: 0 14px; border: 1px solid var(--ai); border-radius: 15px; background: var(--tour-bg); color: var(--ai); font-size: 13px; font-weight: 600; cursor: pointer }
-.tour-bar > button:not(.tour-open, .tour-next) { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); color: var(--fg); font-size: 15px; cursor: pointer }
+/* A playing tour: a purple strip of its own across the bottom of the top bar. */
+.tour-bar.playing { order: 1; flex-basis: calc(100% + 20px); margin: 0 -10px -6px; padding: 5px 10px; border-top: 1px solid color-mix(in srgb, var(--ai) 35%, transparent);
+  background: var(--tour-bg) }
+.tour-open { height: 28px; padding: 0 12px; border: 1px solid var(--ai); border-radius: 14px; background: var(--tour-bg); color: var(--ai); font-size: 13px; font-weight: 600; cursor: pointer }
+.tour-bar.playing .tour-open { border-color: transparent; background: none; padding: 0 6px }
+/* The Tours list opens leftwards from its button at the bar's right end; a playing tour's step list opens rightwards. */
+.tour-bar.playing .tour-menu { right: auto; left: 0 }
+.tour-leave { width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; cursor: pointer }
+.tour-leave:hover { background: color-mix(in srgb, var(--ai) 15%, transparent) }
+.tour-back { height: 26px; padding: 0 12px; border: 1px solid var(--ai); border-radius: 13px; background: none; color: var(--ai); font-size: 13px; font-weight: 600; cursor: pointer }
+.tour-back:disabled { opacity: .35; cursor: default }
+.tour-leave { color: var(--muted); font-size: 13px }
 .tour-bar > button:disabled { opacity: .35; cursor: default }
-.tour-count { min-width: 56px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center }
-/* A step told only in notes on its code has no bubble, so its title shows here. */
-.tour-step-title { max-width: 360px; overflow: hidden; color: var(--ai); font-weight: 600; text-overflow: ellipsis; white-space: nowrap }
+.tour-count { min-width: 44px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center }
+/* The step's title, then Next and leave at the strip's end. */
+.tour-step-title { flex: 1; min-width: 0; margin-left: 6px; overflow: hidden; color: var(--fg); font-weight: 600; text-overflow: ellipsis; white-space: nowrap }
 .tour-next { height: 26px; padding: 0 12px; border: 0; border-radius: 13px; background: var(--ai); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer }
-.tour-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; width: min(440px, calc(100vw - 16px)); max-height: 70vh; margin: 0; padding: 6px; overflow: auto;
+.tour-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: min(440px, calc(100vw - 16px)); max-height: 70vh; margin: 0; padding: 6px; overflow: auto;
   border: 1px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: 0 12px 32px rgb(0 0 0 / .35); white-space: normal }
 .tour-card { padding: 12px }
 .tour-card + .tour-card { border-top: 1px solid var(--line) }
@@ -366,7 +392,9 @@ main { grid-area: 2 / 2; min-height: 0 }
 .ln.noted { background: color-mix(in srgb, var(--ai) 8%, transparent); box-shadow: inset 4px 0 var(--ai) }
 mark.noted-code { border-radius: 3px; background: var(--mark-bg); color: inherit; box-shadow: 0 0 0 2px var(--ai) }
 mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent); box-shadow: 0 0 0 3px var(--ai) }
-.beside-notes { position: relative }
+/* Never narrower than its longest line plus the notes' gutter: in a box too narrow for both (the zoomed box, sized by
+   the boxes inside it), the code scrolls sideways instead of wrapping into a sliver. */
+.beside-notes { position: relative; width: max-content; min-width: 100% }
 .side-notes { position: absolute; inset: 0; pointer-events: none }
 /* The gap in a line of code, right after a note's code, that a note on the right sits in. */
 .note-gap { display: inline-block }
@@ -383,6 +411,15 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 /* A link in a note or message, e.g. to a library's docs: opens in a new tab. */
 .doc-link { color: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--ai); text-underline-offset: 2px }
 .doc-link:hover { text-decoration-thickness: 2px }
+/* A doc page shown in a bubble beside the link that opened it (DocPreview.tsx). */
+.doc-preview { position: fixed; z-index: 20; display: flex; flex-direction: column; overflow: hidden; border: 2px solid var(--ai); border-radius: 10px;
+  background: var(--bg); box-shadow: 0 10px 30px rgb(0 0 0 / .35) }
+.doc-preview-bar { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 12px; background: var(--note-bg); color: var(--note-fg); font: 12px system-ui, sans-serif }
+.doc-preview-site { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85 }
+.doc-preview-open { flex: none; color: inherit; font-weight: 600 }
+.doc-preview-close { flex: none; border: 0; background: none; color: inherit; font-size: 14px; cursor: pointer }
+.doc-preview iframe { flex: 1; width: 100%; border: 0; background: #fff }
+.doc-preview-refused { margin: 16px; color: var(--muted); font: 13px/1.5 system-ui, sans-serif }
 .side-note p:last-child { margin-bottom: 0 }
 .side-brackets { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible }
 .side-brackets polyline { fill: none; stroke: var(--ai); stroke-width: 1.5 }
@@ -427,7 +464,6 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .react-flow__node .card.tour-cue { outline: 3px solid var(--ai); outline-offset: 3px; animation: cue-pulse 1.4s ease-in-out infinite }
 .cue-label { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 10; padding: 4px 10px; border-radius: 8px; background: var(--ai); color: #fff;
   font-size: 13px; font-weight: 600; white-space: nowrap; pointer-events: none }
-.steps button.cue { border: 2px solid var(--ai); color: var(--ai); animation: cue-pulse 1.4s ease-in-out infinite }
 .speed-pick { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap }
 .speed-pick select { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 12px }
 .route li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 76px; color: var(--muted); font-size: 12px; white-space: nowrap }

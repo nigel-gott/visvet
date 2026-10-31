@@ -78,6 +78,8 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
     id: it.id, width: wide(it), height: size(it), x: 0, y: i * 10_000, children: [] as ElkNode[],
     layoutOptions: {
       ...LAYOUT, 'elk.padding': `[top=${size(it) + 12},left=12,bottom=12,right=12]`,
+      // A box holding others is sized by them, but never narrower than its own content, e.g. its open code and notes.
+      'elk.nodeSize.constraints': 'MINIMUM_SIZE', 'elk.nodeSize.minimum': `(${wide(it)}, ${size(it)})`,
     },
   }]))
   const root: ElkNode = {

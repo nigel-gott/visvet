@@ -13,7 +13,8 @@ import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } 
 import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { FileTree, LineCounts } from './Views'
-import { bubbleBoxOf, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
+import { DocPreview, type DocToShow } from './DocPreview'
+import { bubbleBoxOf, NotesPlace, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
 
 
 /** The selected symbol id from the URL hash, or null. */
@@ -130,9 +131,9 @@ function useNav() {
 }
 
 /**
- * The toolbar: Back and Forward retrace the user's own steps, Up goes to the box the zoomed one sits in, and the
- * path shows where the map is zoomed, each step clickable. Then the comment-thread counts, what the review compares
- * against, and refresh errors.
+ * The top bar, one row: Back, Forward and Up, then where the map is zoomed (each step of the path clickable), then
+ * the Tours button, what the review changed and compares against, its threads, and the settings menu. A tour that
+ * is playing gets a strip of its own under the row (see `TourBar`).
  */
 function Header({ error }: { error?: string }) {
   const x = useContext(X)
@@ -141,36 +142,45 @@ function Header({ error }: { error?: string }) {
   const to = (id: string | null) => id !== x.scope && x.zoom(id)
   return (
     <header>
-      <div className="header-top">
-        <TourBar />
-        <SpeedPicker />
+      <nav className="steps">
+        <button title="Back" onClick={() => history.back()}>←</button>
+        <button title="Forward" onClick={() => history.forward()}>→</button>
+        <button title="Up to the box this one is in" disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>
+      </nav>
+      <nav className="path">
+        <a className={x.scope ? '' : 'here'} onClick={() => to(null)}>Map</a>
+        {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
+        <WayAhead path={path} />
+      </nav>
+      <TourBar />
+      <div className="review-status">
         <ChangeTotals />
         <ThreadCounts />
-        <span className="vs">vs <code>{x.model.compared_against}</code></span>
+        <span className="vs" title="What this review compares the code with">vs <code>{x.model.compared_against}</code></span>
         {error && <span className="err">Refresh failed: {error}</span>}
       </div>
-      <div className="header-path">
-        <nav className="steps">
-          <button title="Back" onClick={() => history.back()}>←</button>
-          <button title="Forward" onClick={() => history.forward()}>→</button>
-          <button title="Up to the box this one is in" className={x.guide?.move === 'up' ? 'cue' : ''} disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>
-        </nav>
-        <nav className="path">
-          <a className={`${x.scope ? '' : 'here'} ${upCue(x, null) ? 'cue' : ''}`} onClick={() => to(null)}>Map</a>
-          {path.map(it => <Fragment key={it.id}><span>›</span><a className={`${it.id === x.scope ? 'here' : ''} ${upCue(x, it.id) ? 'cue' : ''}`} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
-          <WayAhead path={path} />
-        </nav>
-      </div>
+      <Settings />
     </header>
   )
 }
 
-/** With "you drive", whether the next move is up to box `id` (null: the whole map), so its breadcrumb pulses. */
-const upCue = (x: Ctx, id: string | null) => x.guide?.move === 'up' && x.guide.next === id
+/** The ⚙ menu: settings kept in this browser, how fast the map moves and where a tour's notes sit. */
+function Settings() {
+  return (
+    <details className="settings">
+      <summary title="Settings">⚙</summary>
+      <div className="settings-menu">
+        <SpeedPicker />
+        <NotesPlace />
+      </div>
+    </details>
+  )
+}
 
 /**
- * With "you drive", the rest of the breadcrumbs: the way on from where the user is to the next tour step, in purple,
- * the next move pulsing (each stop goes there when clicked), then the step's title and its note on where and why.
+ * With "you drive", the rest of the breadcrumbs: the way on from where the user is to the next tour step, in purple
+ * (each stop goes there when clicked), then the step's title and its note on where and why. The next move itself
+ * pulses on the map and in the file tree, not here.
  */
 function WayAhead({ path }: { path: Item[] }) {
   const x = useContext(X)
@@ -182,8 +192,8 @@ function WayAhead({ path }: { path: Item[] }) {
   return (
     <>
       <span className="way">➜</span>
-      {ahead.map(stop => <a key={stop} className={`ahead ${guide.move === 'into' && guide.next === stop ? 'cue' : ''}`} onClick={() => x.zoom(stop)}>{name(stop)}</a>)}
-      {guide.move === 'view' && <a className="ahead cue" onClick={() => x.select(guide.next!)}>{name(guide.next!)}</a>}
+      {ahead.map(stop => <a key={stop} className="ahead" onClick={() => x.zoom(stop)}>{name(stop)}</a>)}
+      {guide.move === 'view' && <a className="ahead" onClick={() => x.select(guide.next!)}>{name(guide.next!)}</a>}
       <span className="path-next">Next: <b>{guide.title}</b>{guide.note && <> · {guide.note}</>}</span>
     </>
   )
@@ -280,6 +290,7 @@ function App() {
   const [full, setFull] = useState<string | null>(null)
   const [tour, setTour] = useState<TourPlace | null>(null)
   const [notesBeside, setNotesBeside] = useNotesPlace()
+  const [docShown, showDoc] = useState<DocToShow | null>(null)
   /** Which move between tour steps is the latest, so a quick Next stops an older one between zoom levels. */
   const journey = useRef(0)
   /** The route of the move between tour steps under way, shown over the map; null when none is. */
@@ -393,7 +404,7 @@ function App() {
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     // While the user drives to the next step, the step they left hides its bubble and notes.
-    tour, showStep, notesBeside, setNotesBeside, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
+    tour, showStep, notesBeside, setNotesBeside, docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,
@@ -409,6 +420,7 @@ function App() {
         <LostStep />
         <RouteOverlay />
         <Drawer />
+        <DocPreview />
       </div>
     </X.Provider>
   )

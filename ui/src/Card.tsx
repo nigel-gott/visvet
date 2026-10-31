@@ -21,12 +21,16 @@ export const MAP_ZOOM = { least: 0.05, most: 2 }
 /** How much a trackpad pinch zooms the map for each pixel it scrolls, as React Flow's own zoom does (a power of 2). */
 const PINCH_ZOOM_SPEED = 0.02
 
+/** How far the pointer must move, in pixels, before pressing on code becomes a drag that pans the map, not a click. */
+const DRAG_START = 4
+
 /**
- * A trackpad pinch over a box's code zooms the map, as it does anywhere else; plain scrolling still scrolls the code.
- * The code is marked `nowheel` so the map leaves its scrolling alone, which also kept pinches from reaching the map.
- * A pinch comes as a wheel event with Ctrl held. Returns a ref for the code's element.
+ * Lets the map move over a box's code as it does anywhere else: a drag pans it, and a trackpad pinch (a wheel event
+ * with Ctrl held) zooms it; plain scrolling still scrolls the code. React Flow won't pan over a box that can be
+ * dragged, and the code is marked `nowheel` so its scrolling isn't taken for a zoom, so both are done here.
+ * Returns a ref for the code's element.
  */
-function usePinchZoomsMap() {
+function useCodeMovesMap() {
   const { getViewport, setViewport } = useReactFlow()
   return useCallback((code: HTMLDivElement | null) => {
     if (!code) return
@@ -41,8 +45,32 @@ function usePinchZoomsMap() {
       const pointer = { x: e.clientX - map.left, y: e.clientY - map.top }
       setViewport({ x: pointer.x - (pointer.x - x) * next / zoom, y: pointer.y - (pointer.y - y) * next / zoom, zoom: next })
     }
+    const press = (down: PointerEvent) => {
+      const onLink = (down.target as Element).closest('a')
+      if (down.button !== 0 || onLink) return
+      const from = getViewport()
+      let panning = false
+      const move = (moved: PointerEvent) => {
+        const by = { x: moved.clientX - down.clientX, y: moved.clientY - down.clientY }
+        if (!panning && Math.hypot(by.x, by.y) < DRAG_START) return
+        panning = true
+        setViewport({ ...from, x: from.x + by.x, y: from.y + by.y })
+      }
+      const release = () => {
+        removeEventListener('pointermove', move)
+        removeEventListener('pointerup', release)
+        // The click that ends a drag is not a click on the code.
+        if (panning) addEventListener('click', swallow => swallow.stopPropagation(), { capture: true, once: true })
+      }
+      addEventListener('pointermove', move)
+      addEventListener('pointerup', release)
+    }
     code.addEventListener('wheel', pinch, { passive: false })
-    return () => code.removeEventListener('wheel', pinch)
+    code.addEventListener('pointerdown', press)
+    return () => {
+      code.removeEventListener('wheel', pinch)
+      code.removeEventListener('pointerdown', press)
+    }
   }, [getViewport, setViewport])
 }
 
@@ -153,7 +181,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
   const { it, rows, ext } = data
   const x = useContext(X)
   const click = useClick(it, ext)
-  const pinchZooms = usePinchZoomsMap()
+  const movesMap = useCodeMovesMap()
   const implemented = codeOf(it.o)?.implements ?? []
   // Made once per box, so its syntax colours are worked out once, not on every render.
   const code = useMemo(() => allLines(it), [it])
@@ -182,9 +210,9 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         {it.kind === 'folder' && <div className="meta">{stats(it)}</div>}
         {implemented.length > 0 && <div className="meta">impl {implemented.map(t => t.name).join(', ')}</div>}
         <Rows it={it} rows={rows} click={click} />
-        {/* nowheel/nopan/nodrag let the code scroll instead of moving the map. */}
+        {/* nowheel lets the code scroll instead of zooming the map; nodrag keeps the box still, and a drag pans the map instead (useCodeMovesMap). */}
         {showsCode(it, x) &&
-          <div ref={pinchZooms} className="code nowheel nopan nodrag" style={{ height: codeHeight(it, x) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} beside={x.notesBeside} /></div>}
+          <div ref={movesMap} className="code nowheel nodrag" style={{ height: codeHeight(it, x) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} beside={x.notesBeside} /></div>}
         {data.zoomPreview && <InnerPreview preview={data.zoomPreview} />}
       </div>
       <Handle type="source" position={Position.Right} />

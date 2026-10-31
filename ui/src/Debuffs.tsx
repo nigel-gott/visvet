@@ -26,12 +26,15 @@ function debuffsOf(it: Item) {
   ].filter(d => !!d)
 }
 
-/** A box's debuff badges; clicking one selects the box and shows that debuff's details beside it. */
-export function Debuffs({ it }: { it: Item }) {
+/**
+ * A box's debuff badges; clicking one selects the box and shows that debuff's details beside it. `compact` (in the
+ * file tree) shows only each one's emoji; its number is in its hover text.
+ */
+export function Debuffs({ it, compact = false }: { it: Item; compact?: boolean }) {
   const x = useContext(X)
   return debuffsOf(it).map(d => (
-    <span key={d.kind} className={'debuff ' + d.kind} data-tip={d.tip} onClick={e => { e.stopPropagation(); x.select(it.id, true); x.showDetail(it.id, d.kind) }}>
-      {d.emoji} {d.value}
+    <span key={d.kind} className={`debuff ${d.kind} ${compact ? 'compact' : ''}`} data-tip={d.tip} onClick={e => { e.stopPropagation(); x.select(it.id, true); x.showDetail(it.id, d.kind) }}>
+      {compact ? d.emoji : `${d.emoji} ${d.value}`}
     </span>
   ))
 }

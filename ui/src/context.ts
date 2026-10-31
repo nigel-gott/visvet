@@ -4,6 +4,7 @@ import { createContext } from 'react'
 import type { Index, Review, Thread } from './model'
 import type { CodeNote } from './contract'
 import type { Guide, Route, TourPlace } from './Tours'
+import type { DocToShow } from './DocPreview'
 
 /** What every view reads: the model, the item index, the selection, navigation and review state. */
 export type Ctx = {
@@ -29,6 +30,9 @@ export type Ctx = {
   stepBox?: string
   /** The notes on the code of that step's box, which its code makes room for. */
   stepNotes: CodeNote[]
+  /** The doc page a link in a note opened in a bubble, if any; `showDoc` opens one, or with null closes it. */
+  docShown: DocToShow | null
+  showDoc: (doc: DocToShow | null) => void
   /** Whether the tour's notes on code sit in the margin beside the code, instead of in between its lines. */
   notesBeside: boolean
   setNotesBeside: (beside: boolean) => void

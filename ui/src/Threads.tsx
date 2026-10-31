@@ -15,15 +15,19 @@ const onlyNotes = (t: Thread) => t.messages.every(m => m.kind === 'note')
 const URGENCY: ThreadState[] = ['question', 'open', 'working', 'resolved']
 const urgent = (ts: Thread[]) => URGENCY.find(s => ts.some(t => t.state === s))!
 
-/** A box's header chip: how many unresolved threads are on the box itself (not the boxes inside it), coloured by the most urgent. */
-export function ThreadChip({ it }: { it: Item }) {
+/**
+ * A box's header chip: how many unresolved threads are on the box itself (not the boxes inside it), coloured by the
+ * most urgent. `compact` (in the file tree) drops the 💬 and the background, leaving the count or ✓ in its colour.
+ */
+export function ThreadChip({ it, compact = false }: { it: Item; compact?: boolean }) {
   const x = useContext(X)
   const ts = x.threads.filter(t => t.target === it.id)
   const live = ts.filter(t => t.state !== 'resolved')
   if (!ts.length) return null
-  if (ts.every(onlyNotes)) return <span className="talk note" title={ts[0].messages[0].text}>📝</span>
+  if (ts.every(onlyNotes)) return <span className={`talk note ${compact ? 'compact' : ''}`} title={ts[0].messages[0].text}>📝</span>
   const last = live.at(-1)?.messages.at(-1)
-  return <span className={'talk ' + urgent(live.length ? live : ts)} title={last ? last.text : `${ts.length} resolved`}>💬 {live.length || '✓'}</span>
+  const count = live.length || '✓'
+  return <span className={`talk ${urgent(live.length ? live : ts)} ${compact ? 'compact' : ''}`} title={last ? last.text : `${ts.length} resolved`}>{compact ? count : <>💬 {count}</>}</span>
 }
 
 /**
