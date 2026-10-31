@@ -239,6 +239,17 @@ function useFocus(ix: Index | undefined, select: Ctx['select']) {
   }
 }
 
+/** Where the tour's notes on code sit: in the margin (true) or in between the lines, as last chosen in this browser. */
+function useNotesPlace() {
+  const saved = () => { try { return localStorage.getItem('visvet:notes-place') === 'beside' } catch { return false } }
+  const [beside, setBeside] = useState(saved)
+  const choose = (chosen: boolean) => {
+    setBeside(chosen)
+    try { localStorage.setItem('visvet:notes-place', chosen ? 'beside' : 'in') } catch { /* private mode: not kept */ }
+  }
+  return [beside, choose] as const
+}
+
 /** The side drawer: the inbox, or the selected box's thread in full, or as a bubble with only its latest message, or for a box with no thread a button to start one. */
 function Drawer() {
   const x = useContext(X)
@@ -268,6 +279,7 @@ function App() {
   const [inbox, setInbox] = useState(false)
   const [full, setFull] = useState<string | null>(null)
   const [tour, setTour] = useState<TourPlace | null>(null)
+  const [notesBeside, setNotesBeside] = useNotesPlace()
   /** Which move between tour steps is the latest, so a quick Next stops an older one between zoom levels. */
   const journey = useRef(0)
   /** The route of the move between tour steps under way, shown over the map; null when none is. */
@@ -381,7 +393,7 @@ function App() {
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     // While the user drives to the next step, the step they left hides its bubble and notes.
-    tour, showStep, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
+    tour, showStep, notesBeside, setNotesBeside, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,

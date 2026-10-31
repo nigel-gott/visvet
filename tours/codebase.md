@@ -19,19 +19,50 @@ route: Starting at the top of the repository, with what visvet is for.
 `visvet serve` is the command this tour follows. `--base main` compares against the `main` branch instead of the last commit.
 
 ## Rust's package.json
-`Cargo.toml` is the Rust package's manifest. Cargo is Rust's build tool and package manager: it fetches packages ("crates"), builds, tests and installs. `Cargo.lock` pins the exact versions.
+box: `Cargo.toml`
 route: Next door: the file that lists the Rust libraries visvet uses.
 
-The crates you will meet on this tour: **clap** reads the command line, **tokio** runs async code, **axum** is the web server, **serde** turns types to and from JSON, **ts-rs** writes TypeScript copies of Rust types, **tree-sitter** parses code into syntax trees, **similar** makes line diffs, **notify** watches files, **anyhow** makes error handling short, and **rust-embed** puts the built UI inside the program.
+### `[package]`
+The Rust package's manifest. Cargo is Rust's build tool and package manager: it fetches packages ("crates"), builds, tests and installs. `Cargo.lock` pins the exact versions.
 
 ### `edition = "2024"`
 An edition is a version of the language's rules. Crates of different editions work together, so old code never breaks.
 
+### `anyhow =`
+Makes error handling short.
+
+### `axum =`
+The web server.
+
+### `clap =`
+Reads the command line.
+
+### `git2 =`
+Reads the git repository.
+
+### `notify =`
+Watches files for changes.
+
+### `rust-embed =`
+Puts the built UI inside the program.
+
 ### `serde = { version = "1.0.229", features = ["derive"] }`
-A "feature" switches on an optional part of a crate. Here, `derive` adds the `#[derive(Serialize)]` shortcut that you will see on almost every type.
+Turns types to and from JSON. A "feature" switches on an optional part of a crate: here, `derive` adds the `#[derive(Serialize)]` shortcut that you will see on almost every type.
+
+### `similar =`
+Makes line diffs.
+
+### `tokio =`
+Runs async code.
+
+### `tree-sitter =`
+Parses code into syntax trees.
+
+### `ts-rs =`
+Writes TypeScript copies of Rust types.
 
 ## Where the program starts
-`src/main.rs` is the first code that runs. Rust programs start at a function called `main`.
+box: `src/main.rs`
 route: Into src, where the Rust program lives, starting at its entry point.
 
 ### `mod cli;`
@@ -47,14 +78,17 @@ Your first macro. A macro is code that writes code: it runs inside the compiler,
 Rust has no built-in async runtime; tokio supplies one. This attribute rewrites `main` into roughly `fn main() -> anyhow::Result<()> { tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap().block_on(async { cli::run().await }) }`: a plain `main` that starts the runtime and runs your async code on it. Not every `#[...]` is a macro: `#[cfg(test)]` and `#[allow(...)]` are built-in attributes, instructions the compiler follows itself.
 
 ### `async fn main() -> anyhow::Result<()> {`
-`-> T` is the return type. `Result<T, E>` is either `Ok(value)` or `Err(error)`: Rust has no exceptions, so a function that can fail says so in its type. `()` is the "unit" type: the empty value, for a function with nothing to return. `anyhow::Result<()>` is a `Result` whose error can be any error.
+The first code that runs: Rust programs start at a function called `main`. `-> T` is the return type. `Result<T, E>` is either `Ok(value)` or `Err(error)`: Rust has no exceptions, so a function that can fail says so in its type. `()` is the "unit" type: the empty value, for a function with nothing to return. `anyhow::Result<()>` is a `Result` whose error can be any error.
 
 ### `cli::run().await`
 `.await` comes after the call. The line has no `;` and no `return`: the last expression in a block is its value, so this is what `main` returns.
 
 ## The command line, as a type
-`src/cli.rs::Cli` describes the command line as a struct, and clap writes the parser for it. A `struct` is a named group of fields, laid out in memory with no extra cost.
+box: `src/cli.rs::Cli`
 route: Over to src/cli.rs: what the program reads first is its command line.
+
+### `struct Cli {`
+The command line, described as a struct; clap writes the parser for it. A `struct` is a named group of fields, laid out in memory with no extra cost.
 
 ### `#[derive(Parser)]`
 A derive macro. At compile time, clap's `Parser` macro is handed the tokens of this struct: its name, each field, its type, and every attribute and doc comment on it. It writes a new block, `impl Parser for Cli { ... }`, with the code that reads the arguments into a `Cli`, and turns the `///` doc comments into the `--help` text. Unlike an attribute macro, a derive can only add code: the struct itself stays as written. The type is the schema: no separate description of the arguments.

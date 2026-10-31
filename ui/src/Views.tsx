@@ -2,12 +2,14 @@
 
 import { Debuffs } from './Debuffs'
 import { X, type Ctx } from './context'
-import { Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
 import { ThreadChip } from './Threads'
+import { Rich } from './Rich'
+import { MARGIN_NOTE_WIDTH } from './size'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -45,7 +47,7 @@ export function Notes({ it }: { it: Item }) {
 /**
  * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, lines changed, threads and
  * debuffs. It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
- * view when it becomes the selection. A click shows its box on the map.
+ * view when it becomes the selection. A click shows its box on the map; a double click zooms into it.
  */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
   const x = useContext(X)
@@ -54,8 +56,12 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
   useEffect(() => { if (sel) ref.current?.scrollIntoView({ block: 'nearest' }) }, [sel])
   const kind = it.labels?.kind ?? it.kind
   const tourMark = x.stepBox === it.id ? 'tour-step' : x.guide?.next === it.id ? 'tour-cue' : ''
+  // As on the map: a box holding others can be zoomed into, but not a member, nor the box already zoomed into.
+  const zoomable = it.id !== x.scope && !it.m && it.kids.length > 0
+  /** One click shows the row's box on the map; the second of a double click zooms the map into it, as on the map. */
+  const click = (clicks: number) => (clicks === 2 && zoomable ? x.zoom(it.id) : x.goTo(it.id))
   return (
-    <div ref={ref} className={`orow ${sel ? 'sel' : ''} ${tourMark}`} title={it.doc ?? it.m?.signature} onClick={() => x.goTo(it.id)}>
+    <div ref={ref} className={`orow ${sel ? 'sel' : ''} ${tourMark}`} title={it.doc ?? it.m?.signature} onClick={e => click(e.detail)}>
       {children}
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
       <span className={'badge k-' + kind} title={kind} />
@@ -134,9 +140,14 @@ export function FileTree() {
 /** An item's or edge end's display name. */
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 
-/** The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. */
-export function DiffView({ diff, language, notes = [] }: { diff: DiffLine[]; language: Language; notes?: CodeNote[] }) {
+/**
+ * The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. A tour's notes on
+ * code outline the exact code they are about, and sit under it, or with `beside`, in the margin to its right.
+ */
+export function DiffView({ diff, language, notes = [], beside = false }: { diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
+  /** The note the pointer is over, or whose code it is over: both stand out. */
+  const [hotNote, setHotNote] = useState<number | null>(null)
   const view = useRef<HTMLDivElement>(null)
   useScrollToFirstNote(view, notes)
   const highlighter = useHighlighter()
@@ -150,11 +161,128 @@ export function DiffView({ diff, language, notes = [] }: { diff: DiffLine[]; lan
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
     : lines.map((l, k) => (
       <Fragment key={start + k}>
-        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`}><span className="no">{l.line}</span>{colouredText(l, coloured?.[start + k])}</div>
-        {l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map((note, index) => <CodeBubble key={index} note={note} />)}
+        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`}>
+          <span className="no">{l.line}</span>
+          {markedText(l, coloured?.[start + k], notedColumns(l, notes), hotNote, setHotNote)}
+        </div>
+        {!beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)}
       </Fragment>
     )))
-  return <div className="diff" ref={view}>{rows}</div>
+  if (!beside || !notes.length) return <div className="diff" ref={view}>{rows}</div>
+  return (
+    <div className="with-margin" style={{ gridTemplateColumns: `minmax(0, 1fr) ${MARGIN_NOTE_WIDTH}px` }}>
+      <div className="diff" ref={view}>{rows}</div>
+      <MarginNotes notes={notes} code={view} hotNote={hotNote} setHotNote={setHotNote} />
+    </div>
+  )
+}
+
+/** A stretch of a line that a note's code covers: from column `from` up to `to`, and which note (its index). */
+type NotedColumns = { from: number; to: number; note: number }
+
+/** The stretches of a line of current code that `notes` are about; a note's code can run over several lines. */
+function notedColumns(line: DiffLine, notes: CodeNote[]): NotedColumns[] {
+  if (line.kind === 'del') return []
+  return notes.flatMap((note, index) => {
+    const { start, end } = note.span!
+    const onThisLine = line.line >= start.line && line.line <= end.line
+    if (!onThisLine) return []
+    return [{ from: line.line === start.line ? start.column : 0, to: line.line === end.line ? end.column : line.text.length, note: index }]
+  })
+}
+
+/** A piece of a line's text, in its syntax colour, and the note whose code it is part of, if any. */
+type MarkedPiece = ColouredPiece & { note?: number }
+
+/**
+ * A line's text in its syntax colours, with each note's code in an outline (a `mark` tagged with the note's index,
+ * which margin notes find to draw their line from). Pointing at the outline makes its note stand out.
+ */
+function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: NotedColumns[], hotNote: number | null, setHotNote: (note: number | null) => void) {
+  if (!noted.length) return colouredText(line, pieces)
+  const cuts = [...new Set(noted.flatMap(stretch => [stretch.from, stretch.to]))].sort((left, right) => left - right)
+  const noteAt = (column: number) => noted.find(stretch => column >= stretch.from && column < stretch.to)?.note
+  // Each piece is cut where a note's code starts or ends, so every bit lies wholly inside or outside it.
+  let pieceStart = 0
+  const bits = (pieces ?? [{ text: line.text, style: {} }]).flatMap((piece): MarkedPiece[] => {
+    const begin = pieceStart, end = begin + piece.text.length
+    pieceStart = end
+    const starts = [begin, ...cuts.filter(cut => cut > begin && cut < end)]
+    return starts.map((from, index) => {
+      const to = starts[index + 1] ?? end
+      return { text: piece.text.slice(from - begin, to - begin), style: piece.style, note: noteAt(from) }
+    })
+  })
+  // Bits next to each other under the same note share one outline.
+  const runs: { note?: number; bits: MarkedPiece[] }[] = []
+  for (const bit of bits) {
+    const last = runs.at(-1)
+    if (last && last.note === bit.note) last.bits.push(bit)
+    else runs.push({ note: bit.note, bits: [bit] })
+  }
+  const draw = (run: { bits: MarkedPiece[] }) => run.bits.map((bit, index) => <span key={index} className="tok" style={bit.style}>{bit.text}</span>)
+  return runs.map((run, index) => run.note === undefined ? <Fragment key={index}>{draw(run)}</Fragment> : (
+    <mark key={index} data-note={run.note} className={`noted-code ${hotNote === run.note ? 'hot' : ''}`}
+      onMouseEnter={() => setHotNote(run.note!)} onMouseLeave={() => setHotNote(null)}>{draw(run)}</mark>
+  ))
+}
+
+/** The space kept between two notes stacked in the margin, in pixels. */
+const MARGIN_NOTE_GAP = 8
+/** Where a margin note sits (its top), and where its line starts: the right end of the code it is about. */
+type MarginPlace = { top: number; lineFrom: { x: number; y: number } | null }
+
+/**
+ * The notes in the margin to the right of the code, each level with its code, joined to the code's outline by a
+ * line. A note that would overlap the one above it moves down below it. Positions are measured in the code's own
+ * pixels (offsets, not screen positions), so the map's zoom doesn't change them.
+ */
+function MarginNotes({ notes, code, hotNote, setHotNote }: { notes: CodeNote[]; code: RefObject<HTMLDivElement | null>; hotNote: number | null; setHotNote: (note: number | null) => void }) {
+  const margin = useRef<HTMLDivElement>(null)
+  const [layout, setLayout] = useState<{ places: MarginPlace[]; lowest: number }>({ places: [], lowest: 0 })
+  useLayoutEffect(() => {
+    const place = () => {
+      const noteBoxes = [...(margin.current?.querySelectorAll<HTMLElement>('.margin-note') ?? [])]
+      const marks = notes.map((_, index) => code.current?.querySelector<HTMLElement>(`[data-note="${index}"]`) ?? null)
+      const wanted = marks.map(mark => mark?.offsetTop ?? 0)
+      const topDown = notes.map((_, index) => index).sort((upper, lower) => wanted[upper] - wanted[lower])
+      const places: MarginPlace[] = []
+      let below = 0
+      for (const index of topDown) {
+        const top = Math.max(wanted[index], below)
+        below = top + (noteBoxes[index]?.offsetHeight ?? 0) + MARGIN_NOTE_GAP
+        const mark = marks[index]
+        places[index] = { top, lineFrom: mark && { x: mark.offsetLeft + mark.offsetWidth, y: mark.offsetTop + mark.offsetHeight / 2 } }
+      }
+      const placed = { places, lowest: below }
+      setLayout(before => (JSON.stringify(before) === JSON.stringify(placed) ? before : placed))
+    }
+    place()
+    // The code and notes change size as the box opens, its syntax colours arrive or a zoom lands: place them again.
+    const resizes = new ResizeObserver(place)
+    for (const watched of [code.current, ...(margin.current?.children ?? [])]) if (watched) resizes.observe(watched)
+    return () => resizes.disconnect()
+  }, [notes.map(note => note.code).join()])
+  const { places, lowest } = layout
+  const codeWidth = code.current?.offsetWidth ?? 0
+  return (
+    <>
+      <svg className="margin-lines">
+        {places.map((place, index) => place.lineFrom &&
+          // Along the code's own row to the code's right edge, so it never crosses other code, then across to the note.
+          <polyline key={index} className={hotNote === index ? 'hot' : ''}
+            points={`${place.lineFrom.x},${place.lineFrom.y} ${codeWidth - MARGIN_NOTE_GAP},${place.lineFrom.y} ${codeWidth + MARGIN_NOTE_GAP},${place.top + 14}`} />)}
+      </svg>
+      <div className="margin" ref={margin} style={{ minHeight: lowest }}>
+        {notes.map((note, index) => (
+          <div key={note.code} className={`margin-note ${hotNote === index ? 'hot' : ''}`} style={{ top: places[index]?.top ?? 0 }}
+            onMouseEnter={() => setHotNote(index)} onMouseLeave={() => setHotNote(null)}>
+            <Rich text={note.note} />
+          </div>
+        ))}
+      </div>
+    </>
+  )
 }
 
 /** Whether a line of the current code is inside the code one of `notes` is about. */

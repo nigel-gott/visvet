@@ -1,6 +1,6 @@
 ---
 kind: issue
-status: open
+status: done
 description: A left sidebar with the usual folder and file tree, kept in step with the map and with tours.
 ---
 # File tree sidebar
@@ -43,7 +43,7 @@ To do:
 2. Add the thread counts and the tour marks to `ui/src/Views.tsx::Row`.
 3. Make a row click move the map (`showBox`) instead of only selecting (`focus`).
 
-## Questions
+## Choices made
 
-- Show types and functions under each file, or only folders and files, with the map for what is inside a file?
-- Hide unchanged files with a filter, or only make their rows fainter?
+- The tree shows types and functions under each file too, as the map does when you open a file.
+- Unchanged files show in grey, not hidden, as on the map, which shows the whole project.

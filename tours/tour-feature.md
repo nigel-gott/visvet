@@ -56,8 +56,11 @@ route: Over to src/review, where the server reads tour files.
 `src/review/tours.rs::check_step` finds the step's box and where each note's code sits in it.
 route: Same file: once read, each step is checked against the code.
 
-### `let target = MapId(text.split('`').nth(1).unwrap_or("").into());`
-Splitting on backticks puts the first name in backticks at position 1. `MapId(...)` wraps the text in a "micro type", a string that the compiler won't mix up with other strings.
+### `let first_named = text.split('`').nth(1).unwrap_or("");`
+Splitting on backticks puts the first name in backticks at position 1.
+
+### `let target = MapId(setting("box").map_or(first_named, |named| named.trim_matches('`')).into());`
+A `box:` line names the step's box, so a step can be told only in its notes; without one, it is the first name in backticks. `MapId(...)` wraps the text in a "micro type", a string that the compiler won't mix up with other strings.
 
 ### `let span = lines.filter(|_| on_box.is_none()).and_then(|lines| find_code(lines, note_code));`
 `|lines| ...` is a closure, Rust's arrow function. `filter` drops the lines when the note is about a whole box, and `and_then` runs `find_code` only when lines are left, so either case gives `None` without an `if`.
@@ -118,8 +121,8 @@ Each time the step changes, this browser remembers it, so the Tours list can off
 `ui/src/Tours.tsx::StepBubble` is the speech bubble above the step's box: its title, text, and Back and Next. The step number at its top says how far through the tour you are.
 route: Same file: the bubble you're reading now.
 
-### `const lost = step.code_notes.filter(note => !note.span && !note.on_box)`
-A note whose code can't be found any more has nowhere to sit, so the bubble lists it in red: the tour needs updating.
+### `const lost = step.code_notes.filter(isLost)`
+A note whose code can't be found any more has nowhere to sit, so the bubble lists it in red: the tour needs updating. A step with no text still gets a bubble then, to say so.
 
 ### `<button className="primary" onClick={() => go(number + 1)}>{last ? 'Finish ✓' : 'Next ›'}</button>`
 `onClick` is Vue's `@click`. On the last step, Next becomes Finish and leaves the tour.
@@ -155,8 +158,8 @@ route: To Views.tsx: notes sit under the lines they explain.
 ### `<div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`}>`
 A template string builds the class list, like Vue's `:class` with an object.
 
-### `{l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map((note, index) => <CodeBubble key={index} note={note} />)}`
-After each line, the notes whose code ends on it. `!` tells TypeScript "this can't be missing here": only notes with a place in the code reach `DiffView`.
+### `{!beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)}`
+After each line, the notes whose code ends on it, unless they sit in the margin beside the code. `!` tells TypeScript "this can't be missing here": only notes with a place in the code reach `DiffView`.
 
 ## The bubble is a box of its own
 `ui/src/Graph.tsx::elkGraph` builds what ELK lays out. While a tour step shows a box, its bubble is part of the layout, so the layout makes room for it and it never covers anything.

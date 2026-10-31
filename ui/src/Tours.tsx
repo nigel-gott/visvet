@@ -25,9 +25,15 @@ const bubbleHeight = (step: TourStep) => {
   return Math.min(BUBBLE_MOST_HEIGHT, BUBBLE_FRAME_HEIGHT + lines * BUBBLE_LINE_HEIGHT)
 }
 
-/** A step's bubble, as a box for the layout, if the step's box still exists. */
+/** Whether a note on code can't find its code any more: the step's bubble then says so. */
+const isLost = (note: CodeNote) => !note.span && !note.on_box
+
+/** Whether a step has a bubble: when it has text, or must warn that its box or a note's code is gone. A step told only in its notes has none. */
+export const hasBubble = (step: TourStep) => step.text !== '' || !step.target_found || step.code_notes.some(isLost)
+
+/** A step's bubble, as a box for the layout, if the step has one and its box still exists. */
 export const bubbleBoxOf = (step: TourStep | undefined): StepBubbleBox | undefined =>
-  step?.target_found ? { target: step.target, width: BUBBLE_WIDTH, height: bubbleHeight(step) } : undefined
+  step?.target_found && hasBubble(step) ? { target: step.target, width: BUBBLE_WIDTH, height: bubbleHeight(step) } : undefined
 
 /** The playing tour's step bubble, as a box for the layout, if a step is showing a box that still exists. */
 export const stepBubbleBox = (x: Ctx) => bubbleBoxOf(x.tour && !x.guide ? x.model.tours.find(t => t.file === x.tour!.file)?.steps[x.tour.step] : undefined)
@@ -150,8 +156,25 @@ export function TourBar() {
       <span className="tour-count">{number + 1} / {tour.steps.length}</span>
       <button title="Next step" disabled={number === tour.steps.length - 1} onClick={() => go(tour.file, number + 1)}>›</button>
       <button title="Leave the tour" onClick={() => x.showStep(null)}>✕</button>
+      {!hasBubble(tour.steps[number]) && <span className="tour-step-title">{tour.steps[number].title}</span>}
+      <NotesPlace />
       {menu && <StepList tour={tour} number={number} go={go} />}
     </div>
+  )
+}
+
+/**
+ * While a tour plays: where its notes on code sit, in between the lines under their code, or in the margin beside
+ * it so the code stays in one piece. Kept in this browser.
+ */
+function NotesPlace() {
+  const x = useContext(X)
+  return (
+    <label className="speed-pick" title="Where the tour's notes on code sit">
+      Notes <select value={x.notesBeside ? 'beside' : 'in'} onChange={e => x.setNotesBeside(e.target.value === 'beside')}>
+        <option value="in">in the code</option><option value="beside">in the margin</option>
+      </select>
+    </label>
   )
 }
 
@@ -198,10 +221,10 @@ function StepList({ tour, number, go }: { tour: Tour; number: number; go: (file:
 export function StepBubble({ floating = false }: { floating?: boolean }) {
   const x = useContext(X)
   const playing = useTourStep()
-  if (!playing || x.guide) return null
+  if (!playing || x.guide || !hasBubble(playing.step)) return null
   const { tour, step, number } = playing
   const go = (to: number) => x.showStep(to < tour.steps.length ? { file: tour.file, step: to } : null)
-  const lost = step.code_notes.filter(note => !note.span && !note.on_box)
+  const lost = step.code_notes.filter(isLost)
   const last = number === tour.steps.length - 1
   return (
     // Keyed by the step, so each step's bubble pops in afresh.

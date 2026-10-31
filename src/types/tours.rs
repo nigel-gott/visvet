@@ -16,8 +16,8 @@ pub struct Tour {
     pub steps: Vec<TourStep>,
 }
 
-/// One stop on a tour: a `## ` heading, the box it shows (the first name in backticks under it), its text, and
-/// notes on pieces of that box's code.
+/// One stop on a tour: a `## ` heading, the box it shows (named by a `box:` line, or else the first name in backticks
+/// under it), its text, and notes on pieces of that box's code.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct TourStep {
@@ -31,7 +31,8 @@ pub struct TourStep {
     /// A short line on where the tour goes next and why, from a `route:` line in its text, shown while the map moves
     /// to this step; empty when it has none.
     pub route: String,
-    /// The step's Markdown text, without its notes on code or its `view:` and `route:` lines.
+    /// The step's Markdown text, without its notes on code or its `box:`, `view:` and `route:` lines; empty for a step
+    /// told only in its notes, which then has no bubble.
     pub text: String,
     pub code_notes: Vec<CodeNote>,
 }

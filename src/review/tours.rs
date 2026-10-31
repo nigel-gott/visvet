@@ -75,10 +75,11 @@ fn check_step(step: WrittenStep, code: &CodeById) -> TourStep {
         _ => StepView::Context,
     };
     let route = setting("route").unwrap_or("").to_string();
-    let is_setting = |line: &&&str| ["view", "route"].iter().any(|name| step_setting(line, name).is_some());
+    let is_setting = |line: &&&str| ["box", "view", "route"].iter().any(|name| step_setting(line, name).is_some());
     let text = step.text.iter().filter(|line| !is_setting(line)).copied().collect::<Vec<_>>().join("\n").trim().to_string();
-    // The step's box is the first name in backticks in its text.
-    let target = MapId(text.split('`').nth(1).unwrap_or("").into());
+    // The step's box is named by its `box:` line, so a step can have no text; else it is the first name in backticks in its text.
+    let first_named = text.split('`').nth(1).unwrap_or("");
+    let target = MapId(setting("box").map_or(first_named, |named| named.trim_matches('`')).into());
     let lines = code.0.get(target.as_str());
     let code_notes = step.code_notes.into_iter().map(|(heading, note)| {
         let note_code = heading.trim_matches('`').trim();
@@ -119,13 +120,13 @@ mod tests {
     use super::*;
     use crate::review::compare::tests::cmp;
 
-    const TOUR: &str = "---\nkind: tour\ndescription: A look.\n---\n# First look\n\n## The command line\nStart at `src/a.rs::Cli`.\nview: zoomed\nroute: To the command line\n\n### `#[derive(Parser)]`\nclap reads this.\n\n### `missing()`\nGone.\n\n### `src/a.rs`\nThe file.\n\n## Gone\nSee `src/a.rs::Old`.\n```toml\n# not a heading\n```\n";
+    const TOUR: &str = "---\nkind: tour\ndescription: A look.\n---\n# First look\n\n## The command line\nStart at `src/a.rs::Cli`.\nview: zoomed\nroute: To the command line\n\n### `#[derive(Parser)]`\nclap reads this.\n\n### `missing()`\nGone.\n\n### `src/a.rs`\nThe file.\n\n## Gone\nSee `src/a.rs::Old`.\n```toml\n# not a heading\n```\n\n## Notes only\nbox: `src/a.rs::Cli`\n\n### `struct Cli`\nThe command line.\n";
 
     #[test]
     fn steps_find_their_box_and_code() {
         let boxes: Vec<MapBox> = cmp("src/a.rs", Some(b"use clap::Parser;\n#[derive(Parser)]\nstruct Cli {}"), None).into_iter().map(|parsed| parsed.map_box).collect();
         let tour = parse_tour(&RepoPath("tours/a.md".into()), "A look.", TOUR, &CodeById::new(&boxes));
-        assert_eq!((tour.title.as_str(), tour.steps.len()), ("First look", 2));
+        assert_eq!((tour.title.as_str(), tour.steps.len()), ("First look", 3));
         let first = &tour.steps[0];
         assert_eq!((first.target.as_str(), first.target_found, first.text.as_str()), ("src/a.rs::Cli", true, "Start at `src/a.rs::Cli`."));
         let span = first.code_notes[0].span.unwrap();
@@ -136,5 +137,8 @@ mod tests {
         assert_eq!((first.route.as_str(), tour.steps[1].route.as_str()), ("To the command line", ""));
         assert!(!tour.steps[1].target_found);
         assert!(tour.steps[1].text.ends_with("# not a heading\n```"));
+        let notes_only = &tour.steps[2];
+        assert_eq!((notes_only.target.as_str(), notes_only.target_found, notes_only.text.as_str()), ("src/a.rs::Cli", true, ""));
+        assert!(notes_only.code_notes[0].span.is_some());
     }
 }

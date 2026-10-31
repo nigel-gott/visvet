@@ -262,8 +262,8 @@ title: string,
 description: string, steps: Array<TourStep>, };
 
 /**
- * One stop on a tour: a `## ` heading, the box it shows (the first name in backticks under it), its text, and
- * notes on pieces of that box's code.
+ * One stop on a tour: a `## ` heading, the box it shows (named by a `box:` line, or else the first name in backticks
+ * under it), its text, and notes on pieces of that box's code.
  */
 export type TourStep = { title: string, 
 /**
@@ -284,7 +284,8 @@ view: StepView,
  */
 route: string, 
 /**
- * The step's Markdown text, without its notes on code or its `view:` and `route:` lines.
+ * The step's Markdown text, without its notes on code or its `box:`, `view:` and `route:` lines; empty for a step
+ * told only in its notes, which then has no bubble.
  */
 text: string, code_notes: Array<CodeNote>, };
 
