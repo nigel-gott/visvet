@@ -271,8 +271,20 @@ main { grid-area: 2 / 2; min-height: 0 }
 .detail-card .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; font-family: var(--mono); cursor: pointer }
 .detail-card .row:hover { color: var(--sel) }
 /* The selected box's latest message, small, over the map's bottom-right corner; it opens the drawer. */
-.peek { grid-area: 2 / 2; align-self: end; justify-self: end; z-index: 5; width: min(380px, 40vw); margin: 16px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); box-shadow: 0 6px 20px rgb(0 0 0 / .25) }
-.peek .msg { cursor: pointer }
+/* The selected box's thread over the map's corner: a compact card like the notes beside code, edged in the thread's state colour. */
+.peek { grid-area: 2 / 2; align-self: end; justify-self: end; z-index: 5; display: flex; flex-direction: column; gap: 4px; width: min(340px, 36vw); margin: 12px;
+  padding: 6px 10px 8px; border: 1.5px solid var(--t, var(--line)); border-radius: 8px; background: color-mix(in srgb, var(--t, var(--line)) 7%, var(--bg));
+  font: 12px/1.45 system-ui, sans-serif; box-shadow: 0 2px 8px rgb(0 0 0 / .25) }
+.peek.open { --t: var(--chg) } .peek.working { --t: var(--sel) } .peek.question { --t: var(--ai) } .peek.resolved { --t: var(--add) }
+.peek-head { display: flex; align-items: center; gap: 6px }
+.peek-head .avatar { font-size: 13px }
+.peek-head .start-comment { margin-left: auto; padding: 1px 9px; border-radius: 10px; font-size: 11px }
+.peek-text { max-height: 4.35em; overflow: hidden; color: var(--fg); cursor: pointer; mask-image: linear-gradient(#000 60%, transparent) }
+.peek-text p, .peek-text ul, .peek-text ol { margin: 0 }
+.peek-text ul, .peek-text ol { padding-left: 16px }
+.peek-text code { padding: 0 3px; border-radius: 3px; background: color-mix(in srgb, currentColor 10%, transparent); font: 0.92em var(--mono) }
+.peek .compose .say { padding: 5px 10px; border-radius: 14px; font-size: 12px }
+.peek .compose .send { width: 28px; height: 28px; font-size: 12px }
 .start-comment { align-self: flex-end; padding: 6px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--fg); font: 13px system-ui, sans-serif; cursor: pointer }
 .peek:has(> .start-comment:only-child) { width: auto; padding: 6px; border-radius: 20px }
 /* Phones: the bubble and the drawer take the screen's width. */
@@ -280,7 +292,6 @@ main { grid-area: 2 / 2; min-height: 0 }
   .peek { width: calc(100vw - 32px) }
   .drawer { width: 100% }
 }
-.peek .bubble { max-height: 7.5em; overflow: hidden; mask-image: linear-gradient(#000 70%, transparent) }
 
 /* The inbox of unresolved threads in the drawer. */
 /* The drawer's title row stays at the top, so its ✕ is always in reach. */
@@ -353,6 +364,8 @@ mark.noted-code { border-radius: 3px; background: color-mix(in srgb, var(--ai) 2
 mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 38%, transparent); box-shadow: 0 0 0 2.5px var(--ai) }
 .beside-notes { position: relative }
 .side-notes { position: absolute; inset: 0; pointer-events: none }
+/* The gap in a line of code, right after a note's code, that a note on the right sits in. */
+.note-gap { display: inline-block }
 .side-note { position: absolute; z-index: 1; width: max-content; padding: 3px 9px; border: 1.5px solid var(--ai); border-radius: 8px; pointer-events: auto;
   background: var(--tour-bg); color: var(--fg); font: 12px/1.45 system-ui, sans-serif; white-space: normal; text-indent: 0;
   box-shadow: 0 2px 8px rgb(0 0 0 / .25); transition: top .2s ease, left .2s ease }

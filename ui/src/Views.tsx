@@ -148,8 +148,8 @@ export function DiffView({ diff, language, notes = [], beside = false }: { diff:
   const [unfolded, setUnfolded] = useState(new Set<number>())
   /** The note the pointer is over, or whose code it is over: both stand out. */
   const [hotNote, setHotNote] = useState<number | null>(null)
-  /** With notes beside the code: the extra space above some lines (by line number), so notes on one side never overlap. */
-  const [roomAbove, setRoomAbove] = useState<RoomAbove>(new Map())
+  /** With notes beside the code: the space they make in it, so none covers code or another note. */
+  const [room, setRoom] = useState<NoteRoom>({ above: new Map(), inLine: new Map() })
   const view = useRef<HTMLDivElement>(null)
   useScrollToFirstNote(view, notes)
   const highlighter = useHighlighter()
@@ -163,9 +163,9 @@ export function DiffView({ diff, language, notes = [], beside = false }: { diff:
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
     : lines.map((l, k) => (
       <Fragment key={start + k}>
-        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} style={{ marginTop: beside && l.kind !== 'del' ? roomAbove.get(l.line) : undefined }}>
+        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} style={{ marginTop: beside && l.kind !== 'del' ? room.above.get(l.line) : undefined }}>
           <span className="no">{l.line}</span>
-          {markedText(l, coloured?.[start + k], notedColumns(l, notes), hotNote, setHotNote)}
+          {markedText(l, coloured?.[start + k], notedColumns(l, notes), room.inLine, hotNote, setHotNote)}
         </div>
         {!beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)}
       </Fragment>
@@ -174,13 +174,13 @@ export function DiffView({ diff, language, notes = [], beside = false }: { diff:
   return (
     <div className="beside-notes" style={{ paddingLeft: MARGIN_NOTE_WIDTH }}>
       <div className="diff" ref={view}>{rows}</div>
-      <NotesBeside notes={notes} code={view} hotNote={hotNote} setHotNote={setHotNote} roomAbove={roomAbove} setRoomAbove={setRoomAbove} />
+      <NotesBeside notes={notes} code={view} hotNote={hotNote} setHotNote={setHotNote} room={room} setRoom={setRoom} />
     </div>
   )
 }
 
-/** A stretch of a line that a note's code covers: from column `from` up to `to`, and which note (its index). */
-type NotedColumns = { from: number; to: number; note: number }
+/** A stretch of a line that a note's code covers: from column `from` up to `to`, which note (its index), and whether its code ends here. */
+type NotedColumns = { from: number; to: number; note: number; ends: boolean }
 
 /** The stretches of a line of current code that `notes` are about; a note's code can run over several lines. */
 function notedColumns(line: DiffLine, notes: CodeNote[]): NotedColumns[] {
@@ -189,7 +189,8 @@ function notedColumns(line: DiffLine, notes: CodeNote[]): NotedColumns[] {
     const { start, end } = note.span!
     const onThisLine = line.line >= start.line && line.line <= end.line
     if (!onThisLine) return []
-    return [{ from: line.line === start.line ? start.column : 0, to: line.line === end.line ? end.column : line.text.length, note: index }]
+    const ends = line.line === end.line
+    return [{ from: line.line === start.line ? start.column : 0, to: ends ? end.column : line.text.length, note: index, ends }]
   })
 }
 
@@ -197,10 +198,11 @@ function notedColumns(line: DiffLine, notes: CodeNote[]): NotedColumns[] {
 type MarkedPiece = ColouredPiece & { note?: number }
 
 /**
- * A line's text in its syntax colours, with each note's code in an outline (a `mark` tagged with the note's index,
- * which notes beside the code find to sit next to). Pointing at the outline makes its note stand out.
+ * A line's text in its syntax colours, with each note's code in an outline (a `mark` tagged with the note's index).
+ * Right after the end of a note's code is a gap (`inLine`, by note), which a note beside the code sits in, pushing
+ * the rest of the line along. Pointing at the outline makes its note stand out.
  */
-function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: NotedColumns[], hotNote: number | null, setHotNote: (note: number | null) => void) {
+function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: NotedColumns[], inLine: Map<number, number>, hotNote: number | null, setHotNote: (note: number | null) => void) {
   if (!noted.length) return colouredText(line, pieces)
   const cuts = [...new Set(noted.flatMap(stretch => [stretch.from, stretch.to]))].sort((left, right) => left - right)
   const noteAt = (column: number) => noted.find(stretch => column >= stretch.from && column < stretch.to)?.note
@@ -223,9 +225,14 @@ function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: 
     else runs.push({ note: bit.note, bits: [bit] })
   }
   const draw = (run: { bits: MarkedPiece[] }) => run.bits.map((bit, index) => <span key={index} className="tok" style={bit.style}>{bit.text}</span>)
+  /** Whether run `index` is the last of its note's code, which ends on this line: the note's gap goes after it. */
+  const endsCode = (index: number) => noted.some(stretch => stretch.note === runs[index].note && stretch.ends) && !runs.slice(index + 1).some(run => run.note === runs[index].note)
   return runs.map((run, index) => run.note === undefined ? <Fragment key={index}>{draw(run)}</Fragment> : (
-    <mark key={index} data-note={run.note} className={`noted-code ${hotNote === run.note ? 'hot' : ''}`}
-      onMouseEnter={() => setHotNote(run.note!)} onMouseLeave={() => setHotNote(null)}>{draw(run)}</mark>
+    <Fragment key={index}>
+      <mark data-note={run.note} className={`noted-code ${hotNote === run.note ? 'hot' : ''}`}
+        onMouseEnter={() => setHotNote(run.note!)} onMouseLeave={() => setHotNote(null)}>{draw(run)}</mark>
+      {endsCode(index) && <span className="note-gap" data-gap={run.note} style={{ width: inLine.get(run.note) ?? 0 }} />}
+    </Fragment>
   ))
 }
 
@@ -233,76 +240,74 @@ function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: 
 const NOTE_GAP = 10
 /** How far above its code's top a note starts, so its text sits level with the code's text, in pixels. */
 const NOTE_RAISE = 3
-/** Extra space above lines of code, in pixels, by line number. */
-type RoomAbove = Map<number, number>
+/**
+ * The space notes beside the code make in it: extra space above some lines (by line number), and a gap in a line
+ * right after a note's code (by note), where a note on the right sits.
+ */
+type NoteRoom = { above: Map<number, number>; inLine: Map<number, number> }
 /** Which side of the code a note sits on. */
 type NoteSide = 'left' | 'right'
-/** Where a note sits: its side, left and top, its size, and the top of its code, which it points at. */
+/** Where a note sits: its side, left and top, its size, and the top of its code's line, which it points at. */
 type NotePlace = { side: NoteSide; left: number; top: number; width: number; height: number; codeTop: number }
 
 /**
- * The notes beside the code, on alternate sides going down: the first just after the end of its code's line, the
- * next in the gutter left of the code, and so on, each level with its outlined code and pointing at it. When a note
- * would overlap the one above it on its side, the code gets extra space above the note's line (`roomAbove`), so every
- * note stays level with its code. Only a note on the same line as that one moves down instead, with a bracket back up.
+ * The notes beside the code, on alternate sides going down. A note on the right sits in a gap opened in the line
+ * right after its outlined code, and the lines below move down when it is taller than its line, so it covers no code.
+ * A note on the left sits in the gutter, level with its line; when it would overlap the one above it, the code gets
+ * extra space above its line. Only a note on the same line as that one moves down instead, with a bracket back up.
  * Positions are in the code's own pixels, not the screen's, so the map's zoom doesn't change them.
  */
-function NotesBeside({ notes, code, hotNote, setHotNote, roomAbove, setRoomAbove }: {
+function NotesBeside({ notes, code, hotNote, setHotNote, room, setRoom }: {
   notes: CodeNote[]; code: RefObject<HTMLDivElement | null>; hotNote: number | null; setHotNote: (note: number | null) => void
-  roomAbove: RoomAbove; setRoomAbove: (room: RoomAbove) => void
+  room: NoteRoom; setRoom: (room: NoteRoom) => void
 }) {
   const layer = useRef<HTMLDivElement>(null)
   const [places, setPlaces] = useState<NotePlace[]>([])
-  /** The extra space the code on screen has now, which the measurements below include. */
-  const roomOnScreen = useRef(roomAbove)
-  roomOnScreen.current = roomAbove
+  /** The space the code on screen has now, which the measurements below include. */
+  const roomOnScreen = useRef(room)
+  roomOnScreen.current = room
   useLayoutEffect(() => {
     const place = () => {
-      const area = layer.current?.parentElement
-      if (!area || !code.current || !layer.current) return
+      if (!code.current || !layer.current) return
       const noteBoxes = [...layer.current.querySelectorAll<HTMLElement>('.side-note')]
-      const areaBox = area.getBoundingClientRect()
-      const zoom = areaBox.width / area.offsetWidth || 1
-      /** Where the text of a line of code ends, in the code's own pixels. */
-      const textEnd = (line: Element) => {
-        const text = document.createRange()
-        text.selectNodeContents(line)
-        return (text.getBoundingClientRect().right - areaBox.left) / zoom
-      }
-      const marksOf = (index: number) => [...code.current!.querySelectorAll<HTMLElement>(`[data-note="${index}"]`)]
-      const lineOf = (index: number) => notes[index].span!.start.line
-      /** The extra space on screen above line `line`, its own included. */
-      const roomUpTo = (line: number) => [...roomOnScreen.current].reduce((total, [roomy, room]) => total + (roomy <= line ? room : 0), 0)
-      // Where each note's code would be with no extra space.
-      const plainTops = notes.map((_, index) => (marksOf(index)[0]?.offsetTop ?? 0) - roomUpTo(lineOf(index)))
+      const gapOf = (index: number) => code.current!.querySelector<HTMLElement>(`[data-gap="${index}"]`)
+      const lineOf = (index: number) => notes[index].span!.end.line
+      /** The extra space above line `line` and every line before it. */
+      const roomUpTo = (above: Map<number, number>, line: number) => [...above].reduce((total, [roomy, extra]) => total + (roomy <= line ? extra : 0), 0)
+      // Where each note's line would be with no extra space.
+      const plainTops = notes.map((_, index) => (gapOf(index)?.closest<HTMLElement>('.ln')?.offsetTop ?? 0) - roomUpTo(roomOnScreen.current.above, lineOf(index)))
       const topDown = notes.map((_, index) => index).sort((upper, lower) => plainTops[upper] - plainTops[lower])
-      const room: RoomAbove = new Map()
-      let roomSoFar = 0
+      const made: NoteRoom = { above: new Map(), inLine: new Map() }
+      const addAbove = (line: number, extra: number) => made.above.set(line, (made.above.get(line) ?? 0) + extra)
       const placed: NotePlace[] = []
-      const lowestOn: Record<NoteSide, NotePlace | null> = { left: null, right: null }
+      let lowestLeft: NotePlace | null = null
       topDown.forEach((index, order) => {
         const side: NoteSide = order % 2 === 0 ? 'right' : 'left'
         const width = noteBoxes[index]?.offsetWidth ?? 0, height = noteBoxes[index]?.offsetHeight ?? 0
-        const place: NotePlace = { side, left: 0, top: plainTops[index] + roomSoFar - NOTE_RAISE, width, height, codeTop: plainTops[index] + roomSoFar }
-        const above = lowestOn[side]
-        const clash = above ? above.top + above.height + NOTE_GAP - place.top : 0
-        if (clash > 0 && above!.codeTop === place.codeTop) place.top += clash
-        else if (clash > 0) {
-          room.set(lineOf(index), (room.get(lineOf(index)) ?? 0) + clash)
-          roomSoFar += clash
-          place.codeTop += clash
-          place.top += clash
+        const codeTop = plainTops[index] + roomUpTo(made.above, lineOf(index))
+        const place: NotePlace = { side, left: 0, top: codeTop - NOTE_RAISE, width, height, codeTop }
+        if (side === 'right') {
+          place.left = (gapOf(index)?.offsetLeft ?? 0) + NOTE_GAP
+          made.inLine.set(index, width + 2 * NOTE_GAP)
+          const lineHeight = gapOf(index)?.closest<HTMLElement>('.ln')?.offsetHeight ?? 0
+          const overhang = place.top + height + NOTE_GAP / 2 - (codeTop + lineHeight)
+          if (overhang > 0) addAbove(lineOf(index) + 1, overhang)
+        } else {
+          place.left = MARGIN_NOTE_WIDTH - NOTE_GAP - width
+          const clash = lowestLeft ? lowestLeft.top + lowestLeft.height + NOTE_GAP - place.top : 0
+          if (clash > 0 && lowestLeft!.codeTop === codeTop) place.top += clash
+          else if (clash > 0) {
+            addAbove(lineOf(index), clash)
+            place.codeTop += clash
+            place.top += clash
+          }
+          lowestLeft = place
         }
-        // A note on the right starts after the longest line it sits beside, so it covers no code.
-        const besideNote = (line: HTMLElement) => line.offsetTop < place.top + height && line.offsetTop + line.offsetHeight > place.top + NOTE_RAISE
-        const linesBeside = [...code.current!.querySelectorAll<HTMLElement>('.ln')].filter(besideNote)
-        const afterCode = Math.min(Math.max(0, ...linesBeside.map(textEnd)) + NOTE_GAP, area.offsetWidth - width - NOTE_GAP)
-        place.left = side === 'right' ? afterCode : MARGIN_NOTE_WIDTH - NOTE_GAP - width
-        lowestOn[side] = place
         placed[index] = place
       })
       const same = (before: unknown, after: unknown) => JSON.stringify(before) === JSON.stringify(after)
-      if (!same([...roomOnScreen.current], [...room])) setRoomAbove(room)
+      const asLists = (some: NoteRoom) => [[...some.above], [...some.inLine]]
+      if (!same(asLists(roomOnScreen.current), asLists(made))) setRoom(made)
       setPlaces(before => (same(before, placed) ? before : placed))
     }
     place()
@@ -310,8 +315,8 @@ function NotesBeside({ notes, code, hotNote, setHotNote, roomAbove, setRoomAbove
     const resizes = new ResizeObserver(place)
     for (const watched of [code.current, ...(layer.current?.children ?? [])]) if (watched) resizes.observe(watched)
     return () => resizes.disconnect()
-    // Placed again once the extra space between lines is on screen, since the code has moved.
-  }, [notes.map(note => note.code).join(), roomAbove])
+    // Placed again once the space made in the code is on screen, since the code has moved.
+  }, [notes.map(note => note.code).join(), room])
   return (
     <div className="side-notes" ref={layer}>
       <svg className="side-brackets">

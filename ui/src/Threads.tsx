@@ -81,23 +81,29 @@ export function StartComment({ target, label }: { target: string; label: string 
 }
 
 /**
- * A small bubble over the map's corner with the selected box's latest message; clicking it opens the
- * whole conversation in the drawer. Typing with the box selected replies under it.
+ * A compact card over the map's corner for the selected box's thread: who wrote last, the thread's state and a Reply
+ * button on one line, then the start of the latest message; clicking the message opens the whole conversation in
+ * the drawer. Typing with the box selected replies under it.
  */
 export function Peek({ target }: { target: string }) {
   const x = useContext(X)
   const { live, send } = sender(x, target)
   const last = x.threads.filter(t => t.target === target).at(-1)
   const m = last?.messages.at(-1)
+  const button = <StartComment target={target} label={live ? 'Reply' : 'Comment'} />
   return (
-    <div className="peek threads" onClick={e => e.stopPropagation()}>
+    <div className={`peek ${last?.state ?? ''}`} onClick={e => e.stopPropagation()}>
       {m && (
-        <div className={`msg ${m.author} ${m.kind}`} title="Show the whole thread" onClick={() => x.setFull(target)}>
-          <span className="avatar">{avatar(m)}</span><div className="bubble"><Rich text={m.text} /></div>
-        </div>
+        <>
+          <div className="peek-head">
+            <span className="avatar">{avatar(m)}</span>
+            {!onlyNotes(last!) && <span className={'talk ' + last!.state}>{LABEL[last!.state]}</span>}
+            {!x.draft && button}
+          </div>
+          <div className="peek-text" title="Show the whole thread" onClick={() => x.setFull(target)}><Rich text={m.text} /></div>
+        </>
       )}
-      {last && !onlyNotes(last) && <div className="state">{LABEL[last.state]}</div>}
-      {x.draft ? <Say text={x.draft.text} focus placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} /> : <StartComment target={target} label={live ? 'Reply' : 'Comment'} />}
+      {x.draft ? <Say text={x.draft.text} focus placeholder={live ? 'Reply…' : 'Comment…'} send={send} done={() => x.setDraft(null)} /> : !m && button}
     </div>
   )
 }
