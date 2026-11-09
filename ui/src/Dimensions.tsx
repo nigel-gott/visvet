@@ -5,20 +5,9 @@
 
 import { Fragment, useContext, useState, type MouseEvent } from 'react'
 import { X } from './context'
-import { MarkdownPage, currentText } from './Markdown'
+import { MarkdownPage } from './Markdown'
 import { within, type Index, type Item } from './model'
-
-/** Whether `it` is a dimension: a folder or file labelled `kind: dimension`, but not the README.md that labels its folder. */
-const isDimension = (it: Item) => it.labels?.kind === 'dimension' && !(it.kind !== 'folder' && it.parent?.labels?.kind === 'dimension')
-
-/** The project's dimensions, in path order, so a repo orders them by naming them, e.g. "1-concepts/". */
-export const dimensionsOf = (ix: Index) => [...ix.items.values()].filter(isDimension).sort((first, second) => first.id.localeCompare(second.id))
-
-/** The page a dimension opens on: a folder's README.md, or the file itself. */
-const frontPageOf = (ix: Index, dimension: Item) => (dimension.kind === 'folder' ? ix.items.get(`${dimension.id}README.md`) ?? dimension : dimension)
-
-/** The dimension a page belongs to, if any. */
-const dimensionOfPage = (ix: Index, page: string | null) => dimensionsOf(ix).find(dimension => within(ix.items.get(page ?? ''), dimension.id))
+import { alsoOf, currentText, dimensionOfPage, dimensionsOf, frontPageOf, nameOfPage, titleOf, titleOfPage } from './pages'
 
 /** The pages from a dimension's front page down to `page`: the README of each folder on the way, then the page. */
 function crumbsTo(ix: Index, dimension: Item, page: Item) {
@@ -27,12 +16,6 @@ function crumbsTo(ix: Index, dimension: Item, page: Item) {
   const readmes = folders.map(folder => ix.items.get(`${folder.id}README.md`)).filter((readme): readme is Item => !!readme)
   return [...new Set([...readmes, page])]
 }
-
-/** A page's title: its `# ` heading, else its name. */
-const titleOfPage = (page: Item) => currentText(page.diff).match(/^# (.+)$/m)?.[1] ?? page.name
-
-/** A dimension's name on its button: its file's (or folder README's) `# ` title, else its name. */
-const titleOf = (ix: Index, dimension: Item) => currentText(frontPageOf(ix, dimension).diff).match(/^# (.+)$/m)?.[1] ?? dimension.name
 
 /**
  * Buttons in the top bar: Code for the map, then one per dimension, opening its front page in place of the map. The
@@ -89,15 +72,8 @@ export function DimensionView({ id }: { id: string }) {
   const [highlight, setHighlight] = useState<Highlight | null>(null)
   const page = x.ix.items.get(id)
   const dimension = dimensionOfPage(x.ix, id)
-  /** Opens another Markdown page of this dimension in place of this one; anything else goes to the code map. */
-  const openPage = (target: string) => {
-    const isPage = x.ix.items.get(target)?.o?.language === 'markdown' && dimension && within(x.ix.items.get(target), dimension.id)
-    if (!isPage) return false
-    x.setDimension(target)
-    x.select(target)
-    return true
-  }
   const crumbs = page && dimension ? crumbsTo(x.ix, dimension, page) : []
+  const also = page ? alsoOf(x.ix, page) : []
   const comment = (event: MouseEvent, chosen: Highlight) => {
     event.stopPropagation()
     x.select(id)
@@ -108,17 +84,24 @@ export function DimensionView({ id }: { id: string }) {
   }
   return (
     <div className="dimension-view" onMouseUp={() => setHighlight(currentHighlight())}>
-      {crumbs.length > 1 && (
+      {(crumbs.length > 1 || also.length > 0) && (
         <nav className="dimension-crumbs">
-          {crumbs.map((crumb, index) => (
+          {crumbs.length > 1 && crumbs.map((crumb, index) => (
             <Fragment key={crumb.id}>
               {index > 0 && <span>›</span>}
-              {crumb === page ? <b>{titleOfPage(crumb)}</b> : <a onClick={() => openPage(crumb.id)}>{titleOfPage(crumb)}</a>}
+              {crumb === page ? <b>{titleOfPage(crumb)}</b> : <a onClick={() => x.openFile(crumb.id)}>{titleOfPage(crumb)}</a>}
             </Fragment>
           ))}
+          {also.length > 0 && (
+            <span className="also" title="The same thing seen elsewhere: other dimensions, and the work that builds it">
+              Also: {also.map((other, index) => (
+                <Fragment key={other}>{index > 0 && ' · '}<a onClick={() => x.openFile(other)}>{nameOfPage(x.ix, other)}</a></Fragment>
+              ))}
+            </span>
+          )}
         </nav>
       )}
-      {page ? <MarkdownPage key={page.id} text={currentText(page.diff)} file={page.id} openFile={openPage} /> : <p>This page's file is gone.</p>}
+      {page ? <MarkdownPage key={page.id} text={currentText(page.diff)} file={page.id} /> : <p>This page's file is gone.</p>}
       {highlight && (
         // Pressing the button mustn't clear the highlight before its click lands.
         <button className="highlight-comment" style={{ left: highlight.left, top: highlight.top }}

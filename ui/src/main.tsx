@@ -15,6 +15,7 @@ import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from '
 import { FileTree, LineCounts } from './Views'
 import { DocPreview, type DocToShow } from './DocPreview'
 import { DimensionSwitch, DimensionView } from './Dimensions'
+import { isDimensionPage } from './pages'
 import { bubbleBoxOf, NotesPlace, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
 
 
@@ -405,7 +406,13 @@ function App() {
   const guide: Guide | null = headingStep && !reached ? { stops: [scope, ...way], ...nextMove(), title: headingStep.title, note: headingStep.route } : null
   const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
   const x: Ctx = {
-    model, ix, sel, hl: new Set(hl), select, focus, dimension, setDimension, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
+    model, ix, sel, hl: new Set(hl), select, focus, dimension, setDimension,
+    openFile: id => {
+      const opensAsPage = isDimensionPage(ix, id)
+      setDimension(opensAsPage ? id : null)
+      if (opensAsPage) select(id)
+      else focus(id)
+    }, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     // While the user drives to the next step, the step they left hides its bubble and notes.
     tour, showStep, notesBeside, setNotesBeside, docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),

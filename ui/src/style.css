@@ -528,3 +528,6 @@ main { position: relative }
 .mermaid-diagram a { cursor: pointer }
 .mermaid-diagram a .node rect, .mermaid-diagram a .node polygon, .mermaid-diagram a rect { stroke-width: 2px }
 .mermaid-diagram a:hover rect, .mermaid-diagram a:hover polygon, .mermaid-diagram a:hover circle, .mermaid-diagram a:hover path.basic { stroke: var(--sel) !important; stroke-width: 3px !important }
+.dimension-crumbs .also { margin-left: auto; color: var(--muted); font-size: 12px }
+.dimension-crumbs .also a { color: var(--muted); text-decoration: underline dotted }
+.dimension-crumbs .also a:hover { color: var(--sel) }

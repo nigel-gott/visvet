@@ -37,9 +37,11 @@ pub struct DocLink {
     pub label: Option<String>,
 }
 
-/// What a Markdown file at `path` names: each `code span`, e.g. `src/review.rs::build_review`, and each relative link
-/// target, e.g. `[review](../src/review.rs)`, taken from the file's folder, labelled by the link's title if it has one.
+/// What a Markdown file at `path` names: each `code span`, e.g. `src/review.rs::build_review`, each relative link
+/// target, e.g. `[review](../src/review.rs)`, labelled by the link's title if it has one, and each file its front
+/// matter's `also:` list names, e.g. `  - ../4-behaviour/shard.md`. Relative paths are taken from the file's folder.
 pub fn links(path: &RepoPath, src: &str) -> Vec<DocLink> {
+    let also = also(src).into_iter().map(|address| DocLink { target: join(path.folder(), address).to_string(), label: None });
     let spans = src.split('`').skip(1).step_by(2).map(|span| DocLink { target: span.trim().to_string(), label: None });
     let targets = src.split("](").skip(1).filter_map(|after_text| after_text.split(')').next()).filter_map(|inside| {
         let (address, title) = inside.split_once(char::is_whitespace).unwrap_or((inside, ""));
@@ -48,7 +50,14 @@ pub fn links(path: &RepoPath, src: &str) -> Vec<DocLink> {
         let title = title.trim().trim_matches('"').trim();
         is_relative.then(|| DocLink { target: join(path.folder(), address).to_string(), label: (!title.is_empty()).then(|| title.to_string()) })
     });
-    spans.chain(targets).collect()
+    spans.chain(targets).chain(also).collect()
+}
+
+/// The paths in the front matter's `also:` list: the same thing seen elsewhere, e.g. in another dimension.
+pub fn also(src: &str) -> Vec<&str> {
+    let Some((head, _)) = src.strip_prefix("---\n").and_then(|rest| rest.split_once("\n---")) else { return vec![] };
+    let Some((_, after_key)) = head.split_once("\nalso:\n").or_else(|| head.strip_prefix("also:\n").map(|rest| ("", rest))) else { return vec![] };
+    after_key.lines().map_while(|line| line.trim_start().strip_prefix("- ")).map(str::trim).collect()
 }
 
 #[cfg(test)]
@@ -63,6 +72,9 @@ mod tests {
         assert_eq!(targets, ["ui/src/Graph.tsx::mapView", "src/model.rs"]);
         let titled = links(&RepoPath("concepts/shard.md".into()), "Owns [entities](entity.md \"owns\").");
         assert_eq!(titled, [DocLink { target: "concepts/entity.md".into(), label: Some("owns".into()) }]);
+        let with_also = "---\ndescription: x\nalso:\n  - ../4-behaviour/shard.md\n  - ../../issues/m01/README.md\nkind: idea\n---\n# Shard";
+        let targets: Vec<String> = links(&RepoPath("dimensions/2-architecture/shard.md".into()), with_also).into_iter().map(|link| link.target).collect();
+        assert_eq!(targets, ["dimensions/4-behaviour/shard.md", "issues/m01/README.md"]);
         assert_eq!(labels("# No header"), DocLabels::default());
         assert_eq!(labels("---\nkind: idea\nstatus: parked\n---\n"), DocLabels { kind: Some(DocKind::Idea), status: Some(WorkStatus::Parked) });
         assert_eq!(labels("---\nkind: dimension\n---\n"), DocLabels { kind: Some(DocKind::Dimension), status: None });

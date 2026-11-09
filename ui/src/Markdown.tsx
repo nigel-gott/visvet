@@ -1,59 +1,53 @@
 // A Markdown file's rendered page, shown instead of its raw text, with ```mermaid blocks drawn as diagrams.
 
-import { useContext, useEffect, useId, useState, type MouseEvent, type ReactNode } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { useContext, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Element } from 'hast'
 import { X } from './context'
-import type { DiffLine } from './model'
+import { targetOf } from './pages'
 import { Link, isWebAddress } from './Rich'
-
-/** The front matter block at the top of a Markdown file, e.g. "---\nkind: issue\n---\n"; its labels show on the box already. */
-const FRONT_MATTER = /^---\n[\s\S]*?\n---\n/
-
-/** A Markdown file's text as it is now, from its diff: every line but the removed ones, without its front matter. */
-export const currentText = (diff: DiffLine[]) => diff.filter(line => line.kind !== 'del').map(line => line.text).join('\n').replace(FRONT_MATTER, '')
-
-/**
- * Opens a repo file a link points at, e.g. another page of a dimension in its place; returns false to let the link
- * open the file's box on the code map instead.
- */
-export type OpenFile = (target: string) => boolean
-
-/** The repo file `href` points at from `file`, e.g. "issues/m00/README.md"; a "repo:" address keeps ".." from leaving the repo. */
-const targetOf = (href: string, file: string) => decodeURIComponent(new URL(href, `repo:/${file}`).pathname.replace(/^\//, ''))
 
 /**
  * The rendered page; ```mermaid blocks are drawn as diagrams; GitHub-style tables and task lists work, and raw HTML in
- * the file is left out, never run. Links, and diagram nodes with a `click` link, go to the file they name: through
- * `openFile` if it takes it, else to its box on the code map.
+ * the file is left out, never run. Links, and diagram nodes with a `click` link, go to the file they name (see `useFollow`).
  */
-export function MarkdownPage({ text, file, openFile }: { text: string; file: string; openFile?: OpenFile }) {
-  const follow = useFollow(file, openFile)
+export function MarkdownPage({ text, file }: { text: string; file: string }) {
+  const follow = useFollow(file)
+  // The components are made once per file: new ones on every render would make React rebuild every diagram, so
+  // the page would blank and jump whenever anything around it changed, e.g. opening a comment. They follow links
+  // with the latest `follow`.
+  const latestFollow = useRef(follow)
+  latestFollow.current = follow
+  const components = useMemo<Components>(() => {
+    const followLatest = (href: string) => latestFollow.current(href)
+    return {
+      a: ({ href, children }) => <PageLink href={href ?? ''} file={file} follow={followLatest}>{children}</PageLink>,
+      pre: ({ node, children }) => {
+        const diagram = mermaidSource(node)
+        return diagram === undefined ? <pre>{children}</pre> : <MermaidDiagram source={diagram} follow={followLatest} />
+      },
+    }
+  }, [file])
   return (
     <div className="md-page">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-        a: ({ href, children }) => <PageLink href={href ?? ''} file={file} follow={follow}>{children}</PageLink>,
-        pre: ({ node, children }) => {
-          const diagram = mermaidSource(node)
-          return diagram === undefined ? <pre>{children}</pre> : <MermaidDiagram source={diagram} follow={follow} />
-        },
-      }}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {text}
       </ReactMarkdown>
     </div>
   )
 }
 
-/** Following a link from `file` to another repo file: `openFile` first, else its box on the code map. Says whether the file exists. */
-function useFollow(file: string, openFile?: OpenFile) {
+/**
+ * Following a link from `file` to another repo file: a dimension's page opens in its dimension's view, anything else
+ * on the code map. Says whether the file exists.
+ */
+export function useFollow(file: string) {
   const x = useContext(X)
   return (href: string) => {
     const target = targetOf(href, file)
     if (!x.ix.items.has(target)) return false
-    if (openFile?.(target)) return true
-    x.setDimension(null)
-    x.focus(target)
+    x.openFile(target)
     return true
   }
 }
@@ -75,6 +69,9 @@ function mermaidSource(pre: Element | undefined) {
   return isMermaid ? code.children.map(piece => (piece.type === 'text' ? piece.value : '')).join('') : undefined
 }
 
+/** Diagrams already drawn, by theme and text, so one shown again appears at once instead of blank, then redrawn. */
+const drawnDiagrams = new Map<string, string>()
+
 /** Whether the page is in the dark theme, as style.css decides it. */
 const prefersDark = () => matchMedia('(prefers-color-scheme: dark)').matches
 
@@ -85,17 +82,22 @@ const prefersDark = () => matchMedia('(prefers-color-scheme: dark)').matches
  * error instead.
  */
 function MermaidDiagram({ source, follow }: { source: string; follow: (href: string) => boolean }) {
-  const [drawn, setDrawn] = useState<{ svg: string } | { error: string } | null>(null)
+  const theme = prefersDark() ? 'dark' : 'default'
+  const cacheKey = `${theme}\n${source}`
+  const cached = drawnDiagrams.get(cacheKey)
+  const [drawn, setDrawn] = useState<{ svg: string } | { error: string } | null>(cached === undefined ? null : { svg: cached })
   const elementId = 'mermaid-' + useId().replace(/[^a-zA-Z0-9]/g, '')
   useEffect(() => {
+    if (drawnDiagrams.has(cacheKey)) return
     let current = true
     import('mermaid').then(async ({ default: mermaid }) => {
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'antiscript', theme: prefersDark() ? 'dark' : 'default' })
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'antiscript', theme })
       const { svg } = await mermaid.render(elementId, source)
+      drawnDiagrams.set(cacheKey, svg)
       if (current) setDrawn({ svg })
     }).catch((error: unknown) => current && setDrawn({ error: String(error) }))
     return () => { current = false }
-  }, [source, elementId])
+  }, [cacheKey, elementId])
   if (drawn && 'error' in drawn) return <pre className="mermaid-error">{source}{'\n\n'}{drawn.error}</pre>
   /** A click on a node's link: a repo path follows within visvet; a web address opens in a new tab. */
   const clickLink = (event: MouseEvent) => {

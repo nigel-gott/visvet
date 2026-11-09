@@ -9,7 +9,8 @@ import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
 import { ThreadChip } from './Threads'
 import { Rich } from './Rich'
-import { MarkdownPage, currentText } from './Markdown'
+import { MarkdownPage } from './Markdown'
+import { currentText } from './pages'
 import { MARGIN_NOTE_WIDTH } from './size'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }

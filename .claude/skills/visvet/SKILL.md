@@ -22,6 +22,13 @@ Besides the code map, a project can be seen as its concepts, architecture, data 
 - The README is the front page: one well-organised overview diagram, most of the reading done there, no clicking needed.
 - A bit of hierarchy: each part of the overview gets its own page in the folder with its detailed diagrams, linked from its node with `click node "page.md"` (`click Class href "page.md"` in a class diagram). The reader clicks in and uses the breadcrumbs to come back.
 - ```mermaid diagrams: `flowchart`, `classDiagram`, `stateDiagram-v2`, `sequenceDiagram`. Draw C4 levels as flowcharts; Mermaid's `C4Context` overlaps its labels. In labels avoid `;` (it ends a statement) and nested `~generics~` (write `#lt;`/`#gt;`).
+- Connect pages quietly: a `click` on a detail-page node can open another dimension's page (only seen on hover); and front matter `also:` lists the same thing elsewhere (other dimensions, the issue that builds it), shown as one thin "Also" line on both pages and as arrows on the code map:
+  ```
+  also:
+    - ../4-behaviour/shard.md
+    - ../../issues/m01-two-shards-tick/README.md
+  ```
+- Data shows what crosses each boundary (which messages, durable or not, packet layouts with `packet-beta`), not just types.
 - On the code map, a Markdown link's title labels its arrow: `[Entity](entity.md "owns")`.
 - Keep them true: once code exists, update a dimension in the same change that alters what it draws.
 
