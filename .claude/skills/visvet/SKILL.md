@@ -18,7 +18,12 @@ The map's top levels are the code's own folders and files. A Rust file `x.rs` ho
 Markdown files are boxes too. Front matter `kind: issue` or `kind: milestone` and `status: open` or `status: done` labels the box (other keys are ignored), and a folder takes its `README.md`'s. Every `path` or `file::box` named in backticks, or linked, gets a "links" arrow. Keep work to do in `issues/` (a folder per milestone, a file per issue), and when one is fixed, set `status: done` and move it to `issues/done/`, under its milestone's folder name.
 
 ## Dimensions
-Besides the code map, a project can be seen as its concepts, architecture, data or behaviour. Each is a Markdown file with `kind: dimension`, drawn with ```mermaid diagrams (flowcharts, `classDiagram`, `stateDiagram-v2`, `sequenceDiagram`; draw C4 levels as flowcharts, since Mermaid's `C4Context` overlaps its labels). The top bar's switch shows them in path order (name them `1-concepts.md` and so on), at full size, in place of the map. Keep them true to the code: once code exists, update a dimension in the same change that alters what it draws. In Mermaid labels, avoid `;` (it ends a statement) and nested `~generics~` (write `#lt;`/`#gt;`).
+Besides the code map, a project can be seen as its concepts, architecture, data or behaviour. Make each a folder whose `README.md` says `kind: dimension` (name them `1-concepts/` and so on for order); the top bar's switch zooms the map into it, so boxes, arrows, tours, notes and threads work as on code.
+- One idea, process or behaviour per Markdown file, grouped in subfolders, so the map zooms like code.
+- Label an arrow with the link's title: `[Entity](entity.md "owns")`. Plain links stay unlabelled.
+- Data can be type sketches (`.rs` files) so boxes show fields and "has" arrows; replace them with the real types once code exists.
+- Put a diagram in the box it describes, as ```mermaid (`stateDiagram-v2`, `sequenceDiagram`, `classDiagram`, `flowchart`). Draw C4 levels as folders and flowcharts; Mermaid's `C4Context` overlaps its labels. In labels avoid `;` (it ends a statement) and nested `~generics~` (write `#lt;`/`#gt;`).
+- Keep them true: once code exists, update a dimension in the same change that alters what it draws.
 
 ## Annotate your change for review
 A note is a 📝 message from you in the box's thread: it joins the latest thread on the box, or starts one that needs no answer, and replaces your earlier note there. Keep few: only where the user should look, saying why it changed, what to check, or a risk. When code changes, rewrite or remove stale notes. Notes and replies render light markdown (paragraphs, `- ` lists, `**bold**`, backticks):
