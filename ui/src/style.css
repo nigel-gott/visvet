@@ -504,3 +504,6 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .md-link { color: var(--sel); cursor: pointer }
 .md-link:hover { text-decoration: underline }
 .md-dead-link { text-decoration: underline dotted var(--muted) }
+.mermaid-diagram { margin: 8px 0; text-align: center }
+.mermaid-diagram svg { max-width: 100%; height: auto }
+.mermaid-error { color: var(--muted); white-space: pre-wrap }
