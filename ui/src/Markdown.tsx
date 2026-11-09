@@ -33,7 +33,7 @@ export function MarkdownPage({ text, file }: { text: string; file: string }) {
 
 /**
  * A link on the page: a web address opens in the preview bubble, as in notes; a path to another file in the repo, e.g.
- * "../m00-the-workbench/README.md", opens that file's box; anything else is plain text.
+ * "../m00-the-workbench/README.md", opens that file's box on the code map; anything else is plain text.
  */
 function PageLink({ href, file, children }: { href: string; file: string; children: ReactNode }) {
   const x = useContext(X)
@@ -41,7 +41,11 @@ function PageLink({ href, file, children }: { href: string; file: string; childr
   // Resolve the path against the linking file's folder; a "repo:" address keeps ".." from leaving the repo.
   const target = decodeURIComponent(new URL(href, `repo:/${file}`).pathname.replace(/^\//, ''))
   if (!x.ix.items.has(target)) return <span className="md-dead-link">{children}</span>
-  return <a className="md-link" onClick={event => { event.stopPropagation(); x.focus(target) }}>{children}</a>
+  const open = () => {
+    x.setDimension(null)
+    x.focus(target)
+  }
+  return <a className="md-link" onClick={event => { event.stopPropagation(); open() }}>{children}</a>
 }
 
 /** The text of a ```mermaid code block (a `pre` holding a `code` with class "language-mermaid"), or undefined for any other. */

@@ -15,6 +15,7 @@ pub fn labels(src: &str) -> DocLabels {
             Some("idea") => Some(DocKind::Idea),
             Some("hub") => Some(DocKind::Hub),
             Some("tour") => Some(DocKind::Tour),
+            Some("dimension") => Some(DocKind::Dimension),
             _ => None,
         },
         status: match field("status") {
@@ -50,5 +51,6 @@ mod tests {
         assert_eq!(links(&RepoPath("issues/a.md".into()), md), ["ui/src/Graph.tsx::mapView", "src/model.rs"]);
         assert_eq!(labels("# No header"), DocLabels::default());
         assert_eq!(labels("---\nkind: idea\nstatus: parked\n---\n"), DocLabels { kind: Some(DocKind::Idea), status: Some(WorkStatus::Parked) });
+        assert_eq!(labels("---\nkind: dimension\n---\n"), DocLabels { kind: Some(DocKind::Dimension), status: None });
     }
 }

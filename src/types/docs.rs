@@ -25,6 +25,9 @@ pub enum DocKind {
     Hub,
     /// A guided path through the code, see `Tour`.
     Tour,
+    /// Another way to see the project than its code, e.g. its data or its behaviour, drawn as diagrams; the UI's
+    /// dimension switch shows it in place of the map.
+    Dimension,
 }
 
 /// Where an issue, milestone or idea stands, from `status:` in its front matter.

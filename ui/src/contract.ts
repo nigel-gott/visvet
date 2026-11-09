@@ -82,7 +82,7 @@ export type DiffLineKind = "ctx" | "add" | "del";
 /**
  * What a Markdown file is, from `kind:` in its front matter.
  */
-export type DocKind = "issue" | "milestone" | "idea" | "hub" | "tour";
+export type DocKind = "issue" | "milestone" | "idea" | "hub" | "tour" | "dimension";
 
 /**
  * What a Markdown file's front matter says about it, e.g. `kind: issue` and `status: open`. Other keys are ignored.

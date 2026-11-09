@@ -38,6 +38,9 @@ export type Ctx = {
   setNotesBeside: (beside: boolean) => void
   /** Shows a tour's step, zooming into its box; null leaves the tour. With "you drive", `jump` goes straight there. */
   showStep: (place: TourPlace | null, jump?: boolean) => void
+  /** The dimension shown in place of the map: its file's id, or null for the code map. */
+  dimension: string | null
+  setDimension: (dimension: string | null) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
   scope: string | null
   zoom: (id: string | null) => void

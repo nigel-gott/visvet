@@ -507,3 +507,15 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .mermaid-diagram { margin: 8px 0; text-align: center }
 .mermaid-diagram svg { max-width: 100%; height: auto }
 .mermaid-error { color: var(--muted); white-space: pre-wrap }
+
+/* The dimension switch in the top bar and the chosen dimension drawn over the map (Dimensions.tsx). */
+.dimensions { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg) }
+.dimensions button { padding: 3px 10px; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 13px; cursor: pointer }
+.dimensions button:hover { color: var(--fg) }
+.dimensions button.here { background: var(--sel-bg); color: var(--sel); font-weight: 600 }
+main { position: relative }
+.dimension-view { position: absolute; inset: 0; z-index: 4; overflow: auto; background: var(--bg) }
+.dimension-view .md-page { max-width: 1400px; margin: 0 auto; padding: 16px 32px 48px; font-size: 14px }
+.dimension-view .md-page h1 { font-size: 22px }
+.dimension-view .md-page h2 { margin-top: 28px; font-size: 17px }
+.dimension-view .mermaid-diagram { margin: 16px 0 }

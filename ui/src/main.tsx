@@ -14,6 +14,7 @@ import { X, type Ctx } from './context'
 import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
 import { FileTree, LineCounts } from './Views'
 import { DocPreview, type DocToShow } from './DocPreview'
+import { DimensionSwitch, DimensionView } from './Dimensions'
 import { bubbleBoxOf, NotesPlace, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
 
 
@@ -152,6 +153,7 @@ function Header({ error }: { error?: string }) {
         {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
         <WayAhead path={path} />
       </nav>
+      <DimensionSwitch />
       <TourBar />
       <div className="review-status">
         <ChangeTotals />
@@ -291,6 +293,7 @@ function App() {
   const [tour, setTour] = useState<TourPlace | null>(null)
   const [notesBeside, setNotesBeside] = useNotesPlace()
   const [docShown, showDoc] = useState<DocToShow | null>(null)
+  const [dimension, setDimension] = useState<string | null>(null)
   /** Which move between tour steps is the latest, so a quick Next stops an older one between zoom levels. */
   const journey = useRef(0)
   /** The route of the move between tour steps under way, shown over the map; null when none is. */
@@ -402,7 +405,7 @@ function App() {
   const guide: Guide | null = headingStep && !reached ? { stops: [scope, ...way], ...nextMove(), title: headingStep.title, note: headingStep.route } : null
   const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
   const x: Ctx = {
-    model, ix, sel, hl: new Set(hl), select, focus, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
+    model, ix, sel, hl: new Set(hl), select, focus, dimension, setDimension, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     // While the user drives to the next step, the step they left hides its bubble and notes.
     tour, showStep, notesBeside, setNotesBeside, docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
@@ -416,7 +419,10 @@ function App() {
       <div className="app">
         <Header error={error} />
         <FileTree />
-        <main><Graph visible pop={pop} /></main>
+        <main>
+          <Graph visible={!dimension} pop={pop} />
+          {dimension && <DimensionView id={dimension} />}
+        </main>
         <LostStep />
         <RouteOverlay />
         <Drawer />
