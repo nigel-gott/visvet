@@ -56,8 +56,11 @@ header { grid-area: 1 / 1 / 2 / 3; display: flex; flex-wrap: wrap; align-items: 
 .settings-menu .speed-pick { justify-content: space-between; gap: 12px }
 main { grid-area: 2 / 2; min-height: 0 }
 /* The file tree: one line per row, resized by dragging its right edge. */
-.tree { grid-area: 2 / 1; position: relative; width: 300px; min-width: 180px; max-width: 60vw; min-height: 0; overflow: auto; resize: horizontal; border-right: 1px solid var(--line); background: var(--panel); font-size: 13px }
-.tree.hidden { width: 24px; min-width: 0; resize: none; overflow: hidden }
+.tree { grid-area: 2 / 1; position: relative; min-width: 180px; max-width: 60vw; min-height: 0; overflow: hidden; border-right: 1px solid var(--line); background: var(--panel); font-size: 13px }
+.tree.hidden { width: 24px; min-width: 0 }
+.tree-scroll { height: 100%; overflow: auto }
+.tree-edge { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: col-resize; touch-action: none }
+.tree-edge:hover, .tree-edge:active { background: var(--sel) }
 .tree-toggle { position: sticky; top: 0; float: right; z-index: 2; padding: 2px 7px; border: 0; background: none; color: var(--muted); cursor: pointer }
 .tree .body { padding: 8px }
 .tree input[type=search] { width: calc(100% - 28px) }

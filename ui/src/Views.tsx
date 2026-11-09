@@ -130,16 +130,30 @@ export function Outline() {
   )
 }
 
-/** The file tree down the left of the map. Its button hides it to a thin strip and shows it again; drag its edge to resize it. */
+/** The file tree down the left of the map. Its button hides it to a thin strip and shows it again; drag its right edge to resize it. */
 export function FileTree() {
   const [shown, setShown] = useState(true)
+  const [width, setWidth] = useState(TREE_START_WIDTH)
+  const tree = useRef<HTMLElement>(null)
+  /** While the edge is held, the tree's right side follows the pointer. */
+  const dragEdge = (move: React.PointerEvent) => {
+    const held = move.currentTarget.hasPointerCapture(move.pointerId)
+    if (held && tree.current) setWidth(move.clientX - tree.current.getBoundingClientRect().left)
+  }
   return (
-    <aside className={shown ? 'tree' : 'tree hidden'}>
-      <button className="tree-toggle" title={shown ? 'Hide the file tree' : 'Show the file tree'} onClick={() => setShown(!shown)}>{shown ? '‹' : '›'}</button>
-      {shown && <Outline />}
+    <aside className={shown ? 'tree' : 'tree hidden'} ref={tree} style={shown ? { width } : undefined}>
+      <div className="tree-scroll">
+        <button className="tree-toggle" title={shown ? 'Hide the file tree' : 'Show the file tree'} onClick={() => setShown(!shown)}>{shown ? '‹' : '›'}</button>
+        {shown && <Outline />}
+      </div>
+      {shown && <div className="tree-edge" title="Drag to resize the file tree"
+        onPointerDown={down => down.currentTarget.setPointerCapture(down.pointerId)} onPointerMove={dragEdge} />}
     </aside>
   )
 }
+
+/** The file tree's width in pixels before it is first dragged. */
+const TREE_START_WIDTH = 300
 
 /** An item's or edge end's display name. */
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
