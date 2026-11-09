@@ -37,8 +37,13 @@ function block(text: string, w: number) {
  * lists what is inside it.
  */
 export const showsCode = (it: Item, x: Ctx) => x.expanded.has(it.id) && it.diff.length > 0 && (!it.kids.length || it.id === x.scope || it.id === x.stepBox)
-/** An expanded box's code wraps lines longer than 140 characters. */
-const CODE_COLS = 140
+const CODE_FONT = '12px ui-monospace, SFMono-Regular, Menlo, monospace'
+/**
+ * An expanded box's code wraps lines longer than 140 characters, or on a phone, than fit across the screen, so the
+ * box is never wider than the screen it is read on.
+ */
+// ponytail: read once at load, so turning the phone keeps the old width until a reload; recompute on resize if that annoys.
+const CODE_COLS = window.matchMedia('(max-width: 700px)').matches ? Math.min(140, Math.floor((Math.min(window.innerWidth, window.screen.width) - 16 - 64) / measure('m', CODE_FONT))) : 140
 /** How many characters wide an expanded box's code is: its longest line, up to CODE_COLS. */
 /**
  * All of a box's code, as diff lines: its own text, then its members written outside it, e.g. a Rust type's methods,
@@ -50,7 +55,7 @@ export function allLines(it: Item) {
 }
 const cols = (it: Item) => Math.min(CODE_COLS, Math.max(...allLines(it).map(l => l.text.length)))
 /** An expanded box is as wide as its code (plus line numbers), but never narrower than a box. */
-const codeWidth = (it: Item) => Math.max(320, measure('m'.repeat(cols(it)), '12px ui-monospace, SFMono-Regular, Menlo, monospace') + 64)
+const codeWidth = (it: Item) => Math.max(320, measure('m'.repeat(cols(it)), CODE_FONT) + 64)
 /** Most rows of code an expanded box shows before it scrolls; the tour step's box, the one being read, shows more. */
 const CODE_ROWS = 30, STEP_CODE_ROWS = 60
 const NOTE_FONT = '13px system-ui, sans-serif'
