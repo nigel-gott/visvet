@@ -348,6 +348,12 @@ main { grid-area: 2 / 2; min-height: 0 }
 .tour-next { height: 26px; padding: 0 12px; border: 0; border-radius: 13px; background: var(--ai); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer }
 .tour-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: min(440px, calc(100vw - 16px)); max-height: 70vh; margin: 0; padding: 6px; overflow: auto;
   border: 1px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: 0 12px 32px rgb(0 0 0 / .35); white-space: normal }
+/* Phones: the list spans the screen under the top bar, wherever its button sits, so none of it is cut off. */
+@media (max-width: 700px) {
+  header { position: relative }
+  .tour-bar { position: static }
+  .tour-menu, .tour-bar.playing .tour-menu { top: 100%; left: 8px; right: 8px; width: auto }
+}
 .tour-card { padding: 12px }
 .tour-card + .tour-card { border-top: 1px solid var(--line) }
 .tour-card b { font-size: 15px }
