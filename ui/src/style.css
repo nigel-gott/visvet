@@ -397,7 +397,7 @@ mark.noted-code { border-radius: 3px; background: var(--mark-bg); color: inherit
 mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent); box-shadow: 0 0 0 3px var(--ai) }
 /* Never narrower than its longest line plus the notes' gutter: in a box too narrow for both (the zoomed box, sized by
    the boxes inside it), the code scrolls sideways instead of wrapping into a sliver. */
-.beside-notes { position: relative; width: max-content; min-width: 100% }
+.beside-notes { position: relative }
 .side-notes { position: absolute; inset: 0; pointer-events: none }
 /* The gap in a line of code, right after a note's code, that a note on the right sits in. */
 .note-gap { display: inline-block }
