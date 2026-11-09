@@ -482,3 +482,25 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .route li.passed::after, .route li.heading::after { background: var(--ai) }
 .route li.heading::before { border-color: var(--ai); animation: pulse 1s ease-in-out infinite }
 @keyframes pulse { 50% { transform: scale(1.4) } }
+
+/* A Markdown file's rendered page (Markdown.tsx), with its Raw / Rendered button. */
+.md-file { position: relative }
+.md-toggle { position: sticky; top: 4px; float: right; z-index: 2; margin: 4px 6px 0 0; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--muted); font-size: 11px; cursor: pointer }
+.md-toggle:hover { color: var(--fg) }
+.md-page { padding: 4px 12px 8px; font: 13px/1.5 system-ui, sans-serif; overflow-wrap: anywhere }
+.md-page h1 { margin: 8px 0; font-size: 18px }
+.md-page h2 { margin: 14px 0 6px; padding-bottom: 2px; border-bottom: 1px solid var(--line); font-size: 15px }
+.md-page h3, .md-page h4 { margin: 12px 0 4px; font-size: 13px }
+.md-page p, .md-page ul, .md-page ol, .md-page blockquote, .md-page table, .md-page pre { margin: 6px 0 }
+.md-page ul, .md-page ol { padding-left: 20px }
+.md-page code { padding: 0 3px; border-radius: 4px; background: var(--panel); font-size: 12px }
+.md-page pre { padding: 8px; overflow-x: auto; border-radius: 6px; background: var(--panel) }
+.md-page pre code { padding: 0 }
+.md-page blockquote { padding-left: 10px; border-left: 3px solid var(--line); color: var(--muted) }
+.md-page table { border-collapse: collapse; font-size: 12px }
+.md-page th, .md-page td { padding: 3px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top }
+.md-page hr { border: 0; border-top: 1px solid var(--line) }
+.md-link { color: var(--sel); cursor: pointer }
+.md-link:hover { text-decoration: underline }
+.md-dead-link { text-decoration: underline dotted var(--muted) }

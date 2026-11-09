@@ -9,6 +9,7 @@ import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
 import { ThreadChip } from './Threads'
 import { Rich } from './Rich'
+import { MarkdownPage, currentText } from './Markdown'
 import { MARGIN_NOTE_WIDTH } from './size'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
@@ -157,6 +158,22 @@ const TREE_START_WIDTH = 300
 
 /** An item's or edge end's display name. */
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
+
+/**
+ * A file's or box's text: for Markdown, the rendered page, with a Raw button to see the diff instead; anything else, or
+ * Markdown with a tour's notes on its code, as the diff.
+ */
+export function FileText({ it, diff, language, notes = [], beside = false }: { it: Item; diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean }) {
+  const [showsRaw, setShowsRaw] = useState(false)
+  const rendersMarkdown = language === 'markdown' && !notes.length
+  if (!rendersMarkdown) return <DiffView diff={diff} language={language} notes={notes} beside={beside} />
+  return (
+    <div className="md-file">
+      <button className="md-toggle" onClick={event => { event.stopPropagation(); setShowsRaw(!showsRaw) }}>{showsRaw ? 'Rendered' : 'Raw'}</button>
+      {showsRaw ? <DiffView diff={diff} language={language} /> : <MarkdownPage text={currentText(diff)} file={it.id} />}
+    </div>
+  )
+}
 
 /**
  * The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. A tour's notes on
@@ -436,7 +453,7 @@ export function Detail({ id }: { id: string }) {
         {crumbs.length > 0 && <nav className="crumbs">{crumbs.map(c => <a key={c.id} onClick={() => x.focus(c.id)}>{c.name}</a>)}</nav>}
         {it?.doc && <p className="desc">{it.doc}</p>}
         <Related id={id} it={it} />
-        {it && it.kind !== 'folder' && (diff.length === 0 ? <p>no text content</p> : <DiffView diff={diff} language={languageOf(it)} />)}
+        {it && it.kind !== 'folder' && (diff.length === 0 ? <p>no text content</p> : <FileText it={it} diff={diff} language={languageOf(it)} />)}
       </div>
       {it && <NavBar it={it} />}
     </>

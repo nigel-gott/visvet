@@ -1,16 +1,16 @@
 // Light Markdown for messages, notes and tour steps: paragraphs, lists, `code`, **bold** and [links](https://…).
 
-import { Fragment, useContext } from 'react'
+import { Fragment, useContext, type ReactNode } from 'react'
 import { X } from './context'
 
 /** Whether `address` is a web address a link may open: http or https only, so a note can't run script. */
-const isWebAddress = (address: string) => URL.canParse(address) && ['http:', 'https:'].includes(new URL(address).protocol)
+export const isWebAddress = (address: string) => URL.canParse(address) && ['http:', 'https:'].includes(new URL(address).protocol)
 
 /**
  * A link to `address`, e.g. a library's docs. A click shows the page in a bubble beside the link, to skim; with Cmd,
  * Ctrl or Shift held it opens in a new tab instead. A click on it doesn't reach the box or note it is in.
  */
-function Link({ text, address }: { text: string; address: string }) {
+export function Link({ address, children }: { address: string; children: ReactNode }) {
   const x = useContext(X)
   return (
     <a href={address} target="_blank" rel="noopener noreferrer" className="doc-link" onClick={e => {
@@ -20,14 +20,14 @@ function Link({ text, address }: { text: string; address: string }) {
       e.preventDefault()
       const shown = x.docShown?.address === address
       x.showDoc(shown ? null : { address, link: e.currentTarget.getBoundingClientRect() })
-    }}>{inline(text)}</a>
+    }}>{children}</a>
   )
 }
 
 /** One inline piece: `code`, **bold**, a [link](address), or plain text. */
 const piece = (part: string, key: number) => {
   const link = part.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/)
-  if (link && isWebAddress(link[2])) return <Link key={key} text={link[1]} address={link[2]} />
+  if (link && isWebAddress(link[2])) return <Link key={key} address={link[2]}>{inline(link[1])}</Link>
   if (part.startsWith('`')) return <code key={key}>{part.slice(1, -1)}</code>
   if (part.startsWith('**')) return <b key={key}>{part.slice(2, -2)}</b>
   return part

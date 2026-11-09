@@ -5,7 +5,7 @@ import { Handle, Position, useReactFlow, type InternalNode, type Node, type Node
 import { codeOf, type Item } from './model'
 import type { CodeNote } from './contract'
 import { X } from './context'
-import { DiffView, Head, Notes } from './Views'
+import { FileText, Head, Notes } from './Views'
 import { languageOf } from './highlight'
 import { ThreadChip } from './Threads'
 import { BoxBubble } from './Tours'
@@ -213,7 +213,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <Rows it={it} rows={rows} click={click} />
         {/* nowheel lets the code scroll instead of zooming the map; nodrag keeps the box still, and a drag pans the map instead (useCodeMovesMap). */}
         {showsCode(it, x) &&
-          <div ref={movesMap} className="code nowheel nodrag" style={{ height: codeHeight(it, x) }} onClick={e => e.stopPropagation()}><DiffView diff={code} language={languageOf(it)} notes={codeNotes} beside={x.notesBeside} /></div>}
+          <div ref={movesMap} className="code nowheel nodrag" style={{ height: codeHeight(it, x) }} onClick={e => e.stopPropagation()}><FileText it={it} diff={code} language={languageOf(it)} notes={codeNotes} beside={x.notesBeside} /></div>}
         {data.zoomPreview && <InnerPreview preview={data.zoomPreview} />}
       </div>
       <Handle type="source" position={Position.Right} />
