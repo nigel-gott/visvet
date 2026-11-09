@@ -1,6 +1,6 @@
 // A Markdown file's rendered page, shown instead of its raw text, with ```mermaid blocks drawn as diagrams.
 
-import { useContext, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Element } from 'hast'
@@ -79,7 +79,7 @@ const prefersDark = () => matchMedia('(prefers-color-scheme: dark)').matches
  * A Mermaid diagram (flowchart, state machine, sequence and so on), drawn from its text. Mermaid loads only when a
  * page has a diagram, and runs at its "antiscript" level: script is removed, and `click Node "page.md"` makes a node
  * a link, which follows within the repo instead of leaving visvet. A diagram that doesn't parse shows its text and the
- * error instead.
+ * error instead. Its drawn width is kept in `--diagram-width`, so a phone can keep a wide diagram readable (style.css).
  */
 function MermaidDiagram({ source, follow }: { source: string; follow: (href: string) => boolean }) {
   const theme = prefersDark() ? 'dark' : 'default'
@@ -87,6 +87,11 @@ function MermaidDiagram({ source, follow }: { source: string; follow: (href: str
   const cached = drawnDiagrams.get(cacheKey)
   const [drawn, setDrawn] = useState<{ svg: string } | { error: string } | null>(cached === undefined ? null : { svg: cached })
   const elementId = 'mermaid-' + useId().replace(/[^a-zA-Z0-9]/g, '')
+  const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const drawnWidth = box.current?.querySelector('svg')?.viewBox.baseVal?.width
+    if (drawnWidth) box.current?.style.setProperty('--diagram-width', `${drawnWidth}px`)
+  }, [drawn])
   useEffect(() => {
     if (drawnDiagrams.has(cacheKey)) return
     let current = true
@@ -110,5 +115,5 @@ function MermaidDiagram({ source, follow }: { source: string; follow: (href: str
     else follow(href)
   }
   // The SVG comes from Mermaid with script removed (see above).
-  return <div className="mermaid-diagram" onClick={clickLink} dangerouslySetInnerHTML={{ __html: drawn?.svg ?? '' }} />
+  return <div ref={box} className="mermaid-diagram" onClick={clickLink} dangerouslySetInnerHTML={{ __html: drawn?.svg ?? '' }} />
 }

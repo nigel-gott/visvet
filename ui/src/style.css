@@ -531,3 +531,17 @@ main { position: relative }
 .dimension-crumbs .also { margin-left: auto; color: var(--muted); font-size: 12px }
 .dimension-crumbs .also a { color: var(--muted); text-decoration: underline dotted }
 .dimension-crumbs .also a:hover { color: var(--sel) }
+/* Phones (dimension pages only; the code map is unchanged): the page takes the whole width with no file tree, the
+   switch gets a row of its own, the compared commit is left out, and a wide diagram shrinks to no less than 3/4 of
+   its drawn width (`--diagram-width`), scrolling sideways in its own box so its text stays readable. */
+@media (max-width: 700px) {
+  .app:has(.dimension-view) { grid-template-columns: 0 minmax(0, 1fr) }
+  .app:has(.dimension-view) .tree { display: none }
+  .app:has(.dimension-view) .dimensions { order: 1; flex: 1 1 100%; overflow-x: auto }
+  .app:has(.dimension-view) .vs { display: none }
+  .dimension-view .md-page { padding: 8px 16px 48px }
+  .dimension-crumbs { flex-wrap: wrap; padding: 8px 16px }
+  .dimension-crumbs .also { margin-left: 0 }
+  .dimension-view .mermaid-diagram { overflow-x: auto; text-align: left }
+  .dimension-view .mermaid-diagram svg { min-width: calc(var(--diagram-width) * .75) }
+}
