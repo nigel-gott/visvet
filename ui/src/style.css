@@ -519,3 +519,6 @@ main { position: relative }
 .dimension-view .md-page h1 { font-size: 22px }
 .dimension-view .md-page h2 { margin-top: 28px; font-size: 17px }
 .dimension-view .mermaid-diagram { margin: 16px 0 }
+.highlight-comment { position: fixed; z-index: 30; transform: translate(-50%, calc(-100% - 6px)); padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--fg); font-size: 12px; box-shadow: 0 2px 8px rgb(0 0 0 / .2); cursor: pointer }
+.highlight-comment:hover { border-color: var(--sel) }
