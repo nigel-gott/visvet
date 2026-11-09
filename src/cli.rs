@@ -59,7 +59,11 @@ enum Cmd {
     /// Print the tours in tours/, flagging steps whose box or code is gone
     Tours,
     /// Run the Rust tests under cargo llvm-cov, so boxes show a low-coverage debuff
-    Coverage,
+    Coverage {
+        /// Passed on to cargo llvm-cov after `--`, e.g. `-- --workspace --lib` to run only some tests
+        #[arg(last = true)]
+        cargo_args: Vec<String>,
+    },
     /// Print the user's comment threads waiting for you; --all adds working and question ones
     Threads {
         #[arg(long)]
@@ -111,7 +115,7 @@ pub async fn run() -> anyhow::Result<()> {
         Cmd::Explain { symbol, why } => store::add_note(&repo_root, MapId(symbol), why.join(" ")),
         Cmd::Graph { base } => graph::print(&repo_root, &base),
         Cmd::View => view::print(&repo_root),
-        Cmd::Coverage => coverage::run(&repo_root),
+        Cmd::Coverage { cargo_args } => coverage::run(&repo_root, &cargo_args),
         Cmd::Tours => tours::print(&repo_root),
         Cmd::Threads { stop_hook: true, .. } => threads::stop_hook(&repo_root),
         Cmd::Threads { all, .. } => threads::print(&repo_root, all),

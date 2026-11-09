@@ -7,10 +7,14 @@ use std::path::Path;
 /// Per file (path from the repo root), each line the tests could run and whether they did.
 type Lines = HashMap<RepoPath, HashMap<u32, bool>>;
 
-/// Runs the Rust tests under `cargo llvm-cov` and saves their line coverage to `.visvet/coverage.lcov`.
-pub fn run(repo_root: &Path) -> anyhow::Result<()> {
+/// Runs the Rust tests under `cargo llvm-cov`, with `cargo_args` added (e.g. to pick which tests), and saves their
+/// line coverage to `.visvet/coverage.lcov`.
+pub fn run(repo_root: &Path, cargo_args: &[String]) -> anyhow::Result<()> {
+    VisvetDir::of(repo_root).create()?;
     let out = VisvetDir::of(repo_root).coverage();
-    let ok = std::process::Command::new("cargo").args(["llvm-cov", "--lcov", "--output-path"]).arg(&out).current_dir(repo_root).status()?.success();
+    let mut command = std::process::Command::new("cargo");
+    command.args(["llvm-cov", "--lcov", "--output-path"]).arg(&out).args(cargo_args).current_dir(repo_root);
+    let ok = command.status()?.success();
     anyhow::ensure!(ok, "cargo llvm-cov failed; install it with `cargo install cargo-llvm-cov`");
     Ok(())
 }

@@ -45,6 +45,13 @@ impl RepoPath {
         let named = if self.0.file_name().is_some_and(|n| n == "mod.rs") { self.folder() } else { &self.0 };
         named.file_stem().and_then(|n| n.to_str()).unwrap_or("")
     }
+    /// For a crate root (`src/lib.rs` or `src/main.rs`), the crate's name as code writes it, from its folder:
+    /// "client_core" for "crates/client-core/src/lib.rs".
+    pub fn crate_name(&self) -> Option<String> {
+        let is_crate_root = matches!(self.0.file_name()?.to_str()?, "lib.rs" | "main.rs") && self.folder().file_name()? == "src";
+        let crate_folder = self.folder().parent()?.file_name()?.to_str()?;
+        is_crate_root.then(|| crate_folder.replace('-', "_"))
+    }
     /// The innermost `src` folder the file is in, e.g. "ui/src" for "ui/src/main.tsx".
     pub fn src_folder(&self) -> Option<&Path> {
         self.0.ancestors().find(|a| a.file_name().is_some_and(|n| n == "src"))

@@ -29,7 +29,7 @@ The server prints its address and opens it in your browser. It has no login. It 
 | `visvet threads [--all]` | List your comment threads waiting for Claude |
 | `visvet reply <id> "<text>" [--resolve \| --ask]` | Claude's answer to a thread |
 | `visvet wait` | Wait for a new comment (Claude runs it while idle) |
-| `visvet coverage` | Run the Rust tests under `cargo llvm-cov`, so boxes show low test coverage |
+| `visvet coverage [-- <args>]` | Run the Rust tests under `cargo llvm-cov` (args passed on, e.g. to pick tests), so boxes show low test coverage |
 | `visvet view` | Print what you have open (a hook adds it to each message you send) |
 | `visvet show <symbol> --highlight <ids...>` | Open a symbol in your UI and outline boxes or arrows |
 | `visvet explain <symbol> "<note>"` | Add a review note to a box or edge |

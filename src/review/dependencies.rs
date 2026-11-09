@@ -75,11 +75,11 @@ impl<'a> Index<'a> {
     }
 
     /// The id of the fn or method `o` calls as `q::name`: a free fn when `q` is "", else a method
-    /// of box `q` or a free fn of the file named `q`.
+    /// of box `q` or a free fn of the file, or crate root, named `q`.
     fn callee(&self, o: &MapBox, q: &str, name: &str) -> Option<&'a str> {
         let c: Vec<_> = self.fns.get(name).into_iter().flatten().filter(|(co, cm)| same_lang(o, &co.file) && match q {
             "" => cm.kind == MemberKind::Fn,
-            q => co.name == q || cm.kind == MemberKind::Fn && co.file.module_name() == q,
+            q => co.name == q || cm.kind == MemberKind::Fn && (co.file.module_name() == q || co.file.crate_name().as_deref() == Some(q)),
         }).map(|(co, cm)| (*co, cm.id.as_str())).collect();
         pick(o, &c)
     }
@@ -144,12 +144,15 @@ mod tests {
             ("src/model.rs", "struct M;\nimpl M {\n    fn new() -> Self { Self::make(); git::show(); helper(); format!(\"{}\", list()) }\n    fn make() {}\n    fn run(&self) { self.make(); M::new(); x.walk(); }\n}\nstruct W;\nimpl W { fn walk(&self) { self.walk(); } fn make(&self) { M {}; } }\nfn helper() { list(); x.make(); Self {}; W { a: 1 }; }"),
             ("ui/a.tsx", "function A() { return <B x={1} /> }\nconst B = () => { load(); return <div /> };\nclass C { go() { this.stop(); A(); } stop() { new C(); } }"),
             ("ui/b.ts", "export function load() {}"),
+            ("crates/client-core/src/lib.rs", "pub fn tick() {}"),
+            ("crates/sim/src/lib.rs", "fn step() { client_core::tick(); }"),
         ];
         let cur: HashSet<RepoPath> = files.iter().map(|(f, _)| RepoPath(f.into())).collect();
         let all = files.iter().flat_map(|(f, s)| cmp(f, Some(s.as_bytes()), None)).collect();
         let (_, edges) = find_dependencies(all, &cur);
         let e: Vec<_> = edges.iter().filter(|e| e.kind == DependencyKind::Calls).map(|e| (e.from.as_str(), e.to.as_str())).collect();
         assert_eq!(e, [
+            ("crates/sim/src/lib.rs::step", "crates/client-core/src/lib.rs::tick"),
             ("src/git.rs::list", "src/git.rs::show"),
             ("src/model.rs::M::new", "src/git.rs::show"), ("src/model.rs::M::new", "src/model.rs::M::make"), ("src/model.rs::M::new", "src/model.rs::helper"),
             ("src/model.rs::M::run", "src/model.rs::M::make"), ("src/model.rs::M::run", "src/model.rs::M::new"),
