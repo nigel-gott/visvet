@@ -1,34 +1,56 @@
 // Dimensions: besides the code map, the project seen another way, e.g. as its concepts, data, behaviour or
-// architecture. Each is a Markdown file with `kind: dimension`, drawn as diagrams, that the switch shows in place of the map.
+// architecture. A dimension is a folder whose README.md says `kind: dimension`, shown by zooming the map into it, or
+// a single Markdown file with `kind: dimension`, drawn as diagrams in place of the map.
 
 import { useContext, useState, type MouseEvent } from 'react'
 import { X } from './context'
 import { MarkdownPage, currentText } from './Markdown'
-import type { Index, Item } from './model'
+import { within, type Index, type Item } from './model'
 
-/** The project's dimension files, in path order, so a repo orders them by naming them, e.g. "1-concepts.md". */
-export const dimensionsOf = (ix: Index) => [...ix.items.values()].filter(it => it.labels?.kind === 'dimension').sort((first, second) => first.id.localeCompare(second.id))
+/** Whether `it` is a dimension: a folder or file labelled `kind: dimension`, but not the README.md that labels its folder. */
+const isDimension = (it: Item) => it.labels?.kind === 'dimension' && !(it.kind !== 'folder' && it.parent?.labels?.kind === 'dimension')
 
-/** A dimension's name on its button: its file's `# ` title, else its file name. */
-const titleOf = (dimension: Item) => currentText(dimension.diff).match(/^# (.+)$/m)?.[1] ?? dimension.name
+/** The project's dimensions, in path order, so a repo orders them by naming them, e.g. "1-concepts/". */
+export const dimensionsOf = (ix: Index) => [...ix.items.values()].filter(isDimension).sort((first, second) => first.id.localeCompare(second.id))
+
+/** The dimension folder the map is zoomed into, or holds the zoomed box; null when it shows code. */
+const zoomedDimension = (ix: Index, scope: string | null) => dimensionsOf(ix).find(dimension => dimension.kind === 'folder' && within(ix.items.get(scope ?? ''), dimension.id))
+
+/** A dimension's name on its button: its file's (or folder README's) `# ` title, else its name. */
+const titleOf = (dimension: Item) => {
+  const file = dimension.kind === 'folder' ? dimension.kids.find(kid => kid.kind !== 'folder' && kid.labels?.kind === 'dimension') : dimension
+  return currentText(file?.diff ?? []).match(/^# (.+)$/m)?.[1] ?? dimension.name
+}
 
 /**
- * Buttons in the top bar: Code for the map, then one per dimension. Choosing a dimension also selects its file, so
- * comments made while looking at it go on that file's box.
+ * Buttons in the top bar: Code for the map, then one per dimension. A folder dimension zooms the map into its
+ * folder, so tours, notes and threads work there as on code; a file dimension is drawn in place of the map, with its
+ * file selected so comments go on it.
  */
 export function DimensionSwitch() {
   const x = useContext(X)
   const dimensions = dimensionsOf(x.ix)
   if (!dimensions.length) return null
+  const inFolder = zoomedDimension(x.ix, x.scope)
+  const shown = x.dimension ?? inFolder?.id ?? null
   const choose = (dimension: Item) => {
+    if (dimension.kind === 'folder') {
+      x.setDimension(null)
+      x.zoom(dimension.id)
+      return
+    }
     x.setDimension(dimension.id)
     x.select(dimension.id)
   }
+  const showCode = () => {
+    x.setDimension(null)
+    if (inFolder) x.zoom(null)
+  }
   return (
     <nav className="dimensions" aria-label="Dimensions">
-      <button className={x.dimension ? '' : 'here'} onClick={() => x.setDimension(null)}>Code</button>
+      <button className={shown ? '' : 'here'} onClick={showCode}>Code</button>
       {dimensions.map(dimension => (
-        <button key={dimension.id} className={x.dimension === dimension.id ? 'here' : ''} title={dimension.doc} onClick={() => choose(dimension)}>{titleOf(dimension)}</button>
+        <button key={dimension.id} className={shown === dimension.id ? 'here' : ''} title={dimension.doc} onClick={() => choose(dimension)}>{titleOf(dimension)}</button>
       ))}
     </nav>
   )

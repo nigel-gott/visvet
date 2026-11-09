@@ -401,8 +401,8 @@ function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl:
       // With a box selected, its own arrows stay bright and the rest fade, so selecting never moves anything.
       className: (es.every(e => e.kind === es[0].kind) ? es[0].kind : 'mix') + (hl.has(id) ? ' hl' : '') + (exact ? ' exact' : '') + (sel && !es.some(e => touches(e.a) || touches(e.b)) ? ' faded' : ''),
       markerEnd: es.some(e => e.kind !== 'has') ? { type: MarkerType.ArrowClosed } : undefined,
-      // Only a count of the links merged into the arrow.
-      label: es.length > 1 ? es.length : undefined,
+      // A count of the links merged into the arrow, or one link's own words, e.g. "owns".
+      label: es.length > 1 ? es.length : es[0].label ?? undefined,
     }))
 }
 

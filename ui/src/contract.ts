@@ -62,7 +62,11 @@ export type Coverage = { covered: number, coverable: number, };
 /**
  * `from` depends on `to`; one arrow on the map.
  */
-export type Dependency = { from: MapId, to: MapId, kind: DependencyKind, };
+export type Dependency = { from: MapId, to: MapId, kind: DependencyKind, 
+/**
+ * Words on the arrow, e.g. "owns" from a Markdown link's title; most arrows have none.
+ */
+label: string | null, };
 
 /**
  * How `from` depends on `to`.

@@ -19,7 +19,7 @@ pub struct Parsed {
     pub imports: Vec<Vec<RepoPath>>,
     pub calls: Vec<[String; 3]>,
     pub generates: Vec<String>,
-    pub links: Vec<String>,
+    pub links: Vec<markdown::DocLink>,
 }
 
 /// The lines `text` spans when it starts on line `first`.
@@ -77,7 +77,7 @@ fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, br
 
 /// The parts of a box that depend on whether it is a file's own box or a type in it: its status, content, the ids
 /// of the boxes generated from it, and for a Markdown file, the boxes and files it names.
-struct KindParts { status: ChangeStatus, content: BoxContent, generates: Vec<String>, links: Vec<String> }
+struct KindParts { status: ChangeStatus, content: BoxContent, generates: Vec<String>, links: Vec<markdown::DocLink> }
 
 /// A file's own box: the file's status, code only in a language visvet parses, the lock files a package manager
 /// writes from it, and for Markdown, its labels and links.

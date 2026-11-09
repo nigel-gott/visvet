@@ -47,4 +47,10 @@ impl DependencyKind {
 /// `from` depends on `to`; one arrow on the map.
 #[derive(Serialize, Deserialize, Clone, Debug, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
-pub struct Dependency { pub from: MapId, pub to: MapId, pub kind: DependencyKind }
+pub struct Dependency {
+    pub from: MapId,
+    pub to: MapId,
+    pub kind: DependencyKind,
+    /// Words on the arrow, e.g. "owns" from a Markdown link's title; most arrows have none.
+    pub label: Option<String>,
+}

@@ -2,11 +2,11 @@
 //! links) into arrows to the boxes they mean, and fills in which traits each box implements.
 use crate::review::compare::Parsed;
 use crate::types::{BoxContent, ChangeStatus, MapId, MapBox, Dependency, DependencyKind, Member, MemberKind, RepoPath, TraitRef, BoxId, BoxKind};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// A dependency arrow.
 fn dep(from: &str, to: &str, kind: DependencyKind) -> Dependency {
-    Dependency { from: MapId(from.into()), to: MapId(to.into()), kind }
+    Dependency { from: MapId(from.into()), to: MapId(to.into()), kind, label: None }
 }
 
 /// Resolves names into dependencies and each box's `implements`, and sorts the boxes by place. Every box is kept,
@@ -31,7 +31,15 @@ pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<RepoPath>) -> (Vec<MapB
                 edges.push(dep(member, to, arrow));
             }
         }
-        edges.extend(p.links.iter().filter(|to| ids.contains(to.as_str()) && *to != o.id.as_str()).collect::<BTreeSet<_>>().into_iter().map(|to| dep(o.id.as_str(), to, DependencyKind::Links)));
+        // One arrow per linked box, labelled by the first title any link to it has.
+        let mut linked: BTreeMap<&str, Option<String>> = BTreeMap::new();
+        for link in p.links.iter().filter(|link| ids.contains(link.target.as_str()) && link.target != o.id.as_str()) {
+            let label = linked.entry(link.target.as_str()).or_default();
+            if label.is_none() {
+                label.clone_from(&link.label);
+            }
+        }
+        edges.extend(linked.into_iter().map(|(to, label)| Dependency { label, ..dep(o.id.as_str(), to, DependencyKind::Links) }));
         edges.extend(p.generates.iter().filter(|to| ids.contains(to.as_str())).map(|to| dep(o.id.as_str(), to, DependencyKind::Generates)));
         implements.push(p.traits.iter().map(|name| TraitRef { name: name.clone(), box_id: ix.ty(o, name).map(|id| BoxId(id.into())) }).collect());
         for [from, q, name] in &p.calls {
