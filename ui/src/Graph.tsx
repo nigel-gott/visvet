@@ -7,7 +7,7 @@ import { reportView, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
 import { STEP_BUBBLE, StepBubble, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { anchor, Card, lastDrag, MAP_ZOOM, placeOf, type CardData } from './Card'
-import { height, showsCode, width } from './size'
+import { allLines, height, showsCode, width } from './size'
 import { mapView, type View } from './view'
 import { easeInOut, glideCamera, moves, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
 
@@ -486,7 +486,11 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     // A box a zoom passes through draws the view inside it, and is as tall as that view at its width.
     const drawsInside = preview?.box === n.id ? preview : undefined
     if (drawsInside && !drawsInside.settling && !drawsInside.landed) n = { ...n, height: absolute(drawsInside.inner.laid, n.id)!.height * drawsInside.scale }
-    const key = [position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code), drawsInside?.inward, drawsInside?.settling, drawsInside?.landed, n.height].join('|')
+    // What the box shows of its item, so an edit to the file redraws it: a reloaded model's items are new objects,
+    // and without this the box kept showing the old one's text until something else about it changed.
+    const shown = [it.doc, it.status, it.diffCount.added, it.diffCount.removed, it.loc, it.labels?.kind, it.labels?.status,
+      showsCode(it, x) ? allLines(it).map(line => line.kind + line.text).join('\n') : ''].join('\u0001')
+    const key = [shown, position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code), drawsInside?.inward, drawsInside?.settling, drawsInside?.landed, n.height].join('|')
     const old = made.current.boxes.get(n.id)
     if (old?.key === key) return old.node
     const data: CardData = {
