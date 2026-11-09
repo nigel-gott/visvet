@@ -522,3 +522,9 @@ main { position: relative }
 .highlight-comment { position: fixed; z-index: 30; transform: translate(-50%, calc(-100% - 6px)); padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--bg); color: var(--fg); font-size: 12px; box-shadow: 0 2px 8px rgb(0 0 0 / .2); cursor: pointer }
 .highlight-comment:hover { border-color: var(--sel) }
+.dimension-crumbs { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; max-width: 1400px; margin: 0 auto; padding: 10px 32px; background: var(--bg); font-size: 13px }
+.dimension-crumbs a { color: var(--sel); cursor: pointer }
+.dimension-crumbs span { color: var(--muted) }
+.mermaid-diagram a { cursor: pointer }
+.mermaid-diagram a .node rect, .mermaid-diagram a .node polygon, .mermaid-diagram a rect { stroke-width: 2px }
+.mermaid-diagram a:hover rect, .mermaid-diagram a:hover polygon, .mermaid-diagram a:hover circle, .mermaid-diagram a:hover path.basic { stroke: var(--sel) !important; stroke-width: 3px !important }

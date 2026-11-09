@@ -18,11 +18,11 @@ The map's top levels are the code's own folders and files. A Rust file `x.rs` ho
 Markdown files are boxes too. Front matter `kind: issue` or `kind: milestone` and `status: open` or `status: done` labels the box (other keys are ignored), and a folder takes its `README.md`'s. Every `path` or `file::box` named in backticks, or linked, gets a "links" arrow. Keep work to do in `issues/` (a folder per milestone, a file per issue), and when one is fixed, set `status: done` and move it to `issues/done/`, under its milestone's folder name.
 
 ## Dimensions
-Besides the code map, a project can be seen as its concepts, architecture, data or behaviour. Make each a folder whose `README.md` says `kind: dimension` (name them `1-concepts/` and so on for order); the top bar's switch zooms the map into it, so boxes, arrows, tours, notes and threads work as on code.
-- One idea, process or behaviour per Markdown file, grouped in subfolders, so the map zooms like code.
-- Label an arrow with the link's title: `[Entity](entity.md "owns")`. Plain links stay unlabelled.
-- Data can be type sketches (`.rs` files) so boxes show fields and "has" arrows; replace them with the real types once code exists.
-- Put a diagram in the box it describes, as ```mermaid (`stateDiagram-v2`, `sequenceDiagram`, `classDiagram`, `flowchart`). Draw C4 levels as folders and flowcharts; Mermaid's `C4Context` overlaps its labels. In labels avoid `;` (it ends a statement) and nested `~generics~` (write `#lt;`/`#gt;`).
+Besides the code map, a project can be seen as its concepts, architecture, data or behaviour: pages of diagrams, shown in place of the map by the top bar's switch. Make each a folder whose `README.md` says `kind: dimension` (name them `1-concepts/` and so on for order).
+- The README is the front page: one well-organised overview diagram, most of the reading done there, no clicking needed.
+- A bit of hierarchy: each part of the overview gets its own page in the folder with its detailed diagrams, linked from its node with `click node "page.md"` (`click Class href "page.md"` in a class diagram). The reader clicks in and uses the breadcrumbs to come back.
+- ```mermaid diagrams: `flowchart`, `classDiagram`, `stateDiagram-v2`, `sequenceDiagram`. Draw C4 levels as flowcharts; Mermaid's `C4Context` overlaps its labels. In labels avoid `;` (it ends a statement) and nested `~generics~` (write `#lt;`/`#gt;`).
+- On the code map, a Markdown link's title labels its arrow: `[Entity](entity.md "owns")`.
 - Keep them true: once code exists, update a dimension in the same change that alters what it draws.
 
 ## Annotate your change for review
