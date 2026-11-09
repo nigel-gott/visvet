@@ -3,7 +3,8 @@
 // or a folder whose README.md says so: its README is the front page, and its other Markdown files are pages that
 // links and diagram nodes open, one level deeper.
 
-import { Fragment, useContext, useState, type MouseEvent } from 'react'
+import { Fragment, useContext, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react'
+import { flushSync } from 'react-dom'
 import { X } from './context'
 import { MarkdownPage } from './Markdown'
 import { within, type Index, type Item } from './model'
@@ -41,8 +42,20 @@ export function DimensionSwitch() {
   )
 }
 
-/** Text highlighted on a dimension page, and where to put the button that comments on it. */
-type Highlight = { quote: string; section: string; left: number; top: number }
+/** Text highlighted on a dimension page, and where to put the button that comments on it: above the highlight, or `below` it. */
+type Highlight = { quote: string; section: string; left: number; top: number; below: boolean }
+
+/** Whether the screen is touched rather than pointed at, e.g. a phone, where highlighting is a long press. */
+const isTouchScreen = () => matchMedia('(pointer: coarse)').matches
+
+/** How long a highlight must stay still on a touch screen before its button shows, so dragging its handles doesn't flicker it. */
+const SETTLE_MS = 400
+
+/** On a touch screen, the room under a highlight for the browser's drag handles, which the button goes below. */
+const HANDLE_ROOM = 34
+
+/** The least room between the button's middle and the screen's sides, so the button stays wholly on screen. */
+const EDGE_ROOM = 64
 
 /** The heading of the page section `node` is in: the nearest `#` or `##` heading above it on the page. */
 function sectionOf(node: Node | null) {
@@ -54,13 +67,36 @@ function sectionOf(node: Node | null) {
   return ''
 }
 
-/** What is highlighted on the page now, with a spot just above its end for the button; null when nothing is. */
-function currentHighlight(): Highlight | null {
+/**
+ * What is highlighted in `view` now, with a spot for the button; null when nothing is. With a mouse the spot is just
+ * above the highlight's end; on a touch screen, whose browser puts its own menu above, it is centred below.
+ */
+function currentHighlight(view: Element | null): Highlight | null {
   const selection = getSelection()
   const quote = selection?.toString().replace(/\s+/g, ' ').trim() ?? ''
-  if (!selection || !quote) return null
+  if (!selection || !quote || !view?.contains(selection.anchorNode)) return null
   const bounds = selection.getRangeAt(0).getBoundingClientRect()
-  return { quote, section: sectionOf(selection.anchorNode), left: bounds.right, top: bounds.top }
+  const section = sectionOf(selection.anchorNode)
+  if (!isTouchScreen()) return { quote, section, left: bounds.right, top: bounds.top, below: false }
+  const middle = Math.min(Math.max((bounds.left + bounds.right) / 2, EDGE_ROOM), innerWidth - EDGE_ROOM)
+  return { quote, section, left: middle, top: bounds.bottom + HANDLE_ROOM, below: true }
+}
+
+/**
+ * On a touch screen, where a long press highlights without a reliable `mouseup`, shows `view`'s highlight once it
+ * stops changing.
+ */
+function useTouchHighlight(view: RefObject<HTMLDivElement | null>, setHighlight: (highlight: Highlight | null) => void) {
+  useEffect(() => {
+    if (!isTouchScreen()) return
+    let settling = 0
+    const settle = () => {
+      clearTimeout(settling)
+      settling = setTimeout(() => setHighlight(currentHighlight(view.current)), SETTLE_MS)
+    }
+    document.addEventListener('selectionchange', settle)
+    return () => { clearTimeout(settling); document.removeEventListener('selectionchange', settle) }
+  }, [view, setHighlight])
 }
 
 /**
@@ -70,6 +106,8 @@ function currentHighlight(): Highlight | null {
 export function DimensionView({ id }: { id: string }) {
   const x = useContext(X)
   const [highlight, setHighlight] = useState<Highlight | null>(null)
+  const view = useRef<HTMLDivElement>(null)
+  useTouchHighlight(view, setHighlight)
   const page = x.ix.items.get(id)
   const dimension = dimensionOfPage(x.ix, id)
   const crumbs = page && dimension ? crumbsTo(x.ix, dimension, page) : []
@@ -78,12 +116,14 @@ export function DimensionView({ id }: { id: string }) {
     event.stopPropagation()
     x.select(id)
     const where = chosen.section ? `**${chosen.section}**: ` : ''
-    x.setDraft({ target: id, text: `${where}"${chosen.quote}"\n\n` })
+    // Focused within the tap, so a phone opens its keyboard (as in `StartComment`).
+    flushSync(() => x.setDraft({ target: id, text: `${where}"${chosen.quote}"\n\n` }))
+    document.querySelector<HTMLTextAreaElement>('textarea.say')?.focus()
     getSelection()?.removeAllRanges()
     setHighlight(null)
   }
   return (
-    <div className="dimension-view" onMouseUp={() => setHighlight(currentHighlight())}>
+    <div className="dimension-view" ref={view} onMouseUp={() => setHighlight(currentHighlight(view.current))}>
       {(crumbs.length > 1 || also.length > 0) && (
         <nav className="dimension-crumbs">
           {crumbs.length > 1 && crumbs.map((crumb, index) => (
@@ -104,7 +144,7 @@ export function DimensionView({ id }: { id: string }) {
       {page ? <MarkdownPage key={page.id} text={currentText(page.diff)} file={page.id} /> : <p>This page's file is gone.</p>}
       {highlight && (
         // Pressing the button mustn't clear the highlight before its click lands.
-        <button className="highlight-comment" style={{ left: highlight.left, top: highlight.top }}
+        <button className={highlight.below ? 'highlight-comment below' : 'highlight-comment'} style={{ left: highlight.left, top: highlight.top }}
           onMouseDown={event => event.preventDefault()} onMouseUp={event => event.stopPropagation()} onClick={event => comment(event, highlight)}>💬 Comment</button>
       )}
     </div>
