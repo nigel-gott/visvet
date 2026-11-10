@@ -38,12 +38,16 @@ function block(text: string, w: number) {
  */
 export const showsCode = (it: Item, x: Ctx) => x.expanded.has(it.id) && it.diff.length > 0 && (!it.kids.length || it.id === x.scope || it.id === x.stepBox)
 const CODE_FONT = '12px ui-monospace, SFMono-Regular, Menlo, monospace'
+/** Whether the screen is as narrow as a phone's: the width style.css's phone rules start at. */
+export function isPhone() {
+  return window.matchMedia('(max-width: 700px)').matches
+}
 /**
  * An expanded box's code wraps lines longer than 140 characters, or on a phone, than fit across the screen, so the
  * box is never wider than the screen it is read on.
  */
 // ponytail: read once at load, so turning the phone keeps the old width until a reload; recompute on resize if that annoys.
-const CODE_COLS = window.matchMedia('(max-width: 700px)').matches ? Math.min(140, Math.floor((Math.min(window.innerWidth, window.screen.width) - 16 - 64) / measure('m', CODE_FONT))) : 140
+const CODE_COLS = isPhone() ? Math.min(140, Math.floor((Math.min(window.innerWidth, window.screen.width) - 16 - 64) / measure('m', CODE_FONT))) : 140
 /** How many characters wide an expanded box's code is: its longest line, up to CODE_COLS. */
 /**
  * All of a box's code, as diff lines: its own text, then its members written outside it, e.g. a Rust type's methods,

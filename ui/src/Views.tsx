@@ -108,7 +108,8 @@ export function Outline() {
   const filtering = q !== '' || f > 0
   const match = (it: Item): boolean =>
     ((FILTERS[f][1](it, x) && `${it.id} ${it.doc}`.toLowerCase().includes(q.toLowerCase())) || it.kids.some(match))
-  const scope = x.scope ? x.ix.items.get(x.scope) : undefined
+  // In Read mode, where the map's zoom is out of sight, the tree opens to the item being read instead.
+  const scope = x.ix.items.get((x.reading ? x.sel : x.scope) ?? '')
   /** Whether a row shows its children: as on the map, the rows down to the zoomed box and the box itself are open. */
   const open = (it: Item) => toggled.get(it.id) ?? within(scope, it.id)
   /** Opens or closes a row. */
@@ -132,9 +133,12 @@ export function Outline() {
   )
 }
 
-/** The file tree down the left of the map. Its button hides it to a thin strip and shows it again; drag its right edge to resize it. */
+/**
+ * The file tree down the left of the map. Its button hides it to a thin strip and shows it again; drag its right edge to
+ * resize it. In Read mode on a phone it is a drawer over the page instead (style.css).
+ */
 export function FileTree() {
-  const [shown, setShown] = useState(true)
+  const { treeShown: shown, showTree: setShown } = useContext(X)
   const [width, setWidth] = useState(TREE_START_WIDTH)
   const tree = useRef<HTMLElement>(null)
   /** While the edge is held, the tree's right side follows the pointer. */
@@ -426,16 +430,24 @@ function Related({ id, it }: { id: string; it?: Item }) {
   ))
 }
 
-/** Prev and Next through the review order. */
-function NavBar({ it }: { it: Item }) {
+/** Whether `it` is a file, not a folder or a box inside a file. */
+const isFile = (it: Item) => it.kind === 'file'
+
+/**
+ * Prev and Next from file `it`, each naming the file it opens: through the changed files in review order when `it` is
+ * one of them, else through every file in the tree's order. Nothing for a folder or a box inside a file.
+ */
+export function NavBar({ it }: { it: Item }) {
   const x = useContext(X)
-  const { order } = x.ix
-  const i = order.indexOf(it)
-  if (i < 0) return null
+  const changed = x.ix.order.filter(isFile)
+  const files = changed.includes(it) ? changed : x.ix.all.filter(isFile)
+  const at = files.indexOf(it)
+  if (at < 0) return null
+  const previous = files[at - 1], next = files[at + 1]
   return (
     <div className="nav">
-      <button disabled={i === 0} onClick={() => x.focus(order[i - 1].id, true)}>◂ Prev</button>
-      <button disabled={i === order.length - 1} onClick={() => x.focus(order[i + 1].id, true)}>Next ▸</button>
+      <button disabled={!previous} title={previous?.id} onClick={() => x.focus(previous.id, true)}>◂ {previous?.name ?? 'Prev'}</button>
+      <button disabled={!next} title={next?.id} onClick={() => x.focus(next.id, true)}>{next?.name ?? 'Next'} ▸</button>
     </div>
   )
 }

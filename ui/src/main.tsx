@@ -11,11 +11,13 @@ import { ancestorsOf, flip, flipAll, within, getReview, index, reportView, type 
 import Graph, { WHOLE_MAP } from './Graph'
 import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
-import { hasPanel, Inbox, Peek, StartComment, ThreadCounts, ThreadPanel } from './Threads'
+import { hasPanel, Inbox, Peek, StartComment, ThreadButton, ThreadCounts, ThreadPanel } from './Threads'
 import { FileTree, LineCounts } from './Views'
 import { DocPreview, type DocToShow } from './DocPreview'
 import { DimensionSwitch, DimensionView } from './Dimensions'
 import { isDimensionPage } from './pages'
+import { ModeSwitch, TreeButton } from './Reading'
+import { isPhone } from './size'
 import { bubbleBoxOf, NotesPlace, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
 
 
@@ -73,8 +75,10 @@ const entry = () => history.state ?? {}
 /** A history entry's map state, with defaults for an entry that has none: {scope, map, hl}. */
 const viewOf = (s: { scope?: string | null; map?: boolean; hl?: string[] }) =>
   ({ scope: s.scope ?? null, map: s.map ?? false, hl: s.hl ?? [] })
-/** The outline's and detail's scroll offsets. */
-const scrolls = () => [...document.querySelectorAll('aside')].map(a => a.scrollTop)
+/** What scrolls on its own: the file tree, the drawer, and a page over the map (a dimension's, or Read mode's). */
+const SCROLLERS = 'aside, .dimension-view'
+/** Their scroll offsets. */
+const scrolls = () => [...document.querySelectorAll(SCROLLERS)].map(a => a.scrollTop)
 
 /**
  * The selection, map zoom and mode, kept in browser history so Back (or Escape) and Forward restore each view,
@@ -97,7 +101,7 @@ function useNav() {
       stopZooms()
       const s = entry(), v = viewOf(s)
       setSel(hashSel()); setScope(v.scope); setMap(v.map); setHl(v.hl); setPop(p => p + 1)
-      requestAnimationFrame(() => document.querySelectorAll('aside').forEach((a, i) => { a.scrollTop = s.scroll?.[i] ?? 0 }))
+      requestAnimationFrame(() => document.querySelectorAll(SCROLLERS).forEach((a, i) => { a.scrollTop = s.scroll?.[i] ?? 0 }))
     }, opts)
     addEventListener('keydown', e => e.key === 'Escape' && !(e.target as Element).matches('input, textarea') && back(), opts)
     return () => ac.abort()
@@ -134,8 +138,9 @@ function useNav() {
 
 /**
  * The top bar, one row: Back, Forward and Up, then where the map is zoomed (each step of the path clickable), then
- * the Tours button, what the review changed and compares against, its threads, and the settings menu. A tour that
- * is playing gets a strip of its own under the row (see `TourBar`).
+ * the Map or Read switch, the Tours button, what the review changed and compares against, its threads, and the settings menu. A tour that
+ * is playing gets a strip of its own under the row (see `TourBar`). In Read mode the map's Up and path are left out
+ * (the page has its own path), and a phone gets a button for the file tree.
  */
 function Header({ error }: { error?: string }) {
   const x = useContext(X)
@@ -145,15 +150,17 @@ function Header({ error }: { error?: string }) {
   return (
     <header>
       <nav className="steps">
+        {x.reading && <TreeButton />}
         <button title="Back" onClick={() => history.back()}>←</button>
         <button title="Forward" onClick={() => history.forward()}>→</button>
-        <button title="Up to the box this one is in" disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>
+        {!x.reading && <button title="Up to the box this one is in" disabled={!x.scope} onClick={() => to(path.at(-2)?.id ?? null)}>↑</button>}
       </nav>
       <nav className="path">
-        <a className={x.scope ? '' : 'here'} onClick={() => to(null)}>Map</a>
-        {path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
+        {!x.reading && <a className={x.scope ? '' : 'here'} onClick={() => to(null)}>Map</a>}
+        {!x.reading && path.map(it => <Fragment key={it.id}><span>›</span><a className={it.id === x.scope ? 'here' : ''} onClick={() => to(it.id)}>{it.name}</a></Fragment>)}
         <WayAhead path={path} />
       </nav>
+      <ModeSwitch />
       <DimensionSwitch />
       <TourBar />
       <div className="review-status">
@@ -252,29 +259,33 @@ function useFocus(ix: Index | undefined, select: Ctx['select']) {
   }
 }
 
-/** Where the tour's notes on code sit: in the margin beside the code (true, the default) or in between its lines, if chosen in this browser. */
-function useNotesPlace() {
-  const saved = () => { try { return localStorage.getItem('visvet:notes-place') !== 'in' } catch { return true } }
-  const [beside, setBeside] = useState(saved)
-  const choose = (chosen: boolean) => {
-    setBeside(chosen)
-    try { localStorage.setItem('visvet:notes-place', chosen ? 'beside' : 'in') } catch { /* private mode: not kept */ }
+/** A setting kept in this browser under `key`, e.g. "visvet:mode": `fallback` until one is chosen. */
+function useSetting(key: string, fallback: string) {
+  const saved = () => { try { return localStorage.getItem(key) ?? fallback } catch { return fallback } }
+  const [value, setValue] = useState(saved)
+  const choose = (chosen: string) => {
+    setValue(chosen)
+    try { localStorage.setItem(key, chosen) } catch { /* private mode: not kept */ }
   }
-  return [beside, choose] as const
+  return [value, choose] as const
 }
 
-/** The side drawer: the inbox, or the selected box's thread in full, or as a bubble with only its latest message, or for a box with no thread a button to start one. */
+/**
+ * The side drawer: the inbox, or the selected box's thread in full, or as a bubble with only its latest message (in
+ * Read mode, until a comment is being typed, a small button instead), or for a box with no thread a button to start one.
+ */
 function Drawer() {
   const x = useContext(X)
   if (x.inbox) return <aside className="drawer"><Inbox /></aside>
   if (!x.sel) return null
   if (!hasPanel(x, x.sel)) return <div className="peek"><StartComment target={x.sel} label="Comment" /></div>
-  return x.full || x.detail ? <aside className="drawer"><ThreadPanel target={x.sel} /></aside> : <Peek target={x.sel} />
+  if (x.full || x.detail) return <aside className="drawer"><ThreadPanel target={x.sel} /></aside>
+  return x.reading && !x.draft ? <div className="peek"><ThreadButton target={x.sel} /></div> : <Peek target={x.sel} />
 }
 
 /**
- * Header, file tree and map, kept in sync with history and server events. The detail view (in Views.tsx) is hidden for
- * now; the user talks to the AI about what they select.
+ * Header, file tree and map, or in Read mode the selected item's text in the map's place, kept in sync with history
+ * and server events. The detail view (in Views.tsx) is hidden for now; the user talks to the AI about what they select.
  */
 function App() {
   const { model, error, show } = useModel()
@@ -292,7 +303,12 @@ function App() {
   const [inbox, setInbox] = useState(false)
   const [full, setFull] = useState<string | null>(null)
   const [tour, setTour] = useState<TourPlace | null>(null)
-  const [notesBeside, setNotesBeside] = useNotesPlace()
+  // Where the tour's notes on code sit: in the margin beside the code (the default), or in between its lines.
+  const [notesPlace, setNotesPlace] = useSetting('visvet:notes-place', 'beside')
+  // The map, or Read mode: a phone starts in Read mode, where the file tree is a drawer that starts closed.
+  const [mode, setMode] = useSetting('visvet:mode', isPhone() ? 'read' : 'map')
+  const reads = mode === 'read'
+  const [treeShown, showTree] = useState(!(reads && isPhone()))
   const [docShown, showDoc] = useState<DocToShow | null>(null)
   const [dimension, setDimension] = useState<string | null>(null)
   /** Which move between tour steps is the latest, so a quick Next stops an older one between zoom levels. */
@@ -405,16 +421,37 @@ function App() {
     : { next: way[0], move: way[0] === null || ancestorsOf(ix, scope ?? '').includes(way[0]) ? 'up' : 'into' }
   const guide: Guide | null = headingStep && !reached ? { stops: [scope, ...way], ...nextMove(), title: headingStep.title, note: headingStep.route } : null
   const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
+  /** Read mode's page is on screen unless a tour is playing or moving, which needs the map. */
+  const reading = reads && !tour && !heading && !route
+  /** In Read mode the page is the selection (an arrow's is the box it starts from), so the dimension shown is the selection's. */
+  const readingId = sel?.split(' -> ')[0] ?? null
+  const dimensionShown = !reading ? dimension : readingId && isDimensionPage(ix, readingId) ? readingId : null
+  /** Opens item `id` as Read mode's page; on a phone that also closes the file tree's drawer. */
+  const read = (id: string) => {
+    select(id)
+    if (isPhone()) showTree(false)
+  }
+  /** Read mode's Code button leaves a dimension's page for the repo's README.md, or without one, its first folder or file. */
+  const readCode = (chosen: string | null) => {
+    if (chosen === null && dimensionShown) read((ix.items.get('README.md') ?? ix.roots[0]).id)
+  }
+  /** Chooses Read mode or the map; the map then shows the dimension being read, and a phone's file tree starts closed. */
+  const setReads = (chosen: boolean) => {
+    setMode(chosen ? 'read' : 'map')
+    if (!chosen) setDimension(dimensionShown)
+    if (chosen && isPhone()) showTree(false)
+  }
   const x: Ctx = {
-    model, ix, sel, hl: new Set(hl), select, focus, dimension, setDimension,
-    openFile: id => {
+    model, ix, sel, hl: new Set(hl), select, focus, dimension: dimensionShown, setDimension: reading ? readCode : setDimension,
+    reading, setReads, treeShown, showTree,
+    openFile: reading ? read : id => {
       const opensAsPage = isDimensionPage(ix, id)
       setDimension(opensAsPage ? id : null)
       if (opensAsPage) select(id)
       else focus(id)
-    }, goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
+    }, goTo: reading ? read : goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     // While the user drives to the next step, the step they left hides its bubble and notes.
-    tour, showStep, notesBeside, setNotesBeside, docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
+    tour, showStep, notesBeside: notesPlace !== 'in', setNotesBeside: beside => setNotesPlace(beside ? 'beside' : 'in'), docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads: model.annotations.threads,
@@ -423,12 +460,12 @@ function App() {
   }
   return (
     <X.Provider value={x}>
-      <div className="app">
+      <div className={reading ? 'app reading' : 'app'}>
         <Header error={error} />
         <FileTree />
         <main>
-          <Graph visible={!dimension} pop={pop} />
-          {dimension && <DimensionView id={dimension} />}
+          <Graph visible={!dimension && !reading} pop={pop} />
+          {reading ? <DimensionView id={readingId} reading /> : dimension && <DimensionView id={dimension} />}
         </main>
         <LostStep />
         <RouteOverlay />

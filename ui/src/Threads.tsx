@@ -109,6 +109,17 @@ export function Peek({ target }: { target: string }) {
   )
 }
 
+/**
+ * In Read mode, where a bubble would cover the text being read: a small button for box `target`'s threads, saying the
+ * latest one's state, that opens them all in the drawer, to read and reply.
+ */
+export function ThreadButton({ target }: { target: string }) {
+  const x = useContext(X)
+  const last = x.threads.filter(t => t.target === target).at(-1)
+  if (!last) return null
+  return <button className={`start-comment talk ${last.state}`} title="Show the whole thread" onClick={() => x.setFull(target)}>💬 {onlyNotes(last) ? 'Note' : LABEL[last.state]}</button>
+}
+
 /** Whether the selected box `target` has anything for the side drawer: threads, a clicked debuff, or a comment being typed. */
 export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target === target) || !!x.detail || !!x.draft
 
@@ -193,14 +204,14 @@ function nearest(ix: Index, id: string) {
 /**
  * Every thread: open ones first, then resolved ones, each with its box, state and last message, most recently active
  * first. Clicking one shows its box among its siblings, with the whole thread open in the drawer. If its box is gone
- * (renamed or removed), it zooms into where the box was instead.
+ * (renamed or removed), it zooms into where the box was instead. In Read mode it opens the box's text and thread, with no zoom.
  */
 export function Inbox() {
   const x = useContext(X)
   const go = (t: Thread) => {
     const it = x.ix.items.get(t.target)
     const up = it ? it.parent?.id ?? null : nearest(x.ix, t.target)
-    if (up !== x.scope) x.zoom(up)
+    if (up !== x.scope && !x.reading) x.zoom(up)
     x.select(t.target, true)
     x.setFull(t.target)
     x.setInbox(false)

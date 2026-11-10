@@ -553,3 +553,32 @@ main { position: relative }
   .dimension-view .mermaid-diagram { overflow-x: auto; text-align: left }
   .dimension-view .mermaid-diagram svg { min-width: calc(var(--diagram-width) * .75) }
 }
+
+/* Read mode (Reading.tsx): the selected item's text as a page in the map's place, code and lists as wide as a page's
+   text. Prev and Next stay at the page's bottom edge, with the Comment button or thread bubble just above them. */
+.dimension-view .diff, .read-list { max-width: 1400px; margin: 12px auto }
+.read-list { padding: 0 32px }
+.read-list .orow { padding: 10px 0 }
+.dimension-view .md-toggle { position: static }
+/* A column, so that under a short page Prev and Next still sit at the bottom edge. */
+.reading .dimension-view { display: flex; flex-direction: column }
+.reading .dimension-view > :not(.highlight-comment) { flex: none; width: 100% }
+.reading .dimension-view > .nav { margin-top: auto }
+.dimension-view .ln { padding-right: 8px }
+.nav button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.reading .peek { margin-bottom: 68px }
+.tree-open { display: none }
+.start-comment.talk { border-color: var(--t); color: var(--t) }
+/* Phones in Read mode: the page has the whole width, and the file tree is a drawer over it, opened and closed by the
+   top bar's ☰ and closed by choosing a row. Code runs edge to edge. */
+@media (max-width: 700px) {
+  .reading .tree-open { display: block }
+  .reading .path { display: none }
+  .reading .review-status { margin-left: auto }
+  .app:has(.dimension-view) .dimensions.modes { order: 0; flex: none }
+  .reading .tree:not(.hidden) { display: block; grid-area: 2 / 1 / 3 / 3; z-index: 5; width: 100% !important; max-width: none }
+  .reading .tree.hidden, .reading .tree-edge, .reading:has(.tree:not(.hidden)) .peek { display: none }
+  .reading .tree .orow { padding-block: 8px }
+  .dimension-view .diff { margin-inline: 0; border-inline: 0; border-radius: 0 }
+  .read-list { padding: 0 16px }
+}

@@ -16,7 +16,7 @@ export type Ctx = {
   /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
   select: (id: string, replace?: boolean) => void
   focus: (id: string, replace?: boolean) => void
-  /** Shows box `id` on the map: zooms (gliding) into the box around it, then selects and outlines it. */
+  /** Shows box `id` on the map: zooms (gliding) into the box around it, then selects and outlines it. In Read mode, opens its text. */
   goTo: (id: string) => void
   /** The tour playing and its step, if one is. */
   tour: TourPlace | null
@@ -41,8 +41,15 @@ export type Ctx = {
   /** The dimension shown in place of the map: its file's id, or null for the code map. */
   dimension: string | null
   setDimension: (dimension: string | null) => void
-  /** Opens a repo file: a dimension's page in its dimension's view, anything else as its box on the code map. */
+  /** Opens a repo file: a dimension's page in its dimension's view, anything else as its box on the code map. In Read mode, opens its text. */
   openFile: (id: string) => void
+  /** Whether Read mode's page is on screen (see Reading.tsx): chosen in this browser, and no tour is playing, which needs the map. */
+  reading: boolean
+  /** Chooses Read mode, or the map. */
+  setReads: (reads: boolean) => void
+  /** Whether the file tree is open: beside the map, or in Read mode on a phone, as a drawer over the page. */
+  treeShown: boolean
+  showTree: (shown: boolean) => void
   /** The box the map is zoomed into (null shows the whole map); zooming adds a history entry. */
   scope: string | null
   zoom: (id: string | null) => void

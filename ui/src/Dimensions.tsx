@@ -3,11 +3,12 @@
 // or a folder whose README.md says so: its README is the front page, and its other Markdown files are pages that
 // links and diagram nodes open, one level deeper.
 
-import { Fragment, useContext, useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react'
+import { Fragment, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { X } from './context'
 import { MarkdownPage } from './Markdown'
-import { within, type Index, type Item } from './model'
+import { ancestorsOf, within, type Index, type Item } from './model'
+import { ReadingText } from './Reading'
 import { alsoOf, currentText, dimensionOfPage, dimensionsOf, frontPageOf, nameOfPage, titleOf, titleOfPage } from './pages'
 
 /** The pages from a dimension's front page down to `page`: the README of each folder on the way, then the page. */
@@ -57,9 +58,11 @@ const HANDLE_ROOM = 34
 /** The least room between the button's middle and the screen's sides, so the button stays wholly on screen. */
 const EDGE_ROOM = 64
 
-/** The heading of the page section `node` is in: the nearest `#` or `##` heading above it on the page. */
+/** Where on the page `node` is: in code, its line, e.g. "line 12"; on a Markdown page, the nearest `#` or `##` heading above it. */
 function sectionOf(node: Node | null) {
   let element = node instanceof Element ? node : node?.parentElement ?? null
+  const lineNumber = element?.closest('.ln')?.querySelector('.no')?.textContent
+  if (lineNumber) return `line ${lineNumber}`
   while (element?.parentElement && !element.parentElement.classList.contains('md-page')) element = element.parentElement
   for (let above = element; above; above = above.previousElementSibling) {
     if (above.tagName === 'H1' || above.tagName === 'H2') return above.textContent ?? ''
@@ -100,24 +103,33 @@ function useTouchHighlight(view: RefObject<HTMLDivElement | null>, setHighlight:
 }
 
 /**
- * The chosen dimension, drawn over the map at full size. Highlighting any of it, diagram text included, shows a
- * Comment button that starts a comment on the dimension's file quoting the highlight and naming its section.
+ * A page drawn over the map at full size: the chosen dimension's, or with `reading` (Read mode), the text of item `id`
+ * whatever it is (see `ReadingText`; null shows the top folders and files), under the path to it. Highlighting any of
+ * it, diagram text included, shows a Comment button that starts a comment on the item quoting the highlight and
+ * naming its section or line.
  */
-export function DimensionView({ id }: { id: string }) {
+export function DimensionView({ id, reading = false }: { id: string | null; reading?: boolean }) {
   const x = useContext(X)
   const [highlight, setHighlight] = useState<Highlight | null>(null)
   const view = useRef<HTMLDivElement>(null)
   useTouchHighlight(view, setHighlight)
-  const page = x.ix.items.get(id)
+  // Another page starts at its top; Back and Forward then put the scroll back where it was (see `useNav`).
+  useLayoutEffect(() => view.current?.scrollTo(0, 0), [id])
+  const page = x.ix.items.get(id ?? '')
   const dimension = dimensionOfPage(x.ix, id)
-  const crumbs = page && dimension ? crumbsTo(x.ix, dimension, page) : []
+  /** The folders, file and boxes around `page`, outermost first, then `page`. */
+  const pathTo = (page: Item) => ancestorsOf(x.ix, page.id).reverse().map(around => x.ix.items.get(around)!)
+  const crumbs = !page ? [] : dimension ? crumbsTo(x.ix, dimension, page) : reading ? pathTo(page) : []
+  /** A crumb's words: a dimension page's title, or outside a dimension, the item's name. */
+  const crumbName = (crumb: Item) => (dimension ? titleOfPage(crumb) : crumb.name)
   const also = page ? alsoOf(x.ix, page) : []
-  const comment = (event: MouseEvent, chosen: Highlight) => {
+  const isGone = id !== null && !page
+  const comment = (event: MouseEvent, chosen: Highlight, target: string) => {
     event.stopPropagation()
-    x.select(id)
+    x.select(target)
     const where = chosen.section ? `**${chosen.section}**: ` : ''
     // Focused within the tap, so a phone opens its keyboard (as in `StartComment`).
-    flushSync(() => x.setDraft({ target: id, text: `${where}"${chosen.quote}"\n\n` }))
+    flushSync(() => x.setDraft({ target, text: `${where}"${chosen.quote}"\n\n` }))
     document.querySelector<HTMLTextAreaElement>('textarea.say')?.focus()
     getSelection()?.removeAllRanges()
     setHighlight(null)
@@ -129,7 +141,7 @@ export function DimensionView({ id }: { id: string }) {
           {crumbs.length > 1 && crumbs.map((crumb, index) => (
             <Fragment key={crumb.id}>
               {index > 0 && <span>›</span>}
-              {crumb === page ? <b>{titleOfPage(crumb)}</b> : <a onClick={() => x.openFile(crumb.id)}>{titleOfPage(crumb)}</a>}
+              {crumb === page ? <b>{crumbName(crumb)}</b> : <a onClick={() => x.openFile(crumb.id)}>{crumbName(crumb)}</a>}
             </Fragment>
           ))}
           {also.length > 0 && (
@@ -141,11 +153,13 @@ export function DimensionView({ id }: { id: string }) {
           )}
         </nav>
       )}
-      {page ? <MarkdownPage key={page.id} text={currentText(page.diff)} file={page.id} /> : <p>This page's file is gone.</p>}
-      {highlight && (
+      {isGone && <p className="read-list">This page's file is gone.</p>}
+      {!isGone && reading && <ReadingText it={page} />}
+      {page && !reading && <MarkdownPage key={page.id} text={currentText(page.diff)} file={page.id} />}
+      {highlight && page && (
         // Pressing the button mustn't clear the highlight before its click lands.
         <button className={highlight.below ? 'highlight-comment below' : 'highlight-comment'} style={{ left: highlight.left, top: highlight.top }}
-          onMouseDown={event => event.preventDefault()} onMouseUp={event => event.stopPropagation()} onClick={event => comment(event, highlight)}>💬 Comment</button>
+          onMouseDown={event => event.preventDefault()} onMouseUp={event => event.stopPropagation()} onClick={event => comment(event, highlight, page.id)}>💬 Comment</button>
       )}
     </div>
   )
