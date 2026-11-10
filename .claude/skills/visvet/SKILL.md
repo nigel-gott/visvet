@@ -67,6 +67,7 @@ The user reviews at the folder, file and type level, then reads code only where 
 The user keeps visvet open beside this session.
 - A hook runs `visvet view` on every user message. So when the user says "this", "here" or "that arrow", read the view first: the zoomed box, the selected symbol and the boxes on screen. If it is many seconds old, they may have looked away.
 - To point at something, run `visvet show <symbol> --highlight <ids...>`. The UI zooms there, opens the symbol and outlines it and the given boxes or arrows ("<from> -> <to>"). The user's Back button returns them to where they were.
+- Read mode (the top bar's Map | Read switch; a phone starts in it) shows the selected item's text over the whole screen instead of the map: a Markdown file rendered, code as its diff, a folder as its README.md or a list of what is inside. `visvet view` then gives the selected item and no boxes on screen, and `visvet show <symbol>` opens that item's text. Comments made by highlighting land on the file being read, quoting the text with its section or `line N`.
 
 ## Answer the user's comment threads
 The user comments on boxes in visvet instead of in chat, so they don't interrupt your work. Each thread is open (waiting for you), working, question (waiting for them) or resolved.
