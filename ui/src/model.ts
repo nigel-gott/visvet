@@ -28,7 +28,9 @@ export function reportView(v = view) {
   clearTimeout(timer)
   timer = setTimeout(() => {
     const onScreen = (b: DOMRect) => b.width > 0 && b.bottom > 0 && b.right > 0 && b.top < innerHeight && b.left < innerWidth
-    const visible = [...document.querySelectorAll('.react-flow__node')].filter(n => onScreen(n.getBoundingClientRect())).map(n => n.getAttribute('data-id')!)
+    // A page over the map (a dimension's, or Read mode's) hides every box.
+    const mapHidden = !!document.querySelector('.dimension-view')
+    const visible = mapHidden ? [] : [...document.querySelectorAll('.react-flow__node')].filter(n => onScreen(n.getBoundingClientRect())).map(n => n.getAttribute('data-id')!)
     const body = JSON.stringify({ ...view, visible })
     if (view && body !== sent) post('/api/view', JSON.parse(body)).then(() => { sent = body }, () => {})
   }, 500)
