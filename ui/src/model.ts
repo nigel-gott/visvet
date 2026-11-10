@@ -1,6 +1,6 @@
 // The API calls and the item tree every view renders. The data types are generated from src/types.rs
 // by ts-rs into contract.ts (run `cargo test` after changing them); nothing here mirrors them by hand.
-import type { ChangeStatus, Coverage, DiffLine, DocLabels, MapBox, Member, Review, View } from './contract'
+import type { ChangeStatus, Coverage, DiffLine, DocLabels, MapBox, Member, Review, ReviewAnnotations, View } from './contract'
 export type * from './contract'
 
 /** fetch that throws on a non-2xx status, with the response body as the message. */
@@ -12,6 +12,9 @@ const req = (path: string, init?: RequestInit) =>
 
 /** Fetches the review model. */
 export const getReview = (): Promise<Review> => req('/api/review').then(r => r.json())
+
+/** Fetches the comment threads alone: small, where the review of a big repository is megabytes. */
+export const getThreads = (): Promise<ReviewAnnotations> => req('/api/threads').then(r => r.json())
 
 /** POSTs JSON to the API. */
 export const post = (path: string, body: object) =>

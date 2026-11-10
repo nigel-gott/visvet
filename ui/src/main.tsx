@@ -7,7 +7,7 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
 import type { StepView } from './contract'
-import { ancestorsOf, flip, flipAll, within, getReview, index, reportView, type Index, type Item, type Review, type Show } from './model'
+import { ancestorsOf, flip, flipAll, within, getReview, getThreads, index, reportView, type Index, type Item, type Review, type Show, type Thread } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
 import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
 import { X, type Ctx } from './context'
@@ -43,23 +43,39 @@ async function reloadIfRebuilt() {
   reload()
 }
 
-/** The review model, reloaded on every server change event, the last load error, and the last `visvet show` request. */
+/**
+ * A loader: each call runs `fetch` and hands its result to `show`, or its error to `fail`. A response older than the
+ * one shown is dropped.
+ */
+function latestOnly<Loaded>(fetch: () => Promise<Loaded>, show: (loaded: Loaded) => void, fail: (problem: Error) => void) {
+  let sent = 0, shown = 0
+  return () => {
+    const request = ++sent
+    fetch().then(loaded => { if (request > shown) { shown = request; show(loaded) } }, problem => request > shown && fail(problem))
+  }
+}
+
+/**
+ * The review model, reloaded on every server `change` event; the comment threads, reloaded on their own on a `threads`
+ * event too (a new comment changes nothing else, and on a big repository the model is megabytes); the last load
+ * error, and the last `visvet show` request.
+ */
 function useModel() {
   const [model, setModel] = useState<Review>()
+  const [threads, setThreads] = useState<Thread[]>()
   const [error, setError] = useState<string>()
   const [show, setShow] = useState<Show>()
   useEffect(() => {
-    // `change` comes on connect and after every edit or POST; a response older than the one shown is dropped.
-    let sent = 0, shown = 0
-    const load = () => {
-      const n = ++sent
-      getReview().then(m => { if (n > shown) { shown = n; setModel(m); setError(undefined) } }, e => n > shown && setError(e.message))
-    }
+    const loadThreads = latestOnly(getThreads, loaded => setThreads(loaded.threads), problem => setError(problem.message))
+    const loadModel = latestOnly(getReview, loaded => { setModel(loaded); setError(undefined) }, problem => setError(problem.message))
+    // `change` comes on connect and after every edit.
+    const load = () => { loadThreads(); loadModel() }
     let events: EventSource
     // A proxy error (e.g. a 502 while visvet restarts) closes the stream for good, so reconnect after a pause.
     const connect = () => {
       events = new EventSource('/api/events')
       events.addEventListener('change', load)
+      events.addEventListener('threads', loadThreads)
       events.onopen = reloadIfRebuilt
       events.addEventListener('show', e => setShow(JSON.parse(e.data)))
       events.onerror = () => { load(); if (events.readyState === EventSource.CLOSED) setTimeout(connect, 3000) }
@@ -67,7 +83,7 @@ function useModel() {
     connect()
     return () => events.close()
   }, [])
-  return { model, error, show }
+  return { model, threads: threads ?? model?.annotations.threads ?? [], error, show }
 }
 
 /** The current history entry's state: {scope, map, hl (highlighted ids), vp (map viewport), scroll (of the asides)}. */
@@ -288,7 +304,7 @@ function Drawer() {
  * and server events. The detail view (in Views.tsx) is hidden for now; the user talks to the AI about what they select.
  */
 function App() {
-  const { model, error, show } = useModel()
+  const { model, threads, error, show } = useModel()
   const { sel, scope, map, hl, pop, back, select, go, ...nav } = useNav()
   // Expanded map boxes belong to one view (zoomed box or the whole map); another view starts with none.
   const view = scope ?? WHOLE_MAP
@@ -454,7 +470,7 @@ function App() {
     tour, showStep, notesBeside: notesPlace !== 'in', setNotesBeside: beside => setNotesPlace(beside ? 'beside' : 'in'), docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
-    threads: model.annotations.threads,
+    threads,
     detail: detail?.id === sel ? detail : null, showDetail: (id, kind) => showDetail(kind ? { id, kind } : null),
     draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox, full: full === sel, setFull,
   }

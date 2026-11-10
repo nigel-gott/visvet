@@ -4,7 +4,7 @@ use crate::state::visvet_dir::HandOff;
 use watch::RepoEvent;
 use crate::review::{build_review, coverage};
 use crate::state::store;
-use crate::{types::{Author, MapId, Review, ThreadId, ThreadState, View}};
+use crate::{types::{Author, MapId, Review, ReviewAnnotations, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
     extract::{Path as UrlPath, Request, State},
@@ -17,6 +17,7 @@ use serde::Deserialize;
 use std::{convert::Infallible, fmt::Display};
 use std::path::PathBuf;
 use tokio::sync::broadcast;
+use tower_http::compression::CompressionLayer;
 use tokio_stream::{Stream, StreamExt, wrappers::BroadcastStream};
 
 /// The built UI (`ui/dist`); read from disk in debug builds, embedded in release builds.
@@ -65,9 +66,11 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
         .route("/api/review", get(review))
         .route("/api/events", get(events))
         .route("/api/view", post(set_view))
-        .route("/api/threads", post(new_thread))
+        .route("/api/threads", get(threads).post(new_thread))
         .route("/api/threads/{id}", post(reply))
         .fallback(static_file)
+        // The review of a big repository is megabytes of JSON; compressed, it loads fast on a phone too.
+        .layer(CompressionLayer::new())
         .layer(middleware::from_fn_with_state(app.clone(), check_host))
         .with_state(app);
     let listener = tokio::net::TcpListener::bind((addr.host.as_str(), addr.port)).await?;
@@ -99,11 +102,18 @@ async fn review(State(app): State<App>) -> Res<Json<Review>> {
     m.await.map_err(err)?.map(Json).map_err(err)
 }
 
-/// Server-sent events: `change` on connect and per burst of file changes; `show` with the JSON `visvet show` wrote.
+/// The comment threads alone, which the UI fetches when only they changed: far smaller than the review.
+async fn threads(State(app): State<App>) -> Res<Json<ReviewAnnotations>> {
+    store::load(&app.repo_root).map(Json).map_err(err)
+}
+
+/// Server-sent events: `change` on connect and per burst of file changes, or `threads` when only comment threads
+/// changed; `show` with the JSON `visvet show` wrote.
 async fn events(State(app): State<App>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let pushes = tokio_stream::once(Ok(RepoEvent::Changed)).chain(BroadcastStream::new(app.tx.subscribe()));
     Sse::new(pushes.map(|p| Ok(match p {
         Ok(RepoEvent::Show(json)) => Event::default().event("show").data(json),
+        Ok(RepoEvent::ThreadsChanged) => Event::default().event("threads").data("threads"),
         _ => Event::default().event("change").data("change"),
     })))
 }

@@ -23,6 +23,7 @@ serde_json = "1.0.154"
 similar = "3.2.0"
 tokio = { version = "1.53.3", features = ["full"] }
 tokio-stream = { version = "0.1.19", features = ["sync"] }
+tower-http = { version = "0.7.1", features = ["compression-gzip", "compression-br"] }
 tree-sitter = "0.27.1"
 tree-sitter-rust = "0.24.2"
 tree-sitter-typescript = "0.23.2"

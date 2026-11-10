@@ -693,10 +693,10 @@ Loads the review and loads it again on each server event. A function named `use.
 [`useEffect`](https://react.dev/reference/react/useEffect) runs its function after the component draws. With `[]` as its last argument, as here, it runs once, like `onMounted`. The function it returns is the clean-up, like `onUnmounted`: `return () => events.close()`.
 
 ### `events = new EventSource('/api/events')`
-[The browser's end](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) of the server's `events` stream: each `change` event loads the review again.
+[The browser's end](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) of the server's `events` stream: each `change` event loads the review again, and each `threads` event only the comment threads.
 
-### `getReview().then(m => { if (n > shown) { shown = n; setModel(m); setError(undefined) } }, e => n > shown && setError(e.message))`
-Each load gets a number, and a slow answer that comes after a newer one is dropped.
+### `const loadModel = latestOnly(getReview, loaded => { setModel(loaded); setError(undefined) }, problem => setError(problem.message))`
+`latestOnly`, just above, numbers each load and drops a slow answer that comes after a newer one. The comment threads have a loader of their own, so a new comment fetches only the threads, not the whole review.
 
 ## The app component
 box: `ui/src/main.tsx::App`

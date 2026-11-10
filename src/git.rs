@@ -39,6 +39,11 @@ impl GitRepo {
         Ok(tracked.into_iter().chain(untracked).filter(|file| top.join(&file.0).is_file()).collect())
     }
 
+    /// Whether a `.gitignore` leaves `path` out of the repository, e.g. build output or a database's files.
+    pub fn ignores(&self, path: &Path) -> bool {
+        self.repo.is_path_ignored(path).unwrap_or(false)
+    }
+
     /// The files at git ref `base`; none when the repository has no commits yet, an error when only `base` is unknown.
     pub fn base_files(&self, base: &str) -> anyhow::Result<Vec<RepoPath>> {
         if self.repo.is_empty()? {
@@ -109,6 +114,7 @@ mod tests {
         assert_eq!(sorted(git.base_files("HEAD").unwrap()), [".gitignore", "gone.rs", "same.rs", "src/changes.rs"]);
         assert_eq!(sorted(git.changed("HEAD").unwrap()), ["gone.rs", "src/changes.rs"]);
         assert_eq!(git.show("HEAD", &RepoPath("src/changes.rs".into())).unwrap(), b"old");
+        assert!(git.ignores(Path::new("ignored.log")) && !git.ignores(Path::new("new.rs")));
         assert!(git.base_files("no-such-ref").is_err());
         fs::remove_dir_all(root).unwrap();
     }

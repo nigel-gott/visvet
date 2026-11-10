@@ -61,3 +61,8 @@ pub fn affects_review(rel: &Path) -> bool {
     let own = rel.strip_prefix(NAME).unwrap_or(rel);
     own.starts_with("threads") || own == Path::new("coverage.lcov")
 }
+
+/// Whether `rel`, a path from the repository's top folder, is part of a comment thread.
+pub fn is_thread(rel: &Path) -> bool {
+    rel.starts_with(Path::new(NAME).join("threads"))
+}
