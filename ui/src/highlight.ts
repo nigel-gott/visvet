@@ -9,13 +9,15 @@ import type { Item } from './model'
 /** Shiki's name for each language visvet colours; the rest stay plain. */
 const SHIKI_NAMES: Partial<Record<Language, string>> = {
   rust: 'rust', typescript: 'typescript', tsx: 'tsx', javascript: 'javascript', css: 'css', json: 'json', toml: 'toml', markdown: 'markdown',
+  // Clojure's grammar colours any s-expressions well: `;` comments, strings, numbers, `:keywords` and each form's head.
+  lisp: 'clojure',
 }
 
 /** The highlighter, loaded once in the background with only the languages and themes visvet uses. */
 const loading = createHighlighterCore({
   themes: [import('shiki/themes/github-light.mjs'), import('shiki/themes/github-dark.mjs')],
   langs: [import('shiki/langs/rust.mjs'), import('shiki/langs/typescript.mjs'), import('shiki/langs/tsx.mjs'), import('shiki/langs/javascript.mjs'),
-    import('shiki/langs/css.mjs'), import('shiki/langs/json.mjs'), import('shiki/langs/toml.mjs'), import('shiki/langs/markdown.mjs')],
+    import('shiki/langs/css.mjs'), import('shiki/langs/json.mjs'), import('shiki/langs/toml.mjs'), import('shiki/langs/markdown.mjs'), import('shiki/langs/clojure.mjs')],
   engine: createJavaScriptRegexEngine(),
 })
 

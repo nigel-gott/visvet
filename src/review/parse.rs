@@ -161,7 +161,7 @@ fn head_doc(language: Language, src: &str) -> String {
 pub(super) fn clean(text: &str) -> String {
     let mut words = vec![];
     for l in text.lines() {
-        let l = l.trim().trim_start_matches(['/', '*', '!', '#']).trim_end_matches("*/").trim();
+        let l = l.trim().trim_start_matches(['/', '*', '!', '#', ';']).trim_end_matches("*/").trim();
         if l.starts_with('@') || l.is_empty() && !words.is_empty() {
             break;
         }
@@ -229,7 +229,7 @@ mod tests {
         let docs = (boxes[0].doc.as_str(), c.doc.as_str(), c.members[0].doc.as_str(), c.members[1].doc.as_str());
         assert_eq!(docs, ("The C class. More.", "The C class. More.", "", "Runs it."));
         for (p, s, d) in [("x.md", "---\ndescription: \"Hi there\"\n---\n# T", "Hi there"), ("y.md", "# Title\n\nProse.", "Title"),
-            ("x.sh", "#!/bin/sh\n# Deploys.\n\n# other", "Deploys."), ("i.html", "<!-- Entry\n page. -->\n<html>", "Entry page.")] {
+            ("x.sh", "#!/bin/sh\n# Deploys.\n\n# other", "Deploys."), ("spells.sexp", ";; Every spell.\n(spell warm :cast 4s)", "Every spell."), ("i.html", "<!-- Entry\n page. -->\n<html>", "Entry page.")] {
             assert_eq!(parse(&RepoPath(p.into()), s)[0].doc, d);
         }
         let i = get(&boxes, "I");

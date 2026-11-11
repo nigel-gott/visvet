@@ -19,6 +19,8 @@ pub enum Language {
     Json,
     Toml,
     Markdown,
+    /// A Lisp-family file of s-expressions: `.lisp`, `.sexp`, `.scm`, `.clj` or `.el`. Coloured, not parsed into boxes.
+    Lisp,
     /// Anything else, e.g. YAML or a licence.
     #[default]
     Other,
@@ -36,6 +38,7 @@ impl Language {
             "json" => Self::Json,
             "toml" => Self::Toml,
             "md" => Self::Markdown,
+            "lisp" | "sexp" | "scm" | "clj" | "el" => Self::Lisp,
             _ => Self::Other,
         }
     }
@@ -50,6 +53,7 @@ impl Language {
         match self {
             Self::Rust => "//!",
             Self::TypeScript | Self::Tsx | Self::JavaScript | Self::Css => "//",
+            Self::Lisp => ";",
             Self::Json | Self::Toml | Self::Markdown | Self::Other => "#",
         }
     }
