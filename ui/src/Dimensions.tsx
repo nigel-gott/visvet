@@ -10,6 +10,7 @@ import { MarkdownPage } from './Markdown'
 import { ancestorsOf, within, type Index, type Item } from './model'
 import { ReadingText } from './Reading'
 import { ReviewedCrumb } from './Reviewed'
+import { LeftToReadCrumb } from './ToRead'
 import { alsoOf, currentText, dimensionOfPage, dimensionsOf, frontPageOf, nameOfPage, titleOf, titleOfPage } from './pages'
 
 /** The pages from a dimension's front page down to `page`: the README of each folder on the way, then the page. */
@@ -105,7 +106,8 @@ function useTouchHighlight(view: RefObject<HTMLDivElement | null>, setHighlight:
 
 /**
  * A page drawn over the map at full size: the chosen dimension's, or with `reading` (Read mode), the text of item `id`
- * whatever it is (see `ReadingText`; null shows the top folders and files), under the path to it. Highlighting any of
+ * whatever it is (see `ReadingText`; null shows the top folders and files), under the path to it and how much of its
+ * file is left to read (see ToRead.tsx). Highlighting any of
  * it, diagram text included, shows a Comment button that starts a comment on the item quoting the highlight and
  * naming its section or line.
  */
@@ -146,6 +148,7 @@ export function DimensionView({ id, reading = false }: { id: string | null; read
               {crumb === page ? <b>{crumbName(crumb)}</b> : <a onClick={() => x.openFile(crumb.id)}>{crumbName(crumb)}</a>}
             </Fragment>
           ))}
+          {reading && !dimension && page && <LeftToReadCrumb page={page} />}
           {also.length > 0 && (
             <span className="also" title="The same thing seen elsewhere: other dimensions, and the work that builds it">
               Also: {also.map((other, index) => (

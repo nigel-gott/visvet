@@ -70,7 +70,7 @@ A file's number is its importance times the share of it you haven't explored. A 
 
 **To read**, beside the tree's filters, lists the files with the most left first, each with the AI's reason. A file drops off once you have explored all of it or marked it as reviewed. It shows the first 50.
 
-In Read mode, the Prev and Next buttons under a file page through every file from the most important down, by the AI's score alone, so the order stays put as you read.
+In Read mode, the bar above the page, which stays in view, shows the same meter for the file being read, with its importance and how much of it you have read, e.g. "importance 65 · 12% read". In Read mode, the Prev and Next buttons under a file page through every file from the most important down, by the AI's score alone, so the order stays put as you read.
 
 What counts as explored:
 
