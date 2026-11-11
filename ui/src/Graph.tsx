@@ -8,7 +8,7 @@ import { X } from './context'
 import { STEP_BUBBLE, StepBubble, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { anchor, Card, lastDrag, MAP_ZOOM, placeOf, type CardData } from './Card'
 import { allLines, height, showsCode, width } from './size'
-import { mapView, type View } from './view'
+import { COMMON, mapView, type View } from './view'
 import { easeInOut, glideCamera, moves, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
@@ -431,13 +431,34 @@ function MapPanel({ moved, reset }: { moved: boolean; reset: () => void }) {
   return <Panel position="top-right" className="chips">{moved && <button onClick={reset}>Reset</button>}</Panel>
 }
 
-const KINDS: DependencyKind[] = ['calls', 'creates', 'uses', 'implements', 'has', 'imports', 'generates', 'links']
+/** Each kind of arrow, with what it means, for the legend's tooltips. */
+const KINDS: Record<DependencyKind, string> = {
+  calls: 'A function calls a function',
+  creates: 'A function builds a value of a type',
+  uses: 'A function\'s body uses a type: reads one of its values, or passes it as a type argument',
+  implements: 'A type implements a trait or interface, or extends a class',
+  has: 'A field or variant holds a type',
+  imports: 'A file imports something and no other arrow says what for, e.g. a trait, a constant, or a type only named in signatures',
+  depends: 'A package\'s Cargo.toml lists another package as a dependency',
+  generates: 'A code generator writes one from the other, e.g. a lock file',
+  links: 'A Markdown file names a box or file. Off by default inside boxes that hold code',
+}
+/** How the legend explains what the map's arrows stand for. */
+const ARROWS_HELP = `Each view draws the arrows between its own boxes: one arrow per pair, standing for every link beneath them. A link inside one box isn't drawn until you zoom into it.
+Struck-through kinds are hidden in this view; click one to show it.`
+/** How the legend explains the "common" chip. */
+const COMMON_HELP = `A box is common when at least ${COMMON.least} of the boxes beside it, and at least ${COMMON.share * 100}% of them, point at it (an errors or ids file, say). Arrows to it are hidden, and it shows ◎ with how many use it. Click to show them.`
 
-/** The legend, whose chips show or hide each kind of arrow. */
-function Kinds({ shows, flip }: { shows: (kind: string) => boolean; flip: (kind: string) => void }) {
+/**
+ * The legend, whose chips show or hide each kind of arrow, and the arrows to common boxes (`commonHidden` of them are
+ * hidden now, to `commonBoxes` boxes). Each chip's tooltip says what it means and when it is hidden.
+ */
+function Kinds({ shows, flip, commonBoxes, commonHidden }: { shows: (kind: string) => boolean; flip: (kind: string) => void; commonBoxes: number; commonHidden: number }) {
   return (
     <Panel position="bottom-left" className="legend">
-      {KINDS.map(k => <button key={k} className={shows(k) ? '' : 'off'} onClick={() => flip(k)}><i className={k} /> {k}</button>)}
+      <span className="legend-help" title={ARROWS_HELP}>arrows ⓘ</span>
+      {Object.entries(KINDS).map(([k, help]) => <button key={k} title={help} className={shows(k) ? '' : 'off'} onClick={() => flip(k)}><i className={k} /> {k}</button>)}
+      {commonBoxes > 0 && <button title={COMMON_HELP} className={shows('common') ? '' : 'off'} onClick={() => flip('common')}>◎ common{commonHidden > 0 && ` (${commonHidden} hidden)`}</button>}
     </Panel>
   )
 }
@@ -446,7 +467,7 @@ function Kinds({ shows, flip }: { shows: (kind: string) => boolean; flip: (kind:
 export default function Graph({ visible, pop }: { visible: boolean; pop: number }) {
   const x = useContext(X)
   const box = useRef<HTMLDivElement>(null)
-  // Arrow kinds the user switched on or off; "has" starts off in a folder zoom, where it buries the interface.
+  // Arrow kinds the user switched on or off; the rest follow the view's defaults (see `showsIn`).
   const [kinds, setKinds] = useState<Record<string, boolean>>({})
   const top = x.scope ? x.ix.items.get(x.scope) : undefined
   const shows = showsIn(kinds, top)
@@ -490,12 +511,12 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     // and without this the box kept showing the old one's text until something else about it changed.
     const shown = [it.doc, it.status, it.diffCount.added, it.diffCount.removed, it.loc, it.labels?.kind, it.labels?.status,
       showsCode(it, x) ? allLines(it).map(line => line.kind + line.text).join('\n') : ''].join('\u0001')
-    const key = [shown, position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, notesHere.map(note => note.code), drawsInside?.inward, drawsInside?.settling, drawsInside?.landed, n.height].join('|')
+    const key = [shown, position.x, position.y, rows.map(r => r.id), v.ext.has(n.id), v.expands(it), n.id === x.scope && v.openable, x.hl.has(n.id), x.scope, v.common.get(n.id), notesHere.map(note => note.code), drawsInside?.inward, drawsInside?.settling, drawsInside?.landed, n.height].join('|')
     const old = made.current.boxes.get(n.id)
     if (old?.key === key) return old.node
     const data: CardData = {
       it, rows, ext: v.ext.has(n.id),
-      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere, zoomPreview: drawsInside,
+      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere, zoomPreview: drawsInside, commonUsers: v.common.get(n.id),
     }
     // Kept inside its parent box, except while a zoom grows it to draw the view inside it: React Flow would push it up.
     const extent = n.parentId && !drawsInside ? 'parent' as const : undefined
@@ -539,7 +560,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     >
       <MapPanel moved={Object.keys(pos.moved).length > 0} reset={pos.reset} />
       <ZoomOut />
-      <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} />
+      <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} commonBoxes={v.common.size} commonHidden={v.commonHidden} />
     </ReactFlow>
   )
 }

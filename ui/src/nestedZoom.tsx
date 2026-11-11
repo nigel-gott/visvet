@@ -11,7 +11,7 @@ import { Head, Notes } from './Views'
 import { height, showsCode, width } from './size'
 import { mapView } from './view'
 import { STEP_BUBBLE, stepBubbleBox, type StepBubbleBox } from './Tours'
-import { ancestorsOf, type Item } from './model'
+import { ancestorsOf, subtree, type Item } from './model'
 import type { CodeNote } from './contract'
 
 /** The speeds the map's zooms and camera moves can run at, by name: how many times faster than normal (1×). */
@@ -123,8 +123,17 @@ export function glideCamera(setCamera: (camera: Camera) => void, from: Camera, t
 /** The motion for the camera's glide right after the next zoom out switches views; `useFit` takes it, once. */
 export const nextOutwardGlide: { motion: ZoomMotion | null } = { motion: null }
 
-/** Which arrow kinds a view shows: the user's choice, else all but "has" in a folder, where it buries the rest. */
-export const showsIn = (kinds: Record<string, boolean>, top: Item | undefined) => (kind: string) => kinds[kind] ?? !(kind === 'has' && top?.kind === 'folder')
+/**
+ * Which arrow kinds the view zoomed into `top` shows: the user's choice, else the default for that level. Every kind
+ * of code arrow is on. Markdown "links" are on only where they are the picture (the whole map, and boxes holding no
+ * code), since inside code they bury its structure. "common" (arrows to a box most of its siblings use, see
+ * `COMMON` in view.ts) is off. The legend shows what is off, and a click on it turns it on.
+ */
+export const showsIn = (kinds: Record<string, boolean>, top: Item | undefined) => {
+  const holdsCode = !!top && subtree(top).some(it => it.o?.content.type === 'code')
+  const byDefault: Record<string, boolean> = { links: !holdsCode, common: false }
+  return (kind: string) => kinds[kind] ?? byDefault[kind] ?? true
+}
 
 /**
  * A box drawing the view inside it while a zoom passes through it: the box, that inner view's layout, how much it is

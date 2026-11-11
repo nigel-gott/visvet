@@ -91,6 +91,8 @@ export type CardData = {
   boxNotes: CodeNote[]
   /** While a zoom passes through this box: the view inside it, drawn into it (see nestedZoom.tsx). */
   zoomPreview?: ZoomPreview
+  /** When the box is common in this view (see `COMMON` in view.ts): how many of the boxes beside it point at it. */
+  commonUsers?: number
 }
 
 /** The last click on a box, so a second click on it within 300ms counts as a double click. */
@@ -201,6 +203,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />
           <ThreadChip it={it} />
+          {data.commonUsers && <span className="common-mark" title={`Common: ${data.commonUsers} boxes here point at this one, so those arrows are hidden unless the legend's "common" is on.`}>◎ {data.commonUsers}</span>}
           {data.openAll.length > 0 && <button className="grow" onClick={e => { e.stopPropagation(); x.expandAll(data.openAll) }}>
             {data.openAll.every(id => x.expanded.has(id)) ? 'Close all' : 'Open all'}</button>}
           {data.expands && <button className="grow" onClick={e => { e.stopPropagation(); x.expand(it.id) }}>{x.expanded.has(it.id) ? 'Less' : 'More'}</button>}

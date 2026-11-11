@@ -12,6 +12,34 @@ function face(t: Item) {
 /** The most boxes inside a zoomed view with their own arrows to the same outside box; beyond this, one arrow. */
 const BUNDLE = 4
 
+/**
+ * When a box is "common" in a view: at least `least` of the boxes beside it point at it, and at least `share` of them
+ * all. Such a box (an errors or ids file, say) is used by nearly everything, so its arrows say little and bury the
+ * rest: they are hidden until the legend's "common" is switched on, and the box shows how many use it.
+ */
+export const COMMON = { least: 5, share: 0.4 }
+
+/** The common boxes among the arrows `owned` between the view's `siblings` boxes: each with how many siblings point at it. */
+function commonBoxes(owned: Placed[], isSibling: (id: string) => boolean, siblings: number) {
+  const usersOf = Map.groupBy(owned.filter(e => isSibling(e.a) && isSibling(e.b)), e => e.b)
+  const users = [...usersOf].map(([box, arrows]) => [box, new Set(arrows.map(e => e.a)).size] as const)
+  return new Map(users.filter(([, count]) => count >= COMMON.least && count >= COMMON.share * (siblings - 1)))
+}
+
+/** The file an arrow starts in and the line that mentions its target, e.g. "src/a.rs:12", for listing concrete uses. */
+export function useSite(ix: Index, e: Dependency) {
+  let it = ix.items.get(e.from)
+  while (it && it.kind !== 'file') it = it.parent
+  return it && e.line ? `${it.id}:${e.line}` : it?.id ?? ''
+}
+
+/** How many uses an arrow stands for: the links merged into it, not counting what a manifest merely declares. */
+export const weight = (es: Dependency[]) => es.filter(e => e.kind !== 'depends').length || 1
+
+/** The kinds of the links merged into an arrow with how many of each, most first, e.g. [["calls", 8], ["has", 2]]. */
+export const kindCounts = (es: Dependency[]) =>
+  [...Map.groupBy(es, e => e.kind)].map(([kind, of]) => [kind, of.length] as const).sort((a, b) => b[1] - a[1])
+
 /** A link with the boxes a view draws its ends at: `a` for its `from`, `b` for its `to`. */
 type Placed = Dependency & { a: string; b: string }
 
@@ -117,7 +145,9 @@ function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, ow
  * rows; a box in `expanded` also lists members not shown as boxes. Unzoomed: the top folders and files, objects
  * listing their members as rows. Zoomed: one level only, the box and its direct children (a type's public members),
  * each drawn compact. A link leaving the zoomed box ends at the outside box at the zoomed box's level, e.g. another
- * file; only the selected box's (`sel`) links end at their exact boxes, drawn inside those.
+ * file; only the selected box's (`sel`) links end at their exact boxes, drawn inside those. So every view draws the
+ * arrows of its own level: each stands for all the links beneath its two boxes, and a link inside one box isn't drawn.
+ * Arrows to a common box (see `COMMON`) are left out unless `shows('common')`; `common` says which boxes those are.
  */
 export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
   shows: (kind: string) => boolean, expanded: Set<string>, sel: string | null) {
@@ -136,19 +166,26 @@ export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
     while (it.parent && it.parent !== top && ids.has(it.parent.id)) it = it.parent
     return it.id
   }
-  const owned = exact.flatMap(e => {
+  const everyOwned = exact.flatMap(e => {
     const [a, b] = [owner(e.a), owner(e.b)]
     return a === b ? [] : [{ ...e, a, b }]
   })
+  const isSibling = (id: string) => id !== top?.id && !ext.has(id)
+  const common = commonBoxes(everyOwned, isSibling, inner.length - (top ? 1 : 0))
+  /** Whether a link, drawn between `a` and `b`, is one of the hidden ones from a sibling to a common box. */
+  const toCommon = (e: Placed) => !shows('common') && common.has(owner(e.b)) && isSibling(owner(e.a)) && owner(e.a) !== owner(e.b)
+  const owned = everyOwned.filter(e => !toCommon(e))
+  /** How many arrows are hidden because they point at a common box. */
+  const commonHidden = new Set(everyOwned.filter(toCommon).map(key)).size
   const edges = bundle(owned, top, ext)
-  const detail = finerEdges(ix, exact, edges, owner)
+  const detail = finerEdges(ix, exact.filter(e => !toCommon(e)), edges, owner)
   /** A box's rows: everything directly inside it when expanded (More); else its members, only unzoomed. */
   const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top ? [] : it.kids.filter(k => k.m)
   /** Whether a box can expand: it holds something not already drawn as a box to list, or code to show. */
   const expands = (it: Item) => !ext.has(it.id) && (it.kids.some(k => !ids.has(k.id)) || it.diff.length > 0)
   /** The zoomed box's children that have More, which its Open all button opens together. */
   const openable = top ? top.kids.filter(k => ids.has(k.id) && expands(k)).map(k => k.id) : []
-  return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up }
+  return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up, common, commonHidden }
 }
 /** One map view, as `mapView` builds it. */
 export type View = ReturnType<typeof mapView>

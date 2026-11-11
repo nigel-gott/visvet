@@ -99,6 +99,7 @@ main { grid-area: 2 / 2; min-height: 0 }
 .react-flow__edge.uses path { stroke: var(--k-type); stroke-dasharray: 1 3 }
 .react-flow__edge.generates path { stroke: var(--hl); stroke-dasharray: 8 3 2 3 }
 .react-flow__edge.links path { stroke: var(--ai); stroke-dasharray: 3 3 }
+.react-flow__edge.depends path { stroke-dasharray: 10 4 }
 /* Arrows that don't touch the selected box. */
 .react-flow__edge.faded { opacity: .15 }
 .react-flow .legend { margin: 8px; padding: 2px 6px; border-radius: 4px; background: var(--bg); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px }
@@ -110,6 +111,10 @@ main { grid-area: 2 / 2; min-height: 0 }
 .legend .links { border-top-style: dotted; border-color: var(--ai) }
 .legend .implements { border-top-style: dashed }
 .legend .imports { opacity: .5; border-top-width: 1px }
+.legend .depends { border-top-style: dashed }
+.legend-help { cursor: help }
+/* On a box most of its siblings point at: how many do. */
+.common-mark { flex: none; padding: 0 5px; border-radius: 8px; font: 600 10px/16px var(--mono); color: var(--muted); border: 1px solid var(--muted); cursor: help }
 .card.ext { opacity: .6; border-style: dashed }
 .legend button { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer }
 .legend button.off { opacity: .35; text-decoration: line-through }
