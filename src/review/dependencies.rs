@@ -317,13 +317,15 @@ mod tests {
             "food/kitchen.lisp::recipe stew -> food/kitchen.lisp::recipe stock uses",
             // A definition inside a group is a box like any other.
             "food/kitchen.lisp::recipe stock -> food/kitchen.lisp::base bones uses",
-            // `bones` is defined in no file but kitchen.lisp, so the bare name means that one; `dried` is defined in two.
+            // `bones` is defined in no file but kitchen.lisp, so the bare name means that one; `dried` is defined in two files as far away.
             "food/pantry.lisp::spice cumin -> food/kitchen.lisp::base bones uses",
             // `(mode quiet)` has no body, so `(quiet ...)` is no use of it; `quiet` as an argument is.
             "food/pantry.lisp::spice cumin -> food/pantry.lisp::mode quiet uses",
             "food/pantry.lisp::spice cumin -> food/pantry.lisp::spice salt uses",
             // `cumin` is this file's own, though pantry.lisp has one too.
             "drinks/bar.lisp::drink toddy -> drinks/bar.lisp::spice cumin uses",
+            // Of the two `dried`, the one in this file's own folder is meant.
+            "drinks/bar.lisp::drink toddy -> drinks/cellar.lisp::method dried uses",
             "drinks/bar.lisp::drink toddy -> food/kitchen.lisp::recipe stew uses",
         ]);
     }
