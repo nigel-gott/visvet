@@ -8,6 +8,8 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --k-folder: #8250df; --k-file: #57606a; --k-struct: #0969da; --k-class: #1b7c83; --k-enum: #bc4c00; --k-trait: #1a7f37;
   --k-type: #9a6700; --k-fn: #bf3989; --k-field: #0550ae;
+  /* In Lisp-family code: a name the repository defines, and a word its Markdown documents. Both read on added and removed lines too. */
+  --word-defined: #a82a7a; --word-documented: #0f6b72;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -17,6 +19,7 @@
     --note-bg: #4f3787; --note-fg: #ffffff; --mark-bg: rgb(163 113 247 / .5);
     --k-folder: #a371f7; --k-file: #8d96a0; --k-struct: #4493f8; --k-class: #39c5cf; --k-enum: #f0883e; --k-trait: #3fb950;
     --k-type: #d29922; --k-fn: #db61a2; --k-field: #79c0ff;
+    --word-defined: #f778ba; --word-documented: #39c5cf;
   }
 }
 
@@ -591,20 +594,64 @@ main { position: relative }
   .read-list { padding: 0 16px }
 }
 
-/* The card for the word under the pointer in a Lisp-family file's code (Hover.tsx): its definition, or its documentation. */
+/* Words the review knows in a Lisp-family file's code, and the card a click on one opens (Hover.tsx): its definition, or its documentation. */
 .diff.at-word .tok { cursor: pointer }
-::highlight(defined-word) { color: var(--k-fn) }
-::highlight(documented-word) { color: var(--k-struct) }
-.word-card { position: fixed; z-index: 2000; width: max-content; max-width: 560px; max-height: 45vh; overflow: auto; padding: 4px 12px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--bg); color: var(--fg); box-shadow: 0 6px 24px rgb(0 0 0 / .3); font: 12px/1.45 system-ui, sans-serif; text-indent: 0; white-space: normal }
-.word-card section { padding: 8px 0; cursor: pointer }
-.word-card section + section, .word-mentioned { border-top: 1px solid var(--line) }
-.word-card p { margin: 2px 0 }
-.word-card pre { margin: 6px 0; padding: 6px 8px; overflow: hidden; border-radius: 6px; background: var(--panel); font: 11px/1.4 var(--mono); white-space: pre-wrap }
-.word-card code { font-size: 11px }
-.word-card a { color: var(--sel); cursor: pointer; font: 11px var(--mono) }
-.word-card a:hover { text-decoration: underline }
-.word-field { display: grid; grid-template-columns: 70px 1fr; gap: 8px }
-.word-field:has(> :only-child) { display: block }
-.word-label { color: var(--muted); font-size: 11px }
-.word-mentioned { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 0 }
+/* Two colours no syntax colour uses; a defined name is also drawn heavier, for a reader who can't tell the colours apart. */
+::highlight(defined-word) { color: var(--word-defined); text-shadow: .5px 0 var(--word-defined), -.25px 0 var(--word-defined) }
+::highlight(documented-word) { color: var(--word-documented) }
+::highlight(open-word) { background-color: var(--sel-bg); text-decoration: underline 2px }
+.diff > .word-key { margin: 4px 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line) }
+.word-key { color: var(--muted); font: 11px system-ui, sans-serif }
+.word-key b, .word-name { font-family: var(--mono) }
+.word-key .defined, .word-name.defined { color: var(--word-defined); font-weight: 700 }
+.word-key .documented, .word-name.documented { color: var(--word-documented); font-weight: 500 }
+.word-card { position: fixed; z-index: 2000; display: flex; flex-direction: column; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--bg); color: var(--fg); box-shadow: 0 8px 28px rgb(0 0 0 / .3); font: 14px/1.5 system-ui, sans-serif; text-indent: 0; white-space: normal }
+.word-card:focus { outline: none }
+.word-card header { position: sticky; top: 0; z-index: 1; padding: 10px 44px 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel) }
+.word-name { margin-right: 8px; font-size: 17px }
+.word-kind { color: var(--muted); font-size: 12px }
+.word-kind p { display: inline; margin: 0 }
+.word-close { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer }
+.word-close:hover { background: var(--line); color: var(--fg) }
+.word-card section { padding: 10px 14px 0 }
+.word-card section + section { border-top: 1px solid var(--line) }
+.word-card p, .word-card ul { margin: 0 0 6px }
+.word-form { margin-bottom: 6px; font: 600 13px/1.5 var(--mono); overflow-wrap: anywhere }
+.word-form mark { padding: 1px 3px; border-radius: 3px; background: var(--sel-bg); color: inherit; outline: 1px solid var(--sel) }
+.word-form p { margin: 0 }
+.word-long { max-height: 9em; overflow: hidden }
+.word-long.cut { mask-image: linear-gradient(#000 70%, transparent) }
+.word-long.whole { max-height: none }
+.word-more { margin: 0 0 6px; padding: 0; border: 0; background: none; color: var(--sel); font-size: 12px; cursor: pointer }
+.word-intro { margin-bottom: 8px; color: var(--muted); font-size: 13px }
+.word-ways, .word-way.values summary { display: grid; grid-template-columns: 96px 1fr; gap: 2px 10px; align-items: baseline }
+.word-way { position: relative; margin: 4px -6px; padding: 4px 24px 4px 6px; border: 1px solid transparent; border-radius: 6px }
+.word-way summary::after { content: '▸'; position: absolute; top: 5px; right: 8px; color: var(--muted); font-size: 12px }
+.word-way[open] summary::after { content: '▾' }
+.word-way:not([open]):hover { background: var(--panel) }
+.word-way.here { border-color: var(--sel); background: var(--sel-bg) }
+.word-way summary { display: block; cursor: pointer }
+.word-way summary > span { display: flex; flex-direction: column; align-items: start; gap: 2px }
+.word-way summary code { font-weight: 600; white-space: nowrap }
+.word-way summary i { color: var(--sel); font-size: 11px; font-style: normal }
+.word-way summary p { margin: 0 }
+.word-way[open] summary { margin-bottom: 6px }
+.word-way footer { padding-bottom: 2px }
+.word-field { margin-top: 4px }
+.word-field .word-long { font-size: 13px }
+.word-label { color: var(--muted); font-size: 12px }
+.word-meaning .word-label { font-size: inherit }
+.word-meaning p:first-of-type { display: inline }
+.word-card pre { margin: 2px 0 8px; padding: 8px 10px; overflow-x: auto; border-radius: 6px; background: var(--panel); font: 12px/1.5 var(--mono) }
+.word-card code { padding: 1px 4px; border-radius: 4px; background: var(--panel); font: 12px var(--mono) }
+.word-card a { color: var(--sel); cursor: pointer }
+.word-card a:hover, .word-more:hover { text-decoration: underline }
+.word-card footer, .word-mentioned { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; padding: 6px 0 10px; color: var(--muted); font-size: 12px }
+.word-card footer a { margin-left: auto }
+.word-card footer b { color: var(--fg); font-weight: 600 }
+.word-others, .word-mentioned { padding: 8px 14px; border-top: 1px solid var(--line) }
+.word-others summary { overflow: hidden; padding: 3px 0; font-size: 13px; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; cursor: pointer }
+.word-others summary b { color: var(--fg); font-weight: 600 }
+.word-others details[open] summary { white-space: normal }
+.word-others section { margin: 2px 0 6px 6px; padding: 6px 0 0 10px; border-left: 2px solid var(--line) }

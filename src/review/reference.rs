@@ -4,10 +4,9 @@
 use crate::types::{DocEntry, DocField, RepoPath};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// How many entries a word keeps: enough for a word the reference documents once for each of its uses.
-const MOST_ENTRIES: usize = 8;
-/// How many characters of a cell or paragraph an entry keeps.
-const MOST_TEXT: usize = 600;
+/// How many entries a word keeps: enough for a word the reference documents once for each of its uses, with a row
+/// for each way of writing it.
+const MOST_ENTRIES: usize = 16;
 
 /// How a list item starts.
 const BULLETS: [&str; 3] = ["- ", "* ", "+ "];
@@ -15,11 +14,16 @@ const BULLETS: [&str; 3] = ["- ", "* ", "+ "];
 /// A word and one place that documents it.
 struct Documented { word: String, entry: DocEntry }
 
-/// The word a `code span`'s text names: the text itself, or the head of the form written there, e.g. "simmer" for
-/// `(simmer time :lid on)`.
+/// The word a `code span`'s text names: the text itself when it is one word, or the head of the whole form written
+/// there, e.g. "simmer" for `(simmer time :lid on)`. None for anything else, like a line of other code or a piece
+/// cut out of a form, `(simmer 40m` or `(stir))`: those quote code, they don't say what a word means.
 fn head_word(written: &str) -> Option<&str> {
-    let word = written.trim().trim_start_matches('(').split(|letter: char| letter.is_whitespace() || letter == '(' || letter == ')').next()?;
-    (!word.is_empty()).then_some(word)
+    let written = written.trim();
+    let count = |bracket: char| written.chars().filter(|letter| *letter == bracket).count();
+    let is_whole_form = written.starts_with('(') && written.ends_with(')') && count('(') == count(')');
+    let is_one_word = !written.contains(|letter: char| letter.is_whitespace() || letter == '(' || letter == ')');
+    let word = written.trim_start_matches('(').split(|letter: char| letter.is_whitespace() || letter == ')').next()?;
+    (!word.is_empty() && (is_whole_form || is_one_word)).then_some(word)
 }
 
 /// The word that `text` starts by naming, in a `code span` (see `head_word`) or in `**bold**`. None for anything else.
@@ -47,15 +51,19 @@ fn cells(row: &str) -> Vec<&str> {
     cells
 }
 
-/// `text` cut to the most an entry keeps.
-fn kept(text: &str) -> String {
-    text.chars().take(MOST_TEXT).collect()
+/// A table cell's text as it reads: a `|` had to be written `\|` there.
+fn cell_text(cell: &str) -> String {
+    cell.replace("\\|", "|")
 }
 
 /// Every word Markdown `file`, whose text is `lines`, documents, with where. Fenced code blocks are skipped.
 fn documented_in<'a>(file: &RepoPath, lines: &[(u32, &'a str)]) -> Vec<Documented> {
     let (mut found, mut in_fence, mut headings): (Vec<Documented>, bool, Option<Vec<&'a str>>) = (vec![], false, None);
     let mut under = "";
+    // The paragraph last read, and whether a blank line has ended it; and the table being read: its first line and
+    // the paragraph that led up to it.
+    let (mut paragraph, mut paragraph_ended): (Vec<&'a str>, bool) = (vec![], false);
+    let (mut table_line, mut intro) = (0, String::new());
     let is_table_row = |text: &str| text.trim_start().starts_with('|');
     let is_rule = |text: &str| cells(text).iter().all(|cell| !cell.is_empty() && cell.chars().all(|letter| letter == '-' || letter == ':'));
     for (index, (line, text)) in lines.iter().enumerate() {
@@ -65,18 +73,21 @@ fn documented_in<'a>(file: &RepoPath, lines: &[(u32, &'a str)]) -> Vec<Documente
             continue;
         }
         let above = under;
-        let entry = |fields| DocEntry { file: file.clone(), line: *line, under: above.to_string(), fields };
+        let entry = |fields, table_line, intro: &str| DocEntry { file: file.clone(), line: *line, under: above.to_string(), table_line, intro: intro.to_string(), fields };
         if is_table_row(text) {
             let row = cells(text);
             let next_is_rule = lines.get(index + 1).is_some_and(|(_, next)| is_table_row(next) && is_rule(next));
             match &headings {
-                _ if next_is_rule => headings = Some(row),
+                _ if next_is_rule => {
+                    headings = Some(row);
+                    (table_line, intro) = (*line, std::mem::take(&mut paragraph).join(" "));
+                }
                 Some(headings) if !is_rule(text) => {
-                    let fields = || headings.iter().zip(&row).map(|(heading, cell)| DocField { label: heading.to_string(), text: kept(cell) }).collect();
+                    let fields = || headings.iter().zip(&row).map(|(heading, cell)| DocField { label: heading.to_string(), text: cell_text(cell) }).collect();
                     // A first cell may name several words, each in its own code span: every other piece between backticks.
                     let in_spans = row[0].split('`').skip(1).step_by(2).filter_map(head_word);
                     let words: BTreeSet<&str> = in_spans.chain(word_named(row[0])).collect();
-                    found.extend(words.into_iter().map(|word| Documented { word: word.to_string(), entry: entry(fields()) }));
+                    found.extend(words.into_iter().map(|word| Documented { word: word.to_string(), entry: entry(fields(), table_line, &intro) }));
                 }
                 _ => {}
             }
@@ -85,6 +96,14 @@ fn documented_in<'a>(file: &RepoPath, lines: &[(u32, &'a str)]) -> Vec<Documente
         headings = None;
         let start = text.trim_start();
         let is_heading = start.starts_with('#');
+        let starts_paragraph = paragraph_ended && !start.is_empty();
+        if is_heading || starts_paragraph {
+            paragraph.clear();
+        }
+        paragraph_ended = start.is_empty();
+        if !is_heading && !start.is_empty() {
+            paragraph.push(start.trim_end());
+        }
         let start = start.trim_start_matches('#').trim_start();
         if is_heading {
             under = start;
@@ -95,8 +114,10 @@ fn documented_in<'a>(file: &RepoPath, lines: &[(u32, &'a str)]) -> Vec<Documente
         let starts_another = |next: &str| next.trim().is_empty() || is_table_row(next) || next.trim_start().starts_with('#') || BULLETS.iter().any(|bullet| next.trim_start().starts_with(bullet));
         let below = lines[index + 1..].iter().map(|(_, next)| *next).skip_while(|next| is_heading && next.trim().is_empty());
         let rest_of_paragraph = below.take_while(|next| !starts_another(next)).map(str::trim).collect::<Vec<_>>().join(" ");
-        let text = format!("{start}{}{rest_of_paragraph}", if is_heading { "\n\n" } else { " " });
-        found.push(Documented { word: word.to_string(), entry: entry(vec![DocField { label: String::new(), text: kept(text.trim()) }]) });
+        let unlabelled = |text: &str| DocField { label: String::new(), text: text.trim().to_string() };
+        // A heading names the word and the paragraph says what it means: two fields, as a table row's first two cells.
+        let fields = if is_heading { vec![unlabelled(start), unlabelled(&rest_of_paragraph)] } else { vec![unlabelled(&format!("{start} {rest_of_paragraph}"))] };
+        found.push(Documented { word: word.to_string(), entry: entry(fields, 0, "") });
     }
     found
 }
@@ -124,13 +145,13 @@ mod tests {
     use super::*;
 
     /// A toy reference for a recipes language: a table of forms, a table of terms, a heading and a list.
-    const REFERENCE: &str = "# Recipes\n\n| Form | Does | Example |\n|---|---|---|\n| `(simmer time :lid on)` | cooks slowly, `a|b` | `(simmer 40m)` |\n| `(fry time)`, `(sear time)` | cooks fast | |\n\nNot a table row.\n\n```\n| `(boil time)` | in a code block |\n```\n\n### `season`\n\nAdds salt\nto taste.\n\nMore.\n\n- **stock**: water that bones were\n  simmered in\n- `garnish` goes on last\n\n| Term | Means |\n|:--|:--|\n| **stock** | a base |\n";
+    const REFERENCE: &str = "# Recipes\n\nNot it.\n\nA step is one thing\nto do.\n\n| Form | Does | Example |\n|---|---|---|\n| `(simmer time :lid on\\|off)` | cooks slowly, `a|b` | `(simmer 40m)` |\n| `(fry time)`, `(sear time)` | cooks fast | |\n\nNot a table row.\n\n```\n| `(boil time)` | in a code block |\n```\n\n### `season`\n\nAdds salt\nto taste.\n\nMore.\n\n- **stock**: water that bones were\n  simmered in\n- `garnish` goes on last\n\n### `(whisk fast`\n\nA piece of a recipe, quoted.\n\n`if whisk == done {` is other code.\n\n| Term | Means |\n|:--|:--|\n| **stock** | a base |\n";
 
     #[test]
     fn a_word_is_documented_by_a_table_row_a_heading_or_a_list_item() {
         let file = RepoPath("docs/recipes.md".into());
         let lines: Vec<(u32, &str)> = REFERENCE.lines().enumerate().map(|(index, line)| (index as u32 + 1, line)).collect();
-        let words = ["simmer", "sear", "season", "stock", "boil", "garnish", "time"].map(String::from).into_iter().collect();
+        let words = ["simmer", "sear", "season", "stock", "boil", "garnish", "time", "whisk", "if"].map(String::from).into_iter().collect();
         let found = documented(&[(&file, lines)], &words);
         let shown = |word: &str| -> Vec<String> {
             found.get(word).into_iter().flatten().map(|entry| {
@@ -138,13 +159,18 @@ mod tests {
                 format!("{}: {}", entry.line, fields.join("; "))
             }).collect()
         };
-        assert_eq!(shown("simmer"), ["5: Form=`(simmer time :lid on)`; Does=cooks slowly, `a|b`; Example=`(simmer 40m)`"]);
-        assert_eq!(shown("sear"), ["6: Form=`(fry time)`, `(sear time)`; Does=cooks fast; Example="]);
-        assert_eq!(shown("season"), ["14: =`season`\n\nAdds salt to taste."]);
-        assert_eq!(shown("stock"), ["21: =**stock**: water that bones were simmered in", "27: Term=**stock**; Means=a base"]);
-        assert_eq!(shown("garnish"), ["23: =`garnish` goes on last"]);
-        // A word only inside another word's form, or only in a code block, is not documented.
-        assert!(shown("time").is_empty() && shown("boil").is_empty());
+        assert_eq!(shown("simmer"), ["10: Form=`(simmer time :lid on|off)`; Does=cooks slowly, `a|b`; Example=`(simmer 40m)`"]);
+        assert_eq!(shown("sear"), ["11: Form=`(fry time)`, `(sear time)`; Does=cooks fast; Example="]);
+        assert_eq!(shown("season"), ["19: =`season`; =Adds salt to taste."]);
+        assert_eq!(shown("stock"), ["26: =**stock**: water that bones were simmered in", "38: Term=**stock**; Means=a base"]);
+        assert_eq!(shown("garnish"), ["28: =`garnish` goes on last"]);
+        // A table's rows carry the paragraph right above it, joined to one line, and where the table starts.
+        let simmer = &found["simmer"][0];
+        assert_eq!((simmer.intro.as_str(), simmer.table_line), ("A step is one thing to do.", 8));
+        assert_eq!((found["stock"][1].intro.as_str(), found["season"][0].table_line), ("`if whisk == done {` is other code.", 0));
+        // A word only inside another word's form, or only in a code block, is not documented; nor is the head of a
+        // piece cut out of a form, or the first word of a line of other code.
+        assert!(shown("time").is_empty() && shown("boil").is_empty() && shown("whisk").is_empty() && shown("if").is_empty());
     }
 
     #[test]

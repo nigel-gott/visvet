@@ -103,7 +103,18 @@ export type DocEntry = { file: RepoPath, line: number,
  */
 under: string, 
 /**
- * A table row's cells, each under its column's heading; anything else is one field with no label.
+ * For a table row, the line the table starts at; 0 for anything else. Rows of one table that document the same
+ * word are the ways of writing it, like `(lid on)` and `(lid off)`.
+ */
+table_line: number, 
+/**
+ * For a table row, the paragraph that leads up to the table, which says what its rows are; else empty.
+ */
+intro: string, 
+/**
+ * A table row's cells, each under its column's heading. A heading and the paragraph under it are two fields
+ * with no label; a list item or paragraph is one. So of several fields, the first names the word, often as a
+ * form like `(simmer time :lid on)`, and the second says what it means.
  */
 fields: Array<DocField>, };
 

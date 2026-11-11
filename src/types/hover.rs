@@ -34,7 +34,14 @@ pub struct DocEntry {
     /// The heading the entry is under, without its `#`s; empty before the file's first heading. It says which of a
     /// word's uses the entry is about.
     pub under: String,
-    /// A table row's cells, each under its column's heading; anything else is one field with no label.
+    /// For a table row, the line the table starts at; 0 for anything else. Rows of one table that document the same
+    /// word are the ways of writing it, like `(lid on)` and `(lid off)`.
+    pub table_line: u32,
+    /// For a table row, the paragraph that leads up to the table, which says what its rows are; else empty.
+    pub intro: String,
+    /// A table row's cells, each under its column's heading. A heading and the paragraph under it are two fields
+    /// with no label; a list item or paragraph is one. So of several fields, the first names the word, often as a
+    /// form like `(simmer time :lid on)`, and the second says what it means.
     pub fields: Vec<DocField>,
 }
 

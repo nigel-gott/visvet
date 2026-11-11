@@ -4,7 +4,7 @@
 use crate::review::definitions::Definitions;
 use crate::review::parse::lisp;
 use crate::review::reference;
-use crate::types::{BoxId, BoxKind, ChangeStatus, CodeMention, HEAD_MARK, Hover, Language, MapBox, MapId};
+use crate::types::{BoxContent, BoxId, BoxKind, ChangeStatus, CodeMention, DocKind, HEAD_MARK, Hover, Language, MapBox, MapId};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// How many places in code a word keeps: the first few.
@@ -34,7 +34,9 @@ pub fn hover(boxes: &[MapBox]) -> Hover {
     if words.is_empty() {
         return hover;
     }
-    let markdown: Vec<_> = files_in(&[Language::Markdown]).map(|file_box| (&file_box.file, file_box.current_lines().collect())).collect();
+    // A tour's headings quote the code it walks through: they say where a word is used, not what it means.
+    let is_tour = |file_box: &&MapBox| matches!(&file_box.content, BoxContent::Doc { labels } if labels.kind == Some(DocKind::Tour));
+    let markdown: Vec<_> = files_in(&[Language::Markdown]).filter(|file_box| !is_tour(file_box)).map(|file_box| (&file_box.file, file_box.current_lines().collect())).collect();
     hover.documented = reference::documented(&markdown, &words);
     for code_file in files_in(&[Language::Rust, Language::TypeScript, Language::Tsx, Language::JavaScript]) {
         for (line, text) in code_file.current_lines() {
@@ -77,6 +79,8 @@ mod tests {
             ("food/kitchen.lisp", "(recipe stew (simmer 40m :lid on) (needs pantry/salt stock) (garnish pepper) (whisk))\n(recipe stock)\n(recipe pepper)\n(spice pepper)"),
             ("food/pantry.lisp", "(mode quiet)\n(spice salt (like stew) (quiet (heat low)) (unless quiet))"),
             ("docs/cooking.md", "| Form | Does |\n|---|---|\n| `(simmer time)` | cooks slowly |\n\n- **garnish**: goes on last\n"),
+            // A tour quotes code under its headings: that is not documentation.
+            ("tours/look.md", "---\nkind: tour\n---\nA look.\n\n## `(whisk)`\n\nThe last step.\n"),
             ("src/cook.rs", "fn cook(step: &str) {\n    match step {\n        \"simmer\" | \"whisk\" => {}\n        _ => println!(\"garnish\"),\n    }\n}\nconst NAME: &str = \"simmer\";"),
         ];
         let all = files.iter().flat_map(|(file, text)| cmp(file, Some(text.as_bytes()), None)).collect();

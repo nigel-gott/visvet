@@ -203,7 +203,7 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   // Long unchanged runs fold only around a change; unchanged code shows whole.
   // Folding never hides a tour's noted lines.
   const changed = diff.some(l => l.kind !== 'ctx') && !notes.length
-  useColouredWords(view, language === 'lisp' ? file : undefined, diff, [coloured, unfolded])
+  const wordKey = useColouredWords(view, language === 'lisp' ? file : undefined, diff, [coloured, unfolded])
   const runs: { start: number; lines: DiffLine[] }[] = []
   diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
   const rows = runs.flatMap(({ start, lines }) => changed && lines.length > 8 && !unfolded.has(start)
@@ -217,10 +217,10 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
         {!beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)}
       </Fragment>
     )))
-  if (!besideNotes) return <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{rows}{wordHover.card}</div>
+  if (!besideNotes) return <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{wordKey}{rows}{wordHover.card}</div>
   return (
     <div className="beside-notes" style={{ paddingLeft: MARGIN_NOTE_WIDTH }}>
-      <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{rows}{wordHover.card}</div>
+      <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{wordKey}{rows}{wordHover.card}</div>
       <NotesBeside notes={notes} code={view} hotNote={hotNote} setHotNote={setHotNote} room={room} setRoom={setRoom} />
     </div>
   )
