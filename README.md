@@ -64,6 +64,7 @@ A fog of war, as in games: visvet notes which lines of each file you have had on
 - They count wherever the file's text is drawn: in Read mode, and in a box opened on the map, unless the map is zoomed so far out that the text is too small to read.
 - The page is looked at once a second, so text you scroll past faster than that is not seen.
 - A folder's meter is its files' lines added up, so a big file weighs more than a small one.
+- A file you mark as reviewed counts as explored in full, until it changes.
 - A new version of a file starts unexplored. A file that moves, or goes back to a version you explored, stays explored.
 
 What you explored is yours alone: it is in `.visvet/explored/`, which git ignores, one small record per file version.

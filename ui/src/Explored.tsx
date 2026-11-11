@@ -70,7 +70,8 @@ export function useExploring() {
 
 /**
  * On a file tree row: how much of a file, or of all the files in a folder, the user has explored, as a small meter;
- * the exact share is in its tooltip. Empty for anything else, and for a file with no text.
+ * the exact share is in its tooltip. A file marked as reviewed counts as explored in full, until it changes. Empty for
+ * anything else, and for a file with no text.
  */
 export function ExploredMeter({ it }: { it: Item }) {
   const x = useContext(X)
@@ -79,7 +80,7 @@ export function ExploredMeter({ it }: { it: Item }) {
   for (const file of files) {
     const fileLines = currentLines(file.diff).length
     lines += fileLines
-    seen += Math.min(fileLines, x.explored.get(file.id) ?? 0)
+    seen += x.reviewed.get(file.id) === 'reviewed' ? fileLines : Math.min(fileLines, x.explored.get(file.id) ?? 0)
   }
   if (!lines) return <span />
   return <meter className="explored" max={lines} value={seen} title={`Explored ${Math.floor(100 * seen / lines)}%: you have seen ${seen} of ${lines} lines`} />
