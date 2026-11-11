@@ -70,7 +70,7 @@ A file's number is its importance times the share of it you haven't explored. A 
 
 **To read**, beside the tree's filters, lists the files with the most left first, each with the AI's reason. A file drops off once you have explored all of it or marked it as reviewed. It shows the first 50.
 
-In Read mode, the top bar shows the same meter for the file being read, then its rating and how much of it you have read, then the same for the whole repository and a time, e.g. "rated 65 · 12% read · all 4% ⏱ 3h". A phone shows only the meter and the time, in place of the change's line counts and the count of resolved threads.
+In Read mode, the top bar shows the same meter for the file being read, then its rating and how much of it you have read, then the same for the whole repository and a time, e.g. "rated 65 · 12% read · all 4% ⏱ 3h". A phone shows only the meter and the time, in place of the change's line counts.
 
 - **all 4%**: of what matters in the whole repository, how much is read. A line counts as many times as its file's importance, so a line of a file rated 90 weighs as nine lines of a file rated 10.
 - **⏱ 3h**: at your pace over the last half hour, how long until that reaches 80%. Reading important files gets you there fastest. It grows while you read nothing, and shows "⏱ –" when you have read nothing in the last half hour. Marking a file as reviewed in the UI counts its unread lines as read then. The server keeps the pace, so it carries over a reload and between your phone and your desktop.

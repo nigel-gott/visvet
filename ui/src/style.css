@@ -622,11 +622,11 @@ main { position: relative }
   .reading .tree-open { display: block }
   .reading .path { display: none }
   .reading .review-status { margin-left: auto }
-  /* A phone's top bar has little room: the file's meter, the time to go and the threads waiting stay; the shares
-     read, the change's line counts and the count of resolved threads go. It takes the row up to the settings
+  /* A phone's top bar has little room: the file's meter, the time to go and the thread counts stay; the shares
+     read and the change's line counts go. It takes the row up to the settings
      button's width (30px and the 12px gap), so the button never wraps to a row of its own. */
   .reading .review-status { flex: 0 1 calc(100% - 42px); justify-content: flex-end; min-width: 0; overflow: hidden }
-  .reading .review-status > span.counts, .reading .review-status .talk.resolved, .reading .shares-read { display: none }
+  .reading .review-status > span.counts, .reading .shares-read { display: none }
   .app:has(.dimension-view) .dimensions.modes { order: 0; flex: none }
   .reading .tree:not(.hidden) { display: block; grid-area: 2 / 1 / 3 / 3; z-index: 5; width: 100% !important; max-width: none }
   .reading .tree.hidden, .reading .tree-edge, .reading:has(.tree:not(.hidden)) .peek { display: none }
