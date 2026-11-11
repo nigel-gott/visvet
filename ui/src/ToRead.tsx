@@ -93,7 +93,8 @@ export function LeftToReadOfPage() {
   if (!file || !explored?.lines) return null
   return (
     <span className="left-to-read-page" title={x.importance.get(file.id)?.reason}>
-      <LeftToRead it={file} /> rated {importanceOf(x, file)} · {Math.floor(100 * explored.seen / explored.lines)}% read{' '}
+      <LeftToRead it={file} />
+      <span className="shares-read">rated {importanceOf(x, file)} · {Math.floor(100 * explored.seen / explored.lines)}% read ·</span>
       <TimeToGoal />
     </span>
   )
@@ -102,7 +103,7 @@ export function LeftToReadOfPage() {
 /** The share of what matters that counts as a good portion of it read: the goal the time left is worked out for. */
 const GOAL_SHARE = 0.8
 /** The reading pace is taken over this long, up to now. */
-const PACE_OVER_MS = 10 * 60_000
+const PACE_OVER_MS = 30 * 60_000
 /** With less than this long to go by, a pace would be a guess, so no time is shown yet. */
 const PACE_NEEDS_MS = 30_000
 
@@ -139,8 +140,8 @@ function shortTime(milliseconds: number) {
 
 /**
  * Beside the file's meter, for the whole repository: how much of what matters is read, and at the pace of the last
- * ten minutes, how long until a good portion (`GOAL_SHARE`) of it is, e.g. "all 12% · ⏱ 3h". A tick once it is; no
- * time while there is no pace to go by.
+ * half hour, how long until a good portion (`GOAL_SHARE`) of it is, e.g. "all 12% ⏱ 3h". A tick once it is; no
+ * time while there is no pace to go by. A phone shows the time alone (style.css hides `.shares-read`).
  */
 function TimeToGoal() {
   const { all, read } = whatMatters(useContext(X))
@@ -150,13 +151,13 @@ function TimeToGoal() {
     return () => clearInterval(again)
   }, [])
   if (readOverTime.at(-1)?.read !== read) readOverTime.push({ at: now, read })
-  // The oldest moment kept is the last one before the ten minutes began, so the pace covers all of them.
+  // The oldest moment kept is the last one before the half hour began, so the pace covers all of it.
   while (readOverTime.length > 1 && readOverTime[1].at < now - PACE_OVER_MS) readOverTime.shift()
   const since = readOverTime[0], goal = GOAL_SHARE * all
-  const overall = `· all ${Math.floor(100 * read / all)}%`
+  const overall = <span className="shares-read">all {Math.floor(100 * read / all)}%</span>
   const says = `Of what matters in the whole repository, ${Math.floor(100 * read / all)}% is read.`
-  if (read >= goal) return <span title={says}>{overall} ✓</span>
+  if (read >= goal) return <span title={says}>{overall} ✓ {100 * GOAL_SHARE}%</span>
   const readPerMillisecond = (read - since.read) / (now - since.at)
   if (now - since.at < PACE_NEEDS_MS || readPerMillisecond <= 0) return <span title={says}>{overall}</span>
-  return <span title={`${says} At your pace since ${shortTime(now - since.at)} ago, ${100 * GOAL_SHARE}% takes this much longer.`}>{overall} · ⏱ {shortTime((goal - read) / readPerMillisecond)}</span>
+  return <span title={`${says} At your pace since ${shortTime(now - since.at)} ago, ${100 * GOAL_SHARE}% takes this much longer.`}>{overall} ⏱ {shortTime((goal - read) / readPerMillisecond)}</span>
 }
