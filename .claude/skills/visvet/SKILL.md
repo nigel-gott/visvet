@@ -50,10 +50,11 @@ Symbol forms:
 Notes are for review guidance. Descriptions belong in doc comments.
 
 ## Keep the graph clean
-After a change, run `visvet graph`. It prints the map the user sees as text, worst first. These make the map look tangled:
-- Links between top folders, and cycles between files or folders.
-- Functions with high complexity, high fan-out (callees) or high fan-in (callers).
-- Boxes with many outside peers under "zoom views". When the user zooms into such a box, each peer is one more box and arrow.
+After a change, run `visvet graph`. It prints the map the user sees as text, worst first, each level by its own arrows, as the map draws them. An arrow is never a guess: it follows the file's imports and, in Rust, the module tree and `Cargo.toml`, so a name visvet can't trace (a method on a value, something a macro writes) has no arrow. These make the map look tangled:
+- Under "package dependencies": a pair marked as declared but not used in code, or not declared. A package is a folder with a `Cargo.toml` or `package.json`.
+- Cycles, reported per level: among packages, among the files of one package, among the types and functions of one file.
+- Functions with high complexity, high fan-out (callees) or high fan-in (callers), and files most used by the rest of their package.
+- Boxes with many arrows or outside peers under "zoom views": what the user sees zoomed into that box, counted as the map draws it (arrows between the boxes directly inside it; arrows to a "common" box, one that at least 5 and half of its siblings use, are hidden by default and counted apart).
 
 Reduce them, or explain the trade-off with `visvet explain` on the box or arrow.
 

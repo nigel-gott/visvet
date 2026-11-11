@@ -28,7 +28,8 @@ caffeinate -is visvet serve --no-open --port 7880 --url https://nigels-macbook-p
 - `cargo test` also regenerates `ui/src/contract.ts` from the types in `src/types/`.
 - `cargo clippy --all-targets`
 - `cd ui && npx tsc --noEmit -p .`
-- `visvet graph` prints coupling, cycles and complexity.
+- `visvet graph` prints coupling, cycles and complexity, each level by its own arrows: packages, the files of a package, the types and functions of a file.
+- Arrows are never guessed: `src/review/resolve.rs` traces each name through imports, modules and `Cargo.toml` (`src/review/cargo.rs`), and leaves out what it can't trace. Test it with small made-up workspaces, as `src/review/dependencies.rs` does.
 - `visvet tours` checks the tours in `tours/` against the code. After changing code a tour shows, fix its stale steps.
 - `visvet coverage` runs the Rust tests under `cargo llvm-cov`; boxes then show a 🧪 low-coverage debuff. Rerun it after changing tests.
 

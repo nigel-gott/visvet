@@ -33,7 +33,13 @@ The server prints its address and opens it in your browser. It has no login. It 
 | `visvet view` | Print what you have open (a hook adds it to each message you send) |
 | `visvet show <symbol> --highlight <ids...>` | Open a symbol in your UI and outline boxes or arrows |
 | `visvet explain <symbol> "<note>"` | Add a review note to a box or edge |
-| `visvet graph` | Print coupling, cycles, complexity and zoom tangles: the map as text |
+| `visvet graph` | Print the map as text, each level by its own arrows: package dependencies, cycles (among packages, files, and a file's types and functions), zoom views and complexity |
+
+## Arrows
+
+An arrow means what the source says, never a guess: a name is traced through the file's imports (`use`, `import`), its module (`crate::`, `super::`) and, for Rust, the crates its package's `Cargo.toml` lists. Anything that can't be traced that way (the standard library, outside crates, a method called on a value, a local variable) gets no arrow, so an arrow between two Cargo packages always follows a declared dependency. Something reached through a re-export in a crate the code doesn't depend on ends at the re-exporting file.
+
+Each view draws the arrows of its own level: one per pair of the boxes it shows, standing for every use beneath them, with a count and thickness for how many. Hover an arrow for the uses beneath it; click it to list them all with file and line. The legend switches kinds on and off and says what is hidden: Markdown "links" inside code, and arrows to a "common" box that at least 5 and half of its siblings use.
 
 Box descriptions come from doc comments in the code. Comment threads are kept in `.visvet/threads/`, one Markdown file per message, and are committed with the code: pushing and pulling shares them, so several people can review in the same threads. Everything else in `.visvet/` is local and ignored by git.
 

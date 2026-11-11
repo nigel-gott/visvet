@@ -380,8 +380,8 @@ One box as parsed from one version: its name, kind, text, doc, members and the n
 ### `#[derive(Default, Debug)]`
 `Default` gives the type an empty value (empty strings, empty lists), so `..Default::default()` can fill the fields you don't set. `Debug` lets you print it with `{:?}`.
 
-### `pub uses: Vec<Vec<RepoPath>>,`
-A list of lists: for each import, the files it may mean, best first.
+### `pub imports: Vec<Import>,`
+A list (`Vec`) of the names the file imports, each with the path it was written as. Nothing says yet what a name means: that is worked out later, from these.
 
 ## A struct that borrows
 box: `src/review/parse/walk.rs::FileParser`
@@ -413,44 +413,50 @@ route: Same folder: more of FileParser's methods, in the file for Rust.
 ### `pub(super) fn rust_use(&mut self, use_item: Node) {`
 One of the methods for what only Rust has: `use` lines and `impl` blocks. They are more methods on the same `FileParser`, in another file. This method sits in an `impl FileParser<'_> { ... }` block. A type can have many `impl` blocks, in any file of its crate, so each job gets its own file. `'_` means "some lifetime; the name doesn't matter here". visvet draws the block as an "impl" box, since its type is declared in another file.
 
-### `let crate_src = self.path.src_folder().unwrap_or(self.path.folder());`
-`src_folder` is a method on `RepoPath`, visvet's own type for a file path. You'll see it soon.
+### `self.use_tree(imported, &[], &mut imports);`
+A `use` can nest (`a::{B, c::D}`), so `use_tree` calls itself for each part, adding to the one list it is lent with `&mut`.
 
 ## Finding the arrows
 box: `src/review/dependencies.rs::find_dependencies`
 route: Back out in src/review: once every file is compared, the arrows between boxes.
 
-### `pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<RepoPath>) -> (Vec<MapBox>, Vec<Dependency>) {`
-Turns the names each box mentions (types, calls, imports) into arrows to the boxes they mean.
+### `pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<RepoPath>, manifests: &[Manifest]) -> (Vec<MapBox>, Vec<Dependency>) {`
+Turns the names each box mentions (types, calls, imports) into arrows to the boxes they mean. A name that can't be traced through the file's imports gets no arrow, never a guessed one.
 
-### `let (mut edges, mut links, mut implements) = (vec![], BTreeSet::new(), vec![]);`
-Three empty collections. Their item types aren't written: the compiler works them out from what is pushed into them later.
+### `let mut implements = vec![];`
+An empty list. Its item type isn't written: the compiler works it out from what is pushed into it later.
 
-### `for (names, kind) in [(&p.types, DependencyKind::Has), (&p.traits, DependencyKind::Implements)] {`
-A loop over a small fixed array of pairs, taking each pair apart, so one loop body handles both kinds of arrow.
+### `for (to, label) in linked {`
+A loop over a map's entries, taking each pair apart into its key and its value.
 
 ### `if let BoxContent::Code { implements, .. } = &mut p.map_box.content {`
 [`if let`](https://doc.rust-lang.org/book/ch06-03-if-let.html) is a `match` with one arm: if the box holds code, lend its `implements` field to change. `*implements = traits;` then writes through the loan; `*` means "the value this points at".
 
 ## An index that borrows
-box: `src/review/dependencies.rs::Index`
-route: Same file: looking up what a name means.
+box: `src/review/resolve.rs::Resolver`
+route: Next door in resolve.rs: working out what a name means.
 
-### `struct Index<'a> { types: HashMap<&'a str, Vec<&'a MapBox>>, fns: HashMap<&'a str, Vec<(&'a MapBox, &'a Member)>> }`
-Looks up types and functions by name. It holds references into the parsed boxes, so building it copies nothing. [A `HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html) is a hash table of keys to values. Every key and value here is a reference with lifetime `'a`: the index lives no longer than the boxes it points into.
+### `pub struct Resolver<'a> {`
+Works out what a name means, by the language's own rules: the file's imports, its module, and for Rust the crates its package depends on. It holds references into the parsed boxes, so building it copies nothing: every `&'a` here is a reference with lifetime `'a`, and the resolver lives no longer than the boxes it points into.
 
-### `ix.types.entry(&o.name).or_default().push(o);`
-The ["entry" API](https://doc.rust-lang.org/std/collections/hash_map/enum.Entry.html): find the list for this name, or put in an empty one, then push, with one lookup.
+### `methods: HashMap<&'a str, HashMap<&'a str, Function<'a>>>,`
+[A `HashMap`](https://doc.rust-lang.org/std/collections/struct.HashMap.html) is a hash table of keys to values; here one inside another: a type's id, then a method's name.
+
+### `let known = resolver.methods.entry(of_type.id.as_str()).or_default();`
+The ["entry" API](https://doc.rust-lang.org/std/collections/hash_map/enum.Entry.html): find the map for this type, or put in an empty one, with one lookup.
 
 ## Patterns on lists
-box: `src/review/dependencies.rs::pick`
-route: Same file: choosing between boxes with the same name.
+box: `src/review/resolve.rs::Resolver::meant`
+route: Same file: a path's first name, then the rest.
 
-### `fn pick<'a>(o: &MapBox, c: &[(&MapBox, &'a str)]) -> Option<&'a str> {`
-Chooses what a name means: the one match in the same box, else in the same file, else anywhere. Two matches is unclear, so it draws no arrow.
+### `fn meant(&self, by: &'a MapBox, path: &str, want: Want) -> Option<Found<'a>> {`
+What the code in one box means by a path such as `types::MapBox`. `None` when it can't be traced, so no arrow is drawn.
 
-### `[&(_, to)] => Some(to),`
-[A pattern on a slice](https://doc.rust-lang.org/reference/patterns.html#slice-patterns): it matches a list of exactly one item, and names that item's second part `to`. Any other length goes to `_ => None`.
+### `match names.split_first()? {`
+`split_first` gives a list's first item and the rest, or `None` for an empty list; the `?` then returns `None` from the whole function.
+
+### `(&"Self", rest) => self.walk(module, Found::Type(self.own_type(by)?), rest, want, 0),`
+A pattern on that pair: it matches only when the first name is `Self`, and names the other names `rest`. Any other path goes to the `_` arm.
 
 ## Code generators
 box: `src/review/codegen.rs`
@@ -514,9 +520,6 @@ What a box can be: a struct, an enum, a class, a whole file, and so on.
 
 ### `#[serde(rename_all = "lowercase")]`
 In JSON, each variant is [a lowercase string](https://serde.rs/container-attrs.html), e.g. `"struct"`. In TypeScript, the type is a union of those strings.
-
-### `pub fn label(self) -> &'static str {`
-`'static` is the lifetime of something that lasts as long as the program, such as a string written in the code. So the caller can keep the label for as long as it likes.
 
 ## One box on the map
 box: `src/types/boxes.rs::MapBox`
@@ -743,7 +746,7 @@ Works out what one map view shows: its boxes, the arrows between them, and the o
 ### `const { exact, ext } = linkEnds(ix, links.filter(e => shows(e.kind)), top, ids, sel)`
 Each arrow ends at the box this view draws: an arrow to a box inside a closed one ends at the closed box.
 
-### `return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up }`
+### `return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up, common, commonHidden }`
 Data and the functions to read it, in one object. `View = ReturnType<typeof mapView>` names its type.
 
 ## The map component
