@@ -1,13 +1,19 @@
 //! Fog of war: the lines of each file the user has had on screen while active, in `.visvet/explored/`, local to this
 //! machine. One small record per file content, named by the content's git blob id and holding the numbers of the
 //! lines seen. So a new version of a file starts unexplored by itself, and a moved or restored file stays explored.
+//! Beside them, `.visvet/read-lately` notes when lines were first seen, over the last half hour: the user's reading
+//! pace, which holds across page reloads, browsers and devices.
 use crate::git::GitRepo;
 use crate::state::{reviewed, visvet_dir::VisvetDir};
-use crate::types::{ExploredFile, RepoPath};
+use crate::types::{ExploredFile, ReadLately, RepoPath};
 use anyhow::Result;
 use serde::Deserialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::{fs, path::{Path, PathBuf}};
+
+/// The reading pace is taken over this long, up to now; what was read before it is forgotten.
+const LATELY: Duration = Duration::from_secs(30 * 60);
 
 /// Lines of `file` the user has on screen now, by number.
 #[derive(Deserialize)]
@@ -38,10 +44,31 @@ pub fn files(repo_root: &Path) -> Result<Vec<ExploredFile>> {
     Ok(explored.collect())
 }
 
-/// Adds the lines the user has on screen to what they have seen of each file. A record is written only when it grows.
+/// Each time lines were first seen in the last half hour, oldest first: one JSON line each in `.visvet/read-lately`.
+fn first_seen_lately(dir: &VisvetDir) -> Vec<ReadLately> {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let earliest = now.saturating_sub(LATELY).as_millis();
+    let text = fs::read_to_string(dir.read_lately()).unwrap_or_default();
+    text.lines().filter_map(|line| serde_json::from_str::<ReadLately>(line).ok()).filter(|seen| u128::from(seen.at) >= earliest).collect()
+}
+
+/// What the user read in the last half hour: per file, how many lines they first saw, and when the first of them.
+pub fn read_lately(repo_root: &Path) -> Vec<ReadLately> {
+    let mut by_file: BTreeMap<RepoPath, ReadLately> = BTreeMap::new();
+    for seen in first_seen_lately(&VisvetDir::of(repo_root)) {
+        let file = by_file.entry(seen.file.clone()).or_insert(ReadLately { lines: 0, ..seen });
+        file.lines += seen.lines;
+    }
+    by_file.into_values().collect()
+}
+
+/// Adds the lines the user has on screen to what they have seen of each file. A record is written only when it grows,
+/// and then how many lines it grew by is noted for the reading pace.
 pub fn add(repo_root: &Path, on_screen: Vec<LinesOnScreen>) -> Result<()> {
     let dir = VisvetDir::of(repo_root);
     let git = GitRepo::open(repo_root)?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as u64;
+    let mut first_seen_now = vec![];
     for LinesOnScreen { file, lines } in on_screen {
         let Some(record) = record_of(&git, repo_root, &file) else { continue };
         let mut seen = lines_in(&record);
@@ -53,7 +80,13 @@ pub fn add(repo_root: &Path, on_screen: Vec<LinesOnScreen>) -> Result<()> {
             let half_written = dir.create()?.join("explored.tmp");
             fs::write(&half_written, serde_json::to_vec(&seen)?)?;
             fs::rename(half_written, record)?;
+            first_seen_now.push(ReadLately { file, lines: seen.len() - seen_before, at: now });
         }
+    }
+    if !first_seen_now.is_empty() {
+        let lately = first_seen_lately(&dir).into_iter().chain(first_seen_now);
+        let lines: String = lately.map(|seen| Ok(serde_json::to_string(&seen)? + "\n")).collect::<Result<_>>()?;
+        fs::write(dir.read_lately(), lines)?;
     }
     Ok(())
 }
@@ -74,6 +107,13 @@ mod tests {
         see(&[1, 2]);
         see(&[2, 3]);
         assert_eq!(seen(), [("a.rs".into(), 3)]);
+        // The pace: 2 lines first seen, then 1 more, together as the file's 3; lines seen again count for nothing.
+        see(&[1, 3]);
+        let lately = read_lately(&root);
+        assert_eq!(lately.iter().map(|read| (read.file.to_string(), read.lines)).collect::<Vec<_>>(), [("a.rs".into(), 3)]);
+        // What was first seen more than half an hour ago is forgotten.
+        fs::write(root.join(".visvet/read-lately"), r#"{"file":"a.rs","lines":3,"at":1000}"#).unwrap();
+        assert!(read_lately(&root).is_empty());
         // A new version is unexplored; the old one, restored or moved, is as explored as it was.
         fs::write(root.join("a.rs"), "one\ntwo, edited\nthree\n").unwrap();
         assert_eq!(seen(), []);

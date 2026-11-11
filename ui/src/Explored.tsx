@@ -42,11 +42,15 @@ function linesOnScreen(shown: ShownText) {
   const frames = [text.closest('.code'), document.querySelector('main')].flatMap(frame => frame?.getBoundingClientRect() ?? [])
   const top = Math.max(whole.top, ...frames.map(frame => frame.top)), bottom = Math.min(whole.bottom, ...frames.map(frame => frame.bottom))
   const left = Math.max(whole.left, ...frames.map(frame => frame.left)), right = Math.min(whole.right, ...frames.map(frame => frame.right))
-  // ponytail: every line is taken to be equally tall, so folded lines, a tour's notes and a rendered Markdown page's
-  // headings and diagrams shift the count by a few lines. Measure each line's own row if that ever matters.
+  if (bottom <= top || right <= left) return []
+  // Code: each line is a row that says its number (see `DiffView`), so folded lines and notes between lines don't matter.
+  const rows = [...text.querySelectorAll<HTMLElement>('.ln[data-line]')]
+  const isOnScreen = (row: DOMRect) => row.height >= READABLE_LINE_HEIGHT && row.bottom > top && row.top < bottom
+  if (rows.length > 0) return rows.filter(row => isOnScreen(row.getBoundingClientRect())).map(row => Number(row.dataset.line))
+  // ponytail: a rendered Markdown page has no row per line, so every line is taken to be equally tall; headings and
+  // diagrams shift the count by a few lines. Map its blocks to their source lines if that ever matters.
   const lineHeight = whole.height / lines.length
-  const isReadable = bottom > top && right > left && lineHeight >= READABLE_LINE_HEIGHT
-  return isReadable ? lines.slice(Math.floor((top - whole.top) / lineHeight), Math.ceil((bottom - whole.top) / lineHeight)) : []
+  return lineHeight >= READABLE_LINE_HEIGHT ? lines.slice(Math.floor((top - whole.top) / lineHeight), Math.ceil((bottom - whole.top) / lineHeight)) : []
 }
 
 /** While the user is active, tells the server which lines of which files are on screen, to count them as seen. */

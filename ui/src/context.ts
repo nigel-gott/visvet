@@ -2,7 +2,7 @@
 
 import { createContext } from 'react'
 import type { Index, Review, Thread } from './model'
-import type { CodeNote, FileImportance, ReviewedState } from './contract'
+import type { CodeNote, FileImportance, ReadLately, ReviewedState } from './contract'
 import type { Guide, Route, TourPlace } from './Tours'
 import type { DocToShow } from './DocPreview'
 
@@ -17,6 +17,8 @@ export type Ctx = {
   explored: Map<string, number>
   /** How important the AI rates each file for the user to understand, with its reason, by file id (see ToRead.tsx). A file nothing rates isn't in it. */
   importance: Map<string, FileImportance>
+  /** What the user read in the last half hour, per file: their reading pace (see ToRead.tsx). */
+  readLately: ReadLately[]
   /** Whether reviewed files are left out of the tree and the map (kept in this browser). */
   hideReviewed: boolean
   setHideReviewed: (hide: boolean) => void

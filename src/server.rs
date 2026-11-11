@@ -109,7 +109,8 @@ async fn review(State(app): State<App>) -> Res<Json<Review>> {
 /// important the AI rates each file.
 fn annotations(repo_root: &Path) -> anyhow::Result<ReviewAnnotations> {
     let importance = importance::files(repo_root)?.into_iter().filter_map(|(_, rated)| rated).collect();
-    Ok(ReviewAnnotations { reviewed: reviewed::files(repo_root)?, explored: explored::files(repo_root)?, importance, ..store::load(repo_root)? })
+    let read_lately = explored::read_lately(repo_root);
+    Ok(ReviewAnnotations { reviewed: reviewed::files(repo_root)?, explored: explored::files(repo_root)?, importance, read_lately, ..store::load(repo_root)? })
 }
 
 /// The comment threads and reviewed marks alone, which the UI fetches when only they changed: far smaller than the review.

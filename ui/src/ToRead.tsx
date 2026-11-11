@@ -16,8 +16,8 @@ const UNRATED_SCORE = 50
 /** Up to here the meter is green (little left), from there yellow, and from `MUCH_LEFT` red. */
 const SOME_LEFT = 25, MUCH_LEFT = 55
 
-/** How important the AI rates `file`, 0 to 100; the middle for a file nothing rates. */
-export const importanceOf = (x: Ctx, file: Item) => x.importance.get(file.id)?.score ?? UNRATED_SCORE
+/** How important the AI rates the file with id `file`, 0 to 100; the middle for a file nothing rates. */
+export const importanceOf = (x: Ctx, file: string) => x.importance.get(file)?.score ?? UNRATED_SCORE
 
 /** The files a row stands for: every file in a folder, or the file itself; none for a box inside a file. */
 const filesOf = (it: Item) => (it.kind === 'folder' ? subtree(it).filter(inside => inside.kind === 'file') : it.kind === 'file' ? [it] : [])
@@ -39,7 +39,7 @@ function leftToRead(x: Ctx, it: Item) {
   for (const file of filesOf(it)) {
     const explored = exploredOf(x, file)
     if (!explored.lines) continue
-    const left = importanceOf(x, file) * (1 - explored.seen / explored.lines)
+    const left = importanceOf(x, file.id) * (1 - explored.seen / explored.lines)
     lines += explored.lines
     leftRaised += explored.lines * left ** LEAN_TO_MOST_LEFT
   }
@@ -94,7 +94,7 @@ export function LeftToReadOfPage() {
   return (
     <span className="left-to-read-page" title={x.importance.get(file.id)?.reason}>
       <LeftToRead it={file} />
-      <span className="shares-read">rated {importanceOf(x, file)} · {Math.floor(100 * explored.seen / explored.lines)}% read ·</span>
+      <span className="shares-read">rated {importanceOf(x, file.id)} · {Math.floor(100 * explored.seen / explored.lines)}% read ·</span>
       <TimeToGoal />
     </span>
   )
@@ -106,14 +106,8 @@ const GOAL_SHARE = 0.8
 const PACE_OVER_MS = 30 * 60_000
 /** With less than this long to go by, a pace would be a guess, so no time is shown yet. */
 const PACE_NEEDS_MS = 30_000
-
 /** The time shown is worked out again this often, so it grows while nothing is being read. */
 const PACE_AGAIN_EVERY_MS = 5_000
-
-/** How much of what matters was read at one moment (`at`, in milliseconds since 1970). */
-type ReadAt = { at: number; read: number }
-/** What was read at each moment it changed, over the last `PACE_OVER_MS`, oldest first, since this page was opened. */
-const readOverTime: ReadAt[] = []
 
 /**
  * How much of what matters there is in the whole repository, and how much of it is read: every file's lines, and its
@@ -124,8 +118,8 @@ function whatMatters(x: Ctx) {
   let all = 0, read = 0
   for (const file of x.ix.all.filter(it => it.kind === 'file')) {
     const explored = exploredOf(x, file)
-    all += importanceOf(x, file) * explored.lines
-    read += importanceOf(x, file) * explored.seen
+    all += importanceOf(x, file.id) * explored.lines
+    read += importanceOf(x, file.id) * explored.seen
   }
   return { all, read }
 }
@@ -140,24 +134,27 @@ function shortTime(milliseconds: number) {
 
 /**
  * Beside the file's meter, for the whole repository: how much of what matters is read, and at the pace of the last
- * half hour, how long until a good portion (`GOAL_SHARE`) of it is, e.g. "all 12% ⏱ 3h". A tick once it is; no
- * time while there is no pace to go by. A phone shows the time alone (style.css hides `.shares-read`).
+ * half hour, how long until a good portion (`GOAL_SHARE`) of it is, e.g. "all 12% ⏱ 3h". A tick once it is; "⏱ –"
+ * while there is no pace to go by. The server keeps the pace (see src/state/explored.rs), so it holds across reloads,
+ * browsers and devices. A phone shows the time alone (style.css hides `.shares-read`).
  */
 function TimeToGoal() {
-  const { all, read } = whatMatters(useContext(X))
+  const x = useContext(X)
+  const { all, read } = whatMatters(x)
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const again = setInterval(() => setNow(Date.now()), PACE_AGAIN_EVERY_MS)
     return () => clearInterval(again)
   }, [])
-  if (readOverTime.at(-1)?.read !== read) readOverTime.push({ at: now, read })
-  // The oldest moment kept is the last one before the half hour began, so the pace covers all of it.
-  while (readOverTime.length > 1 && readOverTime[1].at < now - PACE_OVER_MS) readOverTime.shift()
-  const since = readOverTime[0], goal = GOAL_SHARE * all
+  // What the server says was read in the last half hour, less what has grown older than that since it said so.
+  const lately = x.readLately.filter(seen => seen.at > now - PACE_OVER_MS)
+  const since = Math.min(...lately.map(seen => seen.at))
+  const readLately = lately.reduce((sum, seen) => sum + importanceOf(x, seen.file) * seen.lines, 0)
+  const goal = GOAL_SHARE * all
   const overall = <span className="shares-read">all {Math.floor(100 * read / all)}%</span>
   const says = `Of what matters in the whole repository, ${Math.floor(100 * read / all)}% is read.`
   if (read >= goal) return <span title={says}>{overall} ✓ {100 * GOAL_SHARE}%</span>
-  const readPerMillisecond = (read - since.read) / (now - since.at)
-  if (now - since.at < PACE_NEEDS_MS || readPerMillisecond <= 0) return <span title={says}>{overall}</span>
-  return <span title={`${says} At your pace since ${shortTime(now - since.at)} ago, ${100 * GOAL_SHARE}% takes this much longer.`}>{overall} ⏱ {shortTime((goal - read) / readPerMillisecond)}</span>
+  const readPerMillisecond = readLately / (now - since)
+  if (!lately.length || now - since < PACE_NEEDS_MS) return <span title={`${says} No reading in the last half hour to take a pace from.`}>{overall} ⏱ –</span>
+  return <span title={`${says} At your pace since ${shortTime(now - since)} ago, ${100 * GOAL_SHARE}% takes this much longer.`}>{overall} ⏱ {shortTime((goal - read) / readPerMillisecond)}</span>
 }

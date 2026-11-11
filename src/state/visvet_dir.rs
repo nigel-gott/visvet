@@ -58,6 +58,11 @@ impl VisvetDir {
         self.0.join("explored")
     }
 
+    /// When lines were first seen, over the last half hour: the user's reading pace.
+    pub fn read_lately(&self) -> PathBuf {
+        self.0.join("read-lately")
+    }
+
     /// The file for hand-off `h`.
     pub fn hand_off(&self, h: HandOff) -> PathBuf {
         self.0.join(match h { HandOff::View => "view.json", HandOff::Show => "show.json" })

@@ -262,6 +262,12 @@ export type MemberKind = "field" | "method" | "variant" | "fn";
 export type MessageKind = "reply" | "note";
 
 /**
+ * Lines of a file the user saw for the first time in the last half hour: how many, and when the first of them
+ * (`at`, in milliseconds since 1970). From these the UI works out the user's reading pace.
+ */
+export type ReadLately = { file: RepoPath, lines: number, at: number, };
+
+/**
  * A file's path from the repository root, e.g. "src/types/boxes.rs". A real path (`PathBuf`, Rust's path type), but
  * not a place on this computer: the file may exist only in git (deleted, or its older version), so visvet never
  * opens it directly, only through the repository's folder or git.
@@ -303,7 +309,11 @@ explored: Array<ExploredFile>,
 /**
  * Filled by the server (see `state::importance`); the thread store leaves it empty.
  */
-importance: Array<FileImportance>, };
+importance: Array<FileImportance>, 
+/**
+ * Filled by the server (see `state::explored`); the thread store leaves it empty.
+ */
+read_lately: Array<ReadLately>, };
 
 /**
  * A file the user marked as reviewed, and whether it changed since. A file with no mark is not listed.

@@ -90,6 +90,17 @@ pub struct ReviewedFile { pub file: RepoPath, pub state: ReviewedState }
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct ExploredFile { pub file: RepoPath, pub seen_lines: usize }
 
+/// Lines of a file the user saw for the first time in the last half hour: how many, and when the first of them
+/// (`at`, in milliseconds since 1970). From these the UI works out the user's reading pace.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct ReadLately {
+    pub file: RepoPath,
+    pub lines: usize,
+    #[ts(type = "number")]
+    pub at: u64,
+}
+
 /// How important it is that the user understands a file, as the AI rates it: 0 (never needs reading, e.g. a lock
 /// file) to 100 (the project can't be changed safely without it).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, TS)]
@@ -114,4 +125,6 @@ pub struct ReviewAnnotations {
     pub explored: Vec<ExploredFile>,
     /// Filled by the server (see `state::importance`); the thread store leaves it empty.
     pub importance: Vec<FileImportance>,
+    /// Filled by the server (see `state::explored`); the thread store leaves it empty.
+    pub read_lately: Vec<ReadLately>,
 }

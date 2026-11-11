@@ -73,7 +73,7 @@ A file's number is its importance times the share of it you haven't explored. A 
 In Read mode, the top bar shows the same meter for the file being read, then its rating and how much of it you have read, then the same for the whole repository and a time, e.g. "rated 65 · 12% read · all 4% ⏱ 3h". A phone shows only the meter and the time, in place of the change's line counts and the count of resolved threads.
 
 - **all 4%**: of what matters in the whole repository, how much is read. A line counts as many times as its file's importance, so a line of a file rated 90 weighs as nine lines of a file rated 10.
-- **⏱ 3h**: at your pace over the last half hour, how long until that reaches 80%. Reading important files gets you there fastest. It shows once you have read for half a minute, grows while you read nothing, and starts afresh when the page is reloaded.
+- **⏱ 3h**: at your pace over the last half hour, how long until that reaches 80%. Reading important files gets you there fastest. It grows while you read nothing, and shows "⏱ –" when you have read nothing in the last half hour. The server keeps the pace, so it carries over a reload and between your phone and your desktop.
 
 In Read mode, the Prev and Next buttons under a file page through every file from the most important down, by the AI's score alone, so the order stays put as you read.
 

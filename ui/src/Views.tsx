@@ -222,7 +222,7 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
     : lines.map((l, k) => (
       <Fragment key={start + k}>
-        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} data-row={start + k} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
+        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} data-row={start + k} data-line={l.kind === 'del' ? undefined : l.line} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
           <span className="no">{l.line}</span>
           {markedText(l, coloured?.[start + k], notedColumns(l, notes), room.inLine, hotNote, setHotNote)}
         </div>
@@ -477,7 +477,7 @@ const isFile = (it: Item) => it.kind === 'file'
  */
 export function NavBar({ it }: { it: Item }) {
   const x = useContext(X)
-  const files = x.ix.all.filter(isFile).sort((one, other) => importanceOf(x, other) - importanceOf(x, one))
+  const files = x.ix.all.filter(isFile).sort((one, other) => importanceOf(x, other.id) - importanceOf(x, one.id))
   const at = files.indexOf(it)
   if (at < 0) return null
   const previous = files[at - 1], next = files[at + 1]
