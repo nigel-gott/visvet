@@ -15,6 +15,7 @@ import { hasPanel, Inbox, Peek, StartComment, ThreadButton, ThreadCounts, Thread
 import { FileTree, LineCounts, SinceReviewed } from './Views'
 import { SINCE_REVIEWED, useReviewedKeys } from './Reviewed'
 import { useExploring } from './Explored'
+import { LeftToReadOfPage } from './ToRead'
 import { DocPreview, type DocToShow } from './DocPreview'
 import { DimensionSwitch, DimensionView } from './Dimensions'
 import { isDimensionPage } from './pages'
@@ -159,7 +160,7 @@ function useNav() {
 
 /**
  * The top bar, one row: Back, Forward and Up, then where the map is zoomed (each step of the path clickable), then
- * the Map or Read switch, the Tours button, what the review changed and compares against, its threads, and the settings menu. A tour that
+ * the Map or Read switch, the Tours button, in Read mode how much of the file being read is left to read, what the review changed and compares against, its threads, and the settings menu. A tour that
  * is playing gets a strip of its own under the row (see `TourBar`). In Read mode the map's Up and path are left out
  * (the page has its own path), and a phone gets a button for the file tree.
  */
@@ -186,6 +187,7 @@ function Header({ error }: { error?: string }) {
       <DimensionSwitch />
       <TourBar />
       <div className="review-status">
+        <LeftToReadOfPage />
         <ChangeTotals />
         <ThreadCounts />
         <span className="vs" title="What this review compares the code with">vs <code>{x.model.compared_against}</code></span>

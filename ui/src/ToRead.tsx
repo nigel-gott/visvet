@@ -81,17 +81,17 @@ export function ToRead() {
 }
 
 /**
- * In Read mode, at the right of the page's path, which stays in view: how much of the file the page is, or is in, is
- * left to read, as the meter and in words, e.g. "importance 85 · 40% read". It moves as the page is read.
+ * In Read mode, in the top bar before the change's line counts: how much of the file being read (the one the page is,
+ * or is in) is left to read, as the meter and in words, e.g. "importance 85 · 40% read". It moves as the page is read.
  */
-export function LeftToReadCrumb({ page }: { page: Item }) {
+export function LeftToReadOfPage() {
   const x = useContext(X)
-  let file: Item | undefined = page
+  let file = x.reading ? x.ix.items.get(x.sel?.split(' -> ')[0] ?? '') : undefined
   while (file && file.kind !== 'file') file = file.parent
   const explored = file && exploredOf(x, file)
   if (!file || !explored?.lines) return null
   return (
-    <span className="left-to-read-crumb" title={x.importance.get(file.id)?.reason}>
+    <span className="left-to-read-page" title={x.importance.get(file.id)?.reason}>
       <LeftToRead it={file} /> importance {importanceOf(x, file)} · {Math.floor(100 * explored.seen / explored.lines)}% read
     </span>
   )
