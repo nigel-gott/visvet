@@ -73,6 +73,14 @@ export function useReviewedKeys() {
 /** Each state's mark and words. The changed one's ✓ is in a dashed outline (style.css), beside its Δ, so no state is told by colour alone. */
 const STATES = { reviewed: ['✓', 'Reviewed'], changed: ['✓', 'Changed since you reviewed it'], unreviewed: ['○', 'Not reviewed'] }
 
+/** The mark's picture: a tick in a circle, drawn in the mark's colour and filled once reviewed (style.css). */
+const Tick = () => (
+  <svg className="tick" viewBox="0 0 20 20" aria-hidden="true">
+    <circle cx="10" cy="10" r="8.5" />
+    <path d="M6 10.4l2.7 2.7L14.2 7.5" />
+  </svg>
+)
+
 /**
  * The reviewed toggle on a file's or folder's tree row and map box: a file shows ✓ (reviewed), an outlined ✓ (changed
  * since) or ○ (not yet), a folder how many of its files are reviewed, e.g. "7/12". A click marks it as reviewed, or
@@ -84,7 +92,7 @@ export function ReviewedMark({ it }: { it: Item }) {
   if (!files.length) return null
   const done = files.filter(file => isReviewed(x, file)).length
   const state = it.kind === 'file' ? x.reviewed.get(it.id) ?? 'unreviewed' : done === files.length ? 'reviewed' : 'unreviewed'
-  const [mark, words] = STATES[state]
+  const [, words] = STATES[state]
   const says = it.kind === 'file' ? words : `${done} of ${files.length} files reviewed`
   const showChanges = () => { x.select(it.id, true); x.showDetail(it.id, SINCE_REVIEWED) }
   return (
@@ -92,7 +100,7 @@ export function ReviewedMark({ it }: { it: Item }) {
       {state === 'changed' && <button className="reviewed-mark since" title="Show what changed since you reviewed it" onClick={e => { e.stopPropagation(); showChanges() }}>Δ</button>}
       <button className={`reviewed-mark ${state}`} aria-pressed={state === 'reviewed'} title={`${says}. Click to ${state === 'reviewed' ? 'unmark' : 'mark as reviewed'} (Alt+R when selected)`}
         onClick={e => { e.stopPropagation(); setReviewed(it, state !== 'reviewed') }}>
-        {it.kind === 'file' ? mark : `${state === 'reviewed' ? '✓ ' : ''}${done}/${files.length}`}
+        {it.kind === 'file' ? <Tick /> : <><Tick />{done}/{files.length}</>}
       </button>
     </span>
   )

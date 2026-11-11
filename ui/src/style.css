@@ -87,17 +87,27 @@ main { grid-area: 2 / 2; min-height: 0 }
 /* Reviewed marks: a quiet toggle on a file's or folder's tree row and map box, told apart by its sign, not only its colour. */
 .reviewed-marks { display: inline-flex; flex: none; justify-content: flex-end; gap: 2px; min-width: 24px }
 .reviewed-mark { padding: 0 4px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--muted); font: 600 12px/16px system-ui, sans-serif; font-variant-numeric: tabular-nums; cursor: pointer }
-.reviewed-mark:hover { border-color: currentColor }
+.reviewed-mark { display: inline-flex; align-items: center; gap: 4px }
+.reviewed-mark .tick { width: 16px; height: 16px; flex: none }
+.reviewed-mark .tick circle { fill: none; stroke: currentColor; stroke-width: 1.5 }
+.reviewed-mark .tick path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round }
+.reviewed-mark.unreviewed { opacity: .55 }
+.reviewed-mark.unreviewed:hover { opacity: 1 }
+.reviewed-mark.reviewed .tick circle { fill: var(--add); stroke: var(--add) }
+.reviewed-mark.reviewed .tick path { stroke: #fff }
+.reviewed-mark.changed .tick circle { stroke-dasharray: 3 2 }
 .reviewed-mark.reviewed { color: var(--add) }
 .reviewed-mark.changed, .reviewed-mark.since { color: var(--chg) }
-.reviewed-mark.changed { border: 1px dashed currentColor }
 /* What is all reviewed steps back, so the eye goes to what is left: greyed in the tree, dimmed on the map. */
 .tree .orow.reviewed:not(.sel) { background: color-mix(in srgb, var(--muted) 14%, transparent) }
 .tree .orow.reviewed .name { color: var(--muted) }
 .tree .orow.changed-since .name { text-decoration: underline dashed var(--chg); text-underline-offset: 3px }
 .card.reviewed:not(.picked) { opacity: .6 }
 /* Read mode: the reviewed mark sits before the page's path, at its left edge. */
+.dimension-crumbs { align-items: center }
 .dimension-crumbs .reviewed-marks { justify-content: flex-start; min-width: 0 }
+.dimension-crumbs .reviewed-mark { padding: 0 }
+.dimension-crumbs .reviewed-mark .tick { width: 22px; height: 22px }
 .review-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 8px; color: var(--muted); font-size: 12px }
 .review-progress button { padding: 1px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); cursor: pointer }
 .review-progress button:disabled { opacity: .4; cursor: default }
