@@ -5,8 +5,8 @@ import { X, type Ctx } from './context'
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { getSinceReviewed, within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
 import { hidesReviewed, looksReviewed, reviewedLook, ReviewProgress } from './Reviewed'
-import { ExploredMeter, useShownText } from './Explored'
-import { ImportanceScore, ToRead } from './ToRead'
+import { useShownText } from './Explored'
+import { LeftToRead, ToRead } from './ToRead'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
@@ -53,7 +53,7 @@ export function Notes({ it }: { it: Item }) {
 
 /**
  * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, its threads and debuffs, then
- * in columns lines added and removed, how important the AI rates it (see ToRead.tsx) and how much of it the user has explored (see Explored.tsx), and a reviewed file or folder is greyed, one that changed since it was reviewed has its name underlined; the tree has no control for it (it is marked where it is read). It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
+ * in columns lines added and removed, how much of it is left to read, as a meter (see ToRead.tsx), and a reviewed file or folder is greyed, one that changed since it was reviewed has its name underlined; the tree has no control for it (it is marked where it is read). It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
  * view when it becomes the selection. A click shows its box on the map; a double click zooms into it.
  */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
@@ -81,8 +81,7 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
       {/* Columns, so every row's line counts line up: lines added, then lines removed. */}
       <span className="tree-added">{it.diffCount.added > 0 && `+${it.diffCount.added}`}</span>
       <span className="tree-removed">{it.diffCount.removed > 0 && `−${it.diffCount.removed}`}</span>
-      <ImportanceScore it={it} />
-      <ExploredMeter it={it} />
+      <LeftToRead it={it} />
     </div>
   )
 }

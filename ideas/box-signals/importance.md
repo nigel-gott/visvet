@@ -7,7 +7,7 @@ description: The AI rates how important each file is to understand; with the fog
 
 Two numbers per file: how much of it you have explored (the [fog of war](fog-of-war.md)), and how important the AI thinks it is that you understand it. The gap between them is what to read next.
 
-**Built, a first version** (`src/state/importance.rs`, `ui/src/ToRead.tsx`): a score from 0 to 100 per file with a one-line reason, set by the AI with `visvet importance`; a folder's score holds for the files under it. The file tree shows the score, and "To read" orders files by score times the share not explored.
+**Built, a first version** (`src/state/importance.rs`, `ui/src/ToRead.tsx`): a score from 0 to 100 per file with a one-line reason, set by the AI with `visvet importance`; a folder's score holds for the files under it. Score times the share not explored is one number, "left to read": the file tree's meter for each file and folder, and the order of "To read".
 
 Why a score and not tiers or a ranking: on a repository of thousands of files a "must read" tier is thousands of files with no order among them, and a full ranking has to be redone whenever a file is added. A score orders the files, and adding a file means rating one file.
 

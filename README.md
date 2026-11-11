@@ -57,24 +57,28 @@ To work through a repository file by file, tick each file off once you have read
 
 Every file the map shows counts; files git ignores are not on the map, so they don't.
 
-## See what you have explored
+## See what is left to read
 
-A fog of war, as in games: visvet notes which lines of each file you have had on screen, and each file's and folder's row in the file tree ends in a small meter of how much of it you have explored (hover it for the share and the line counts).
+Each file's and folder's row in the file tree ends in one small meter: how much of it is left to read. It is full and red for something important you haven't read, and empties as you read it; something that doesn't matter is near empty from the start. Hover it for the number and what it is made of.
+
+It combines two things:
+
+- **How important the file is to understand**, as the AI working in the repository rates it: from 0 (a lock file) to 100 (you can't change the project safely without it), with a one-line reason. A file nothing rates counts as 50.
+- **How much of it you have explored**, a fog of war as in games: the lines you have had on screen.
+
+A file's number is its importance times the share of it you haven't explored. A folder's is that of every file in it, however deep, each weighed by its lines.
+
+**To read**, beside the tree's filters, lists the files with the most left first, each with the AI's reason. A file drops off once you have explored all of it or marked it as reviewed. It shows the first 50.
+
+What counts as explored:
 
 - Lines count while you are there: after 20 seconds with no mouse move, click, key press or scroll, or with the tab hidden, nothing counts until you are back.
 - They count wherever the file's text is drawn: in Read mode, and in a box opened on the map, unless the map is zoomed so far out that the text is too small to read.
 - The page is looked at once a second, so text you scroll past faster than that is not seen.
-- A folder's meter is its files' lines added up, so a big file weighs more than a small one.
 - A file you mark as reviewed counts as explored in full, until it changes.
 - A new version of a file starts unexplored. A file that moves, or goes back to a version you explored, stays explored.
 
-## Read the most important files first
-
-The AI working in the repository rates how important it is that you understand each file, from 0 (a lock file) to 100 (you can't change the project safely without it), with a one-line reason. Each file's row in the file tree shows its score before the meter; hover it for the reason.
-
-- **To read**, beside the tree's filters, lists the files in the order to read them: the score times the share of the file you haven't explored, highest first. A file drops off the list once you have explored all of it or marked it as reviewed. It shows the first 50.
-- The AI rates with `visvet importance <path> <0-100> <reason>`. A folder's score holds for every file under it that has no closer rating of its own. `visvet importance` alone prints every file's score, then the files nothing rates yet.
-- The ratings are in `.visvet/importance`, one JSON line per rated file or folder, and are committed with the code. A rating is about what the file is for, so it stays when the file changes.
+The ratings: the AI rates with `visvet importance <path> <0-100> <reason>`. A folder's score holds for every file under it that has no closer rating of its own. `visvet importance` alone prints every file's score, then the files nothing rates yet. They are in `.visvet/importance`, one JSON line per rated file or folder, and are committed with the code. A rating is about what the file is for, so it stays when the file changes.
 
 What you explored is yours alone: it is in `.visvet/explored/`, which git ignores, one small record per file version.
 

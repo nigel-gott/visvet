@@ -1,10 +1,10 @@
 // Fog of war: how much of each file the user has explored. While they are active, the lines of every file's text on
 // screen count as seen. The server keeps them per version of a file (see src/state/explored.rs), so a file that
-// changes starts unexplored again. The file tree shows each file's and folder's share as a small meter.
+// changes starts unexplored again. With the AI's importance ratings, that makes the file tree's meter (see ToRead.tsx).
 
-import { useContext, useEffect, type RefObject } from 'react'
-import { X, type Ctx } from './context'
-import { post, subtree, type DiffLine, type Item } from './model'
+import { useEffect, type RefObject } from 'react'
+import type { Ctx } from './context'
+import { post, type DiffLine, type Item } from './model'
 
 /** After this long with no mouse move, click, key, scroll or touch, the user counts as away, and nothing on screen as seen. */
 const AWAY_AFTER_MS = 20_000
@@ -72,22 +72,4 @@ export function useExploring() {
 export function exploredOf(x: Ctx, file: Item) {
   const lines = currentLines(file.diff).length
   return { lines, seen: x.reviewed.get(file.id) === 'reviewed' ? lines : Math.min(lines, x.explored.get(file.id) ?? 0) }
-}
-
-/**
- * On a file tree row: how much of a file, or of all the files in a folder, the user has explored, as a small meter;
- * the exact share is in its tooltip. A file marked as reviewed counts as explored in full, until it changes. Empty for
- * anything else, and for a file with no text.
- */
-export function ExploredMeter({ it }: { it: Item }) {
-  const x = useContext(X)
-  const files = it.kind === 'folder' ? subtree(it).filter(inside => inside.kind === 'file') : it.kind === 'file' ? [it] : []
-  let lines = 0, seen = 0
-  for (const file of files) {
-    const explored = exploredOf(x, file)
-    lines += explored.lines
-    seen += explored.seen
-  }
-  if (!lines) return <span />
-  return <meter className="explored" max={lines} value={seen} title={`Explored ${Math.floor(100 * seen / lines)}%: you have seen ${seen} of ${lines} lines`} />
 }

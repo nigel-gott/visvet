@@ -67,17 +67,16 @@ main { grid-area: 2 / 2; min-height: 0 }
 .tree-toggle { position: sticky; top: 0; float: right; z-index: 2; padding: 2px 7px; border: 0; background: none; color: var(--muted); cursor: pointer }
 .tree .body { padding: 8px }
 .tree input[type=search] { width: calc(100% - 28px) }
-.tree .orow { display: grid; grid-template-columns: 16px 10px 18px minmax(0, 1fr) auto auto auto auto; align-items: center; column-gap: 4px;
+.tree .orow { display: grid; grid-template-columns: 16px 10px 18px minmax(0, 1fr) auto auto auto; align-items: center; column-gap: 4px;
   padding: 2px 4px; border: 0; border-radius: 4px; white-space: nowrap }
 .tree-name { display: flex; align-items: center; gap: 5px; min-width: 0 }
 .tree-added, .tree-removed { font: 600 11px var(--mono); text-align: right; font-variant-numeric: tabular-nums }
 .tree-added { color: var(--add) } .tree-removed { color: var(--del) }
 .tree-added { min-width: 34px } .tree-removed { min-width: 30px }
-.tree meter.explored { width: 28px; height: 8px }
-.tree-importance { min-width: 20px; color: var(--muted); font: 600 11px var(--mono); text-align: right }
-/* The "To read" list: a file per row, its score, path and meter, and under them the AI's reason. */
-.to-read .orow { grid-template-columns: 24px minmax(0, 1fr) auto }
-.to-read .reason { grid-column: 2 / -1; color: var(--muted); font-size: 11px; white-space: normal }
+.tree meter.left-to-read { width: 28px; height: 8px }
+/* The "To read" list: a file per row, its path and meter, and under them the AI's reason. */
+.to-read .orow { grid-template-columns: minmax(0, 1fr) auto }
+.to-read .reason { grid-column: 1 / -1; color: var(--muted); font-size: 11px; white-space: normal }
 .talk.compact { padding: 0; background: none; font-size: 11px }
 .debuff.compact { padding: 0; background: none; font-size: 12px }
 .tree .orow:hover { background: var(--bg) }
