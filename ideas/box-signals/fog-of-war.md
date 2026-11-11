@@ -12,6 +12,8 @@ How it should feel:
 - A codebase you know is all revealed. A pull request that rewrites one area brings the fog back **there**, in proportion to how much changed.
 - Never hide or blur boxes; the signal must be subtle ([visual channels](visual-channels.md)).
 
+**Built, a first version** (`src/state/explored.rs`, `ui/src/Explored.tsx`): per file, the lines you had on screen while active (input in the last 20 seconds); a meter per file and folder in the file tree; a new version of a file starts unexplored. Still only ideas from the list below: fog on the map's boxes, partial fog in proportion to a change, stronger signals (select, comment), spreading, tours.
+
 A possible design:
 
 - **One number per box, familiarity**, 0 (never seen) to 1 (know it well). Raised by signals, by strength: on screen while active and close enough to read < select, expand or read code < comment.

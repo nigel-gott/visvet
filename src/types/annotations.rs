@@ -84,12 +84,20 @@ pub enum ReviewedState {
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct ReviewedFile { pub file: RepoPath, pub state: ReviewedState }
 
-/// The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`, and the files
-/// marked as reviewed, kept in `.visvet/reviewed`.
+/// A file the user has explored some of: how many of its lines, as it is now, they have had on screen while active.
+/// A file they have seen nothing of is not listed.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct ExploredFile { pub file: RepoPath, pub seen_lines: usize }
+
+/// The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`, the files
+/// marked as reviewed, kept in `.visvet/reviewed`, and what the user has explored, kept in `.visvet/explored/`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct ReviewAnnotations {
     pub threads: Vec<Thread>,
     /// Filled by the server (see `state::reviewed`); the thread store leaves it empty.
     pub reviewed: Vec<ReviewedFile>,
+    /// Filled by the server (see `state::explored`); the thread store leaves it empty.
+    pub explored: Vec<ExploredFile>,
 }

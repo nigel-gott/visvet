@@ -13,6 +13,8 @@ export type Ctx = {
   threads: Thread[]
   /** The files the user marked as reviewed, by id: still as reviewed, or changed since. A file with no mark isn't in it. */
   reviewed: Map<string, ReviewedState>
+  /** How many lines of each file the user has seen, by file id (see Explored.tsx). A file they have seen nothing of isn't in it. */
+  explored: Map<string, number>
   /** Whether reviewed files are left out of the tree and the map (kept in this browser). */
   hideReviewed: boolean
   setHideReviewed: (hide: boolean) => void

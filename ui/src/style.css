@@ -73,6 +73,7 @@ main { grid-area: 2 / 2; min-height: 0 }
 .tree-added, .tree-removed { font: 600 11px var(--mono); text-align: right; font-variant-numeric: tabular-nums }
 .tree-added { color: var(--add) } .tree-removed { color: var(--del) }
 .tree-added { min-width: 34px } .tree-removed { min-width: 30px }
+.tree meter.explored { width: 28px; height: 8px }
 .talk.compact { padding: 0; background: none; font-size: 11px }
 .debuff.compact { padding: 0; background: none; font-size: 12px }
 .tree .orow:hover { background: var(--bg) }

@@ -143,6 +143,12 @@ export type DocLabels = { kind: DocKind | null, status: WorkStatus | null, };
 export type EntryKind = "form" | "name";
 
 /**
+ * A file the user has explored some of: how many of its lines, as it is now, they have had on screen while active.
+ * A file they have seen nothing of is not listed.
+ */
+export type ExploredFile = { file: RepoPath, seen_lines: number, };
+
+/**
  * A git commit, branch or tag name, e.g. "HEAD", "main" or "a1b2c3d".
  */
 export type GitRef = string;
@@ -270,14 +276,18 @@ tours: Array<Tour>,
 hover: Hover, annotations: ReviewAnnotations, };
 
 /**
- * The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`, and the files
- * marked as reviewed, kept in `.visvet/reviewed`.
+ * The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`, the files
+ * marked as reviewed, kept in `.visvet/reviewed`, and what the user has explored, kept in `.visvet/explored/`.
  */
 export type ReviewAnnotations = { threads: Array<Thread>, 
 /**
  * Filled by the server (see `state::reviewed`); the thread store leaves it empty.
  */
-reviewed: Array<ReviewedFile>, };
+reviewed: Array<ReviewedFile>, 
+/**
+ * Filled by the server (see `state::explored`); the thread store leaves it empty.
+ */
+explored: Array<ExploredFile>, };
 
 /**
  * A file the user marked as reviewed, and whether it changed since. A file with no mark is not listed.

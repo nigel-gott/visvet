@@ -3,7 +3,7 @@ mod watch;
 use crate::state::visvet_dir::HandOff;
 use watch::RepoEvent;
 use crate::review::{build_review, compare, coverage};
-use crate::state::{reviewed, store};
+use crate::state::{explored, reviewed, store};
 use crate::{types::{Author, DiffLine, MapId, RepoPath, Review, ReviewAnnotations, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
@@ -70,6 +70,7 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
         .route("/api/threads/{id}", post(reply))
         .route("/api/reviewed", post(set_reviewed))
         .route("/api/reviewed/diff", get(since_reviewed))
+        .route("/api/explored", post(add_explored))
         .fallback(static_file)
         // The review of a big repository is megabytes of JSON; compressed, it loads fast on a phone too.
         .layer(CompressionLayer::new())
@@ -104,9 +105,9 @@ async fn review(State(app): State<App>) -> Res<Json<Review>> {
     m.await.map_err(err)?.map(Json).map_err(err)
 }
 
-/// The stored review state: the comment threads, and the files marked as reviewed.
+/// The stored review state: the comment threads, the files marked as reviewed, and what the user has explored.
 fn annotations(repo_root: &Path) -> anyhow::Result<ReviewAnnotations> {
-    Ok(ReviewAnnotations { reviewed: reviewed::files(repo_root)?, ..store::load(repo_root)? })
+    Ok(ReviewAnnotations { reviewed: reviewed::files(repo_root)?, explored: explored::files(repo_root)?, ..store::load(repo_root)? })
 }
 
 /// The comment threads and reviewed marks alone, which the UI fetches when only they changed: far smaller than the review.
@@ -121,6 +122,11 @@ struct SetReviewed { files: Vec<RepoPath>, reviewed: bool }
 /// Marks files as reviewed for the user, or unmarks them.
 async fn set_reviewed(State(app): State<App>, Json(marked): Json<SetReviewed>) -> Res<()> {
     reviewed::set(&app.repo_root, &marked.files, marked.reviewed).map(|_| ()).map_err(err)
+}
+
+/// Counts the lines the user has on screen, sent by the UI while they are active, as seen.
+async fn add_explored(State(app): State<App>, Json(on_screen): Json<Vec<explored::LinesOnScreen>>) -> Res<()> {
+    explored::add(&app.repo_root, on_screen).map_err(err)
 }
 
 /// The query of GET /api/reviewed/diff: which file.

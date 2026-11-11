@@ -56,6 +56,18 @@ To work through a repository file by file, tick each file off once you have read
 
 Every file the map shows counts; files git ignores are not on the map, so they don't.
 
+## See what you have explored
+
+A fog of war, as in games: visvet notes which lines of each file you have had on screen, and each file's and folder's row in the file tree ends in a small meter of how much of it you have explored (hover it for the share and the line counts).
+
+- Lines count while you are there: after 20 seconds with no mouse move, click, key press or scroll, or with the tab hidden, nothing counts until you are back.
+- They count wherever the file's text is drawn: in Read mode, and in a box opened on the map, unless the map is zoomed so far out that the text is too small to read.
+- The page is looked at once a second, so text you scroll past faster than that is not seen.
+- A folder's meter is its files' lines added up, so a big file weighs more than a small one.
+- A new version of a file starts unexplored. A file that moves, or goes back to a version you explored, stays explored.
+
+What you explored is yours alone: it is in `.visvet/explored/`, which git ignores, one small record per file version.
+
 The marks are in `.visvet/reviewed`, one line per file, sorted by path: the content's git blob id, then the path. Commit it with the code. A file that moves with the same content keeps its mark; a deleted file's mark is dropped the next time marks are written. `.visvet/.gitattributes` has git merge the file by keeping both sides' lines, so two people's marks never conflict (a file marked on either side with the content it has now is reviewed; a mark removed on one side next to a line the other side changed can come back).
 
 ## Lisp-family files

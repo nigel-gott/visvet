@@ -48,6 +48,11 @@ impl VisvetDir {
         self.0.join("reviewed")
     }
 
+    /// The lines of each file the user has seen, one record per file content.
+    pub fn explored(&self) -> PathBuf {
+        self.0.join("explored")
+    }
+
     /// The file for hand-off `h`.
     pub fn hand_off(&self, h: HandOff) -> PathBuf {
         self.0.join(match h { HandOff::View => "view.json", HandOff::Show => "show.json" })
@@ -64,13 +69,15 @@ pub fn holds(rel: &Path) -> bool {
     rel.starts_with(NAME)
 }
 
-/// Whether a change to `rel`, a path inside `.visvet/`, changes the review: the threads, the reviewed marks and test
-/// coverage do; the hand-offs don't.
+/// Whether a change to `rel`, a path inside `.visvet/`, changes the review: the threads, the reviewed marks, what the user has
+/// explored and test coverage do; the hand-offs don't.
 pub fn affects_review(rel: &Path) -> bool {
     is_annotation(rel) || rel == Path::new(NAME).join("coverage.lcov")
 }
 
-/// Whether `rel`, a path from the repository's top folder, is part of a comment thread, or the reviewed marks.
+/// Whether `rel`, a path from the repository's top folder, is part of a comment thread, the reviewed marks, or what
+/// the user has explored.
 pub fn is_annotation(rel: &Path) -> bool {
-    rel.starts_with(Path::new(NAME).join("threads")) || rel == Path::new(NAME).join("reviewed")
+    let in_folder = |folder: &str| rel.starts_with(Path::new(NAME).join(folder));
+    in_folder("threads") || in_folder("explored") || rel == Path::new(NAME).join("reviewed")
 }

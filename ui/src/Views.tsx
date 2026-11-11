@@ -5,6 +5,7 @@ import { X, type Ctx } from './context'
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { getSinceReviewed, within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
 import { hidesReviewed, looksReviewed, reviewedLook, ReviewProgress } from './Reviewed'
+import { ExploredMeter, useShownText } from './Explored'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
@@ -51,7 +52,7 @@ export function Notes({ it }: { it: Item }) {
 
 /**
  * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, its threads and debuffs, then
- * in columns lines added and removed, and a reviewed file or folder is greyed, one that changed since it was reviewed has its name underlined; the tree has no control for it (it is marked where it is read). It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
+ * in columns lines added and removed and how much of it the user has explored (see Explored.tsx), and a reviewed file or folder is greyed, one that changed since it was reviewed has its name underlined; the tree has no control for it (it is marked where it is read). It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
  * view when it becomes the selection. A click shows its box on the map; a double click zooms into it.
  */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
@@ -79,6 +80,7 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
       {/* Columns, so every row's line counts line up: lines added, then lines removed. */}
       <span className="tree-added">{it.diffCount.added > 0 && `+${it.diffCount.added}`}</span>
       <span className="tree-removed">{it.diffCount.removed > 0 && `−${it.diffCount.removed}`}</span>
+      <ExploredMeter it={it} />
     </div>
   )
 }
@@ -171,14 +173,16 @@ const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 
 /**
  * A file's or box's text: for Markdown, the rendered page, with a Raw button to see the diff instead; anything else, or
- * Markdown with a tour's notes on its code, as the diff.
+ * Markdown with a tour's notes on its code, as the diff. Either way its lines on screen count as explored (see Explored.tsx).
  */
 export function FileText({ it, diff, language, notes = [], beside = false }: { it: Item; diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean }) {
   const [showsRaw, setShowsRaw] = useState(false)
   const rendersMarkdown = language === 'markdown' && !notes.length
+  const page = useRef<HTMLDivElement>(null)
+  useShownText(page, rendersMarkdown ? fileOf(it) : undefined, diff)
   if (!rendersMarkdown) return <DiffView diff={diff} language={language} notes={notes} beside={beside} file={fileOf(it)} />
   return (
-    <div className="md-file">
+    <div className="md-file" ref={page}>
       <button className="md-toggle" onClick={event => { event.stopPropagation(); setShowsRaw(!showsRaw) }}>{showsRaw ? 'Rendered' : 'Raw'}</button>
       {showsRaw ? <DiffView diff={diff} language={language} /> : <MarkdownPage text={currentText(diff)} file={it.id} />}
     </div>
@@ -200,6 +204,7 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   const besideNotes = beside && notes.length > 0
   const view = useRef<HTMLDivElement>(null)
   useScrollToFirstNote(view, notes)
+  useShownText(view, file, diff)
   const wordHover = useWordHover(language === 'lisp' ? file : undefined, diff)
   const highlighter = useHighlighter()
   const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])

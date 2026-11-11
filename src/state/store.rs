@@ -37,7 +37,7 @@ pub fn load(repo_root: &Path) -> Result<ReviewAnnotations> {
         threads.push(Thread { id, target, state, messages: messages.into_iter().map(|(_, m)| m).collect() });
     }
     threads.sort_by_key(|t| t.messages[0].at);
-    Ok(ReviewAnnotations { threads, reviewed: vec![] })
+    Ok(ReviewAnnotations { threads, ..Default::default() })
 }
 
 /// Writes every message of `s` that is new or changed, and deletes the files of messages and threads it no longer has.
