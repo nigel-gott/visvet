@@ -1,8 +1,9 @@
 //! Dependencies between boxes: turns the names each box mentions (types, calls, imports, generated copies, Markdown
 //! links) into arrows to the boxes they mean, and fills in which traits each box implements. `resolve` says what a
-//! name in code means; a name it can't trace gets no arrow, never a guessed one.
+//! name in code means, and `definitions` what a symbol in a Lisp-family file means; a name it can't trace gets no arrow, never a guessed one.
 use crate::review::cargo::{Manifest, Workspace};
 use crate::review::compare::Parsed;
+use crate::review::definitions::Definitions;
 use crate::review::parse::Mention;
 use crate::review::resolve::{Found, Resolver};
 use crate::types::{BoxContent, BoxKind, MapId, MapBox, Dependency, DependencyKind, MemberKind, RepoPath, TraitRef};
@@ -86,6 +87,7 @@ impl Arrows<'_> {
 pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<RepoPath>, manifests: &[Manifest]) -> (Vec<MapBox>, Vec<Dependency>) {
     let workspace = Workspace::read(manifests, cur);
     let resolver = Resolver::new(&all, &workspace);
+    let definitions = Definitions::among(all.iter().map(|parsed| &parsed.map_box));
     let file_of = all.iter().flat_map(|parsed| {
         let map_box = &parsed.map_box;
         map_box.members().iter().map(|member| member.id.as_str()).chain([map_box.id.as_str()]).map(|id| (id, &map_box.file))
@@ -102,7 +104,16 @@ pub fn find_dependencies(all: Vec<Parsed>, cur: &HashSet<RepoPath>, manifests: &
                 arrows.add(by.id.as_str(), to, DependencyKind::Imports, Some(import.line));
             }
         }
-        arrows.add_types(&resolver, by, by.id.as_str(), &parsed.types, DependencyKind::Has);
+        if by.kind() == BoxKind::Form {
+            // A Lisp-family form "uses" each other definition it names, when the name means exactly one.
+            for mention in &parsed.types {
+                if let [used] = definitions.meant(&by.file, &mention.path, mention.as_head)[..] && used.id != by.id {
+                    arrows.add(by.id.as_str(), used.id.as_str(), DependencyKind::Uses, Some(mention.line));
+                }
+            }
+        } else {
+            arrows.add_types(&resolver, by, by.id.as_str(), &parsed.types, DependencyKind::Has);
+        }
         arrows.add_types(&resolver, by, by.id.as_str(), &parsed.traits, DependencyKind::Implements);
         for member in &parsed.members {
             let from = member.member.as_str();
@@ -287,6 +298,33 @@ mod tests {
             "ui/a.tsx::C::go -> ui/a.tsx::A calls",
             "ui/a.tsx::C::stop -> ui/a.tsx::C creates",
             "ui/b.ts -> ui/c.ts imports",
+        ]);
+    }
+
+    #[test]
+    fn a_lisp_form_uses_the_definitions_it_names() {
+        let files = [
+            ("food/kitchen.lisp", "(recipe stew (needs stock pantry/salt) (garnish pepper) (then missing/salt stew))\n(private (base bones) (recipe stock (needs bones)))\n(recipe pepper)\n(spice pepper)"),
+            ("food/pantry.lisp", "(mode quiet)\n(spice salt)\n(spice cumin (like salt bones dried) (quiet (heat low)) (unless quiet))"),
+            ("drinks/bar.lisp", "(spice cumin)\n(drink toddy (needs cumin dried kitchen/stew))"),
+            ("drinks/cellar.lisp", "(method dried)"),
+            ("store/cellar.lisp", "(method dried)"),
+        ];
+        assert_eq!(arrows_of(&files), [
+            // Bare `stock` is the file's own; `pantry/salt` is the other file's by its stem. `pepper` is two things
+            // in this file and `missing/salt` names no file, so neither is an arrow; nor is a form's own name.
+            "food/kitchen.lisp::recipe stew -> food/pantry.lisp::spice salt uses",
+            "food/kitchen.lisp::recipe stew -> food/kitchen.lisp::recipe stock uses",
+            // A definition inside a group is a box like any other.
+            "food/kitchen.lisp::recipe stock -> food/kitchen.lisp::base bones uses",
+            // `bones` is defined in no file but kitchen.lisp, so the bare name means that one; `dried` is defined in two.
+            "food/pantry.lisp::spice cumin -> food/kitchen.lisp::base bones uses",
+            // `(mode quiet)` has no body, so `(quiet ...)` is no use of it; `quiet` as an argument is.
+            "food/pantry.lisp::spice cumin -> food/pantry.lisp::mode quiet uses",
+            "food/pantry.lisp::spice cumin -> food/pantry.lisp::spice salt uses",
+            // `cumin` is this file's own, though pantry.lisp has one too.
+            "drinks/bar.lisp::drink toddy -> drinks/bar.lisp::spice cumin uses",
+            "drinks/bar.lisp::drink toddy -> food/kitchen.lisp::recipe stew uses",
         ]);
     }
 

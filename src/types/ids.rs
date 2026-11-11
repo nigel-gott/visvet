@@ -29,6 +29,10 @@ impl RepoPath {
     pub fn extension(&self) -> &str {
         self.0.extension().and_then(|e| e.to_str()).unwrap_or("")
     }
+    /// The file's name without its extension, e.g. "kitchen" for "food/kitchen.lisp".
+    pub fn stem(&self) -> &str {
+        self.0.file_stem().and_then(|stem| stem.to_str()).unwrap_or("")
+    }
     /// The folder the file is in; empty for a file at the repository root.
     pub fn folder(&self) -> &Path {
         self.0.parent().unwrap_or(Path::new(""))
@@ -52,8 +56,8 @@ impl RepoPath {
     }
 }
 
-/// A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox";
-/// for a file box, just the path.
+/// A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox", or for a Lisp-family
+/// file's form, its first two words, e.g. "food/kitchen.lisp::recipe stew"; for a file box, just the path.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct BoxId(pub String);

@@ -305,7 +305,7 @@ Every file in either version, except visvet's own folder. [A `BTreeSet`](https:/
 ### `let new = cur.contains(f).then(|| std::fs::read(repo_root.join(&f.0)).ok()).flatten();`
 `then` turns a `bool` into an `Option`: `Some(...)` when true, `None` when false. So `new` is the file's bytes, or `None` when the file is gone now.
 
-### `Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, ..Default::default() })`
+### `Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, hover, ..Default::default() })`
 `boxes` alone means `boxes: boxes`. `..Default::default()` fills every other field with its default.
 
 ## Comparing a file's two versions

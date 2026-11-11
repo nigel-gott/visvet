@@ -1,7 +1,7 @@
 //! The boxes on the map and what they hold: code (types, files, their members), documents, or plain files.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{ChangeStatus, DiffLine, DocLabels, Language, LineRange, MemberId, RepoPath, BoxId};
+use super::{ChangeStatus, DiffLine, DiffLineKind, DocLabels, Language, LineRange, MemberId, RepoPath, BoxId};
 
 /// What a box is.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq, TS)]
@@ -18,6 +18,8 @@ pub enum BoxKind {
     TypeAlias,
     /// Methods of a Rust type that is declared in another file.
     Impl,
+    /// A top-level form of a Lisp-family file, named by its first two words, e.g. "recipe stew" for `(recipe stew ...)`.
+    Form,
     /// A whole file of any language, holding its free functions as members.
     #[default]
     File,
@@ -25,7 +27,7 @@ pub enum BoxKind {
 
 impl BoxKind {
     /// The id of a box of this kind named `name` in `file`: a file's own box is just its path, e.g. "src/a.rs"; a
-    /// type adds "::" and its name, e.g. "src/a.rs::Thread".
+    /// type adds "::" and its name, e.g. "src/a.rs::Thread", and so does a form, e.g. "food/kitchen.lisp::recipe stew".
     pub fn box_id(self, file: &RepoPath, name: &str) -> BoxId {
         match self {
             Self::File => BoxId(file.to_string()),
@@ -118,6 +120,14 @@ pub enum BoxContent {
 }
 
 impl MapBox {
+    /// Its text as it is now, in one piece.
+    pub fn current_text(&self) -> String {
+        self.current_lines().map(|(_, text)| text).collect::<Vec<_>>().join("\n")
+    }
+    /// The lines of its text as it is now, each with its number in the file.
+    pub fn current_lines(&self) -> impl Iterator<Item = (u32, &str)> {
+        self.diff.iter().filter(|line| line.kind != DiffLineKind::Removed).map(|line| (line.line, line.text.as_str()))
+    }
     /// What the box is: a code box's own kind, else `File`.
     pub fn kind(&self) -> BoxKind {
         match self.content { BoxContent::Code { kind, .. } => kind, _ => BoxKind::File }

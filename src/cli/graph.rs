@@ -229,8 +229,9 @@ fn report(boxes: &[&MapBox], places: &Places, tally: &Tally) {
     let files: BTreeSet<&str> = boxes.iter().map(|map_box| map_box.file.as_str()).collect();
     let top_folders = boxes.iter().map(|map_box| map_box.file.top_folder()).collect::<BTreeSet<_>>().len();
     let packages = places.values().map(|place| place.package.as_str()).collect::<BTreeSet<_>>().len();
-    let types = boxes.iter().filter(|map_box| map_box.kind() != BoxKind::File).count();
-    println!("totals: {top_folders} top folders, {packages} packages, {} files, {types} types, {} functions; links: {}", files.len(), functions.len(), list(&tally.links_per_kind));
+    let forms = boxes.iter().filter(|map_box| map_box.kind() == BoxKind::Form).count();
+    let types = boxes.iter().filter(|map_box| map_box.kind() != BoxKind::File).count() - forms;
+    println!("totals: {top_folders} top folders, {packages} packages, {} files, {types} types, {forms} Lisp forms, {} functions; links: {}", files.len(), functions.len(), list(&tally.links_per_kind));
     section("top-folder coupling (from -> to)", usize::MAX, tally.top_folder_links.iter().map(|((from, to), per_kind)| {
         (per_kind.values().sum::<usize>(), format!("{from} -> {to}: {}", list(per_kind)))
     }));

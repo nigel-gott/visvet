@@ -21,6 +21,7 @@ pub enum DependencyKind {
     Creates,
     /// Function `from` really uses type `to`: reads one of its values, like `ChangeStatus::Removed`, passes
     /// it as a type argument, like `get::<View>()`, or unpacks a parameter holding it, like `Json(v): Json<View>`.
+    /// Or a Lisp-family form names definition `to`, e.g. `(recipe stew (needs stock))` uses `(recipe stock ...)`.
     Uses,
     /// A code generator writes `to` from `from`, e.g. ts-rs writes a TypeScript copy of a Rust type, and Cargo writes
     /// `Cargo.lock` from `Cargo.toml`.

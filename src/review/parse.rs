@@ -1,5 +1,6 @@
-//! Parsing one version of one file with tree-sitter: its boxes (the file itself and each type-like thing in it)
-//! and their members, with the names they mention, not yet linked to anything.
+//! Parsing one version of one file, with tree-sitter or for a Lisp-family file `lisp`'s own reader: its boxes (the
+//! file itself and each type-like thing in it) and their members, with the names they mention, not yet linked to anything.
+pub mod lisp;
 mod names;
 mod rust;
 mod ts;
@@ -54,11 +55,13 @@ pub struct ParsedMember {
 }
 
 /// A name the code mentions, as written, and the line it is on: a Rust path such as "fmt::Display" or "Self::new",
-/// or a TypeScript name such as "Review". Nothing says yet what it means; `resolve` works that out.
+/// a TypeScript name such as "Review", or a Lisp-family symbol such as "stew" or "kitchen/stew". Nothing says yet what it means; `resolve` works that out.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Mention {
     pub path: String,
     pub line: u32,
+    /// Lisp-family files only: whether it is written as the head of a form, like `stew` in `(stew 2)`.
+    pub as_head: bool,
 }
 
 impl Mention {
@@ -86,10 +89,15 @@ pub struct Import {
 pub const EVERY_NAME: &str = "*";
 
 /// The "file" box (whole text, free fns as members, imports) followed by the file's types.
-/// Only .rs/.ts/.tsx files are parsed.
+/// Only .rs/.ts/.tsx files are parsed this way; a Lisp-family file's boxes are its top-level forms (see `lisp`).
 pub fn parse(path: &RepoPath, src: &str) -> Vec<ParsedBox> {
     let language = Language::of(path);
     let file = ParsedBox { name: path.to_string(), kind: BoxKind::File, line: 1, text: src.into(), doc: head_doc(language, src), ..Default::default() };
+    let mut file = file;
+    if language == Language::Lisp {
+        let forms = lisp::forms(src, &mut file);
+        return std::iter::once(file).chain(forms).collect();
+    }
     let mut parser = FileParser { src, path, language, boxes: vec![file] };
     let Some(grammar) = grammar(language) else { return parser.boxes };
     let mut p = Parser::new();

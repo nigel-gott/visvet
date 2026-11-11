@@ -15,20 +15,25 @@ export type BoxContent = { "type": "code", kind: BoxKind, members: Array<Member>
 coverage: Coverage | null, } | { "type": "doc", labels: DocLabels, } | { "type": "plain" };
 
 /**
- * A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox";
- * for a file box, just the path.
+ * A box's id: its file path, then "::" and its name, e.g. "src/types/boxes.rs::MapBox", or for a Lisp-family
+ * file's form, its first two words, e.g. "food/kitchen.lisp::recipe stew"; for a file box, just the path.
  */
 export type BoxId = string;
 
 /**
  * What a box is.
  */
-export type BoxKind = "struct" | "enum" | "trait" | "class" | "interface" | "type" | "impl" | "file";
+export type BoxKind = "struct" | "enum" | "trait" | "class" | "interface" | "type" | "impl" | "form" | "file";
 
 /**
  * How a box, member or file differs from the version it is compared against.
  */
 export type ChangeStatus = "same" | "added" | "removed" | "changed";
+
+/**
+ * A line of code that decides on a word: `inside` is the function it is in, or else its file.
+ */
+export type CodeMention = { inside: MapId, file: RepoPath, line: number, };
 
 /**
  * A note on an exact piece of a step's code, or on another box: a `### ` heading holding that code or box id in
@@ -88,6 +93,21 @@ export type DiffLine = { kind: DiffLineKind, text: string, line: number, };
 export type DiffLineKind = "ctx" | "add" | "del";
 
 /**
+ * One place a Markdown file documents a word: a table row whose first cell names it, or a heading, list item or
+ * paragraph that starts with it.
+ */
+export type DocEntry = { file: RepoPath, line: number, 
+/**
+ * A table row's cells, each under its column's heading; anything else is one field with no label.
+ */
+fields: Array<DocField>, };
+
+/**
+ * One piece of a `DocEntry`, as Markdown: a table cell labelled by its column's heading, or a paragraph with no label.
+ */
+export type DocField = { label: string, text: string, };
+
+/**
  * What a Markdown file is, from `kind:` in its front matter.
  */
 export type DocKind = "issue" | "milestone" | "idea" | "hub" | "tour" | "dimension";
@@ -101,6 +121,27 @@ export type DocLabels = { kind: DocKind | null, status: WorkStatus | null, };
  * A git commit, branch or tag name, e.g. "HEAD", "main" or "a1b2c3d".
  */
 export type GitRef = string;
+
+/**
+ * What the words in the repository's Lisp-family files mean. A word in neither `definitions` nor `documented` has
+ * nothing to show.
+ */
+export type Hover = { 
+/**
+ * For each Lisp-family file (by its box id), each symbol in it that names a definition, with the definition's
+ * box; several boxes when the file defines the name more than once, e.g. as two kinds of thing. Where a symbol
+ * written as a form's head means something else than it does as an argument (see `Definitions::meant`), that
+ * is under the symbol with `HEAD_MARK` before it, e.g. "(quiet", and may be no box at all.
+ */
+definitions: { [key in BoxId]: { [key in string]: Array<BoxId> } }, 
+/**
+ * Each word of those files that the repository's Markdown documents, with where: the best few, best first.
+ */
+documented: { [key in string]: Array<DocEntry> }, 
+/**
+ * Each such word that Rust or TypeScript code decides on, as a string in a `match` arm or a `case`: the first few places.
+ */
+mentioned: { [key in string]: Array<CodeMention> }, };
 
 /**
  * The languages visvet tells apart.
@@ -186,7 +227,7 @@ export type RepoPath = string;
 
 /**
  * One review, as the UI shows it. GET /api/review returns it.
- * It has two halves: `boxes` and `dependencies` describe the code and are rebuilt from git on every
+ * It has two halves: `boxes`, `dependencies` and `hover` describe the code and are rebuilt from git on every
  * request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
  */
 export type Review = { 
@@ -197,7 +238,11 @@ compared_against: GitRef, boxes: Array<MapBox>, dependencies: Array<Dependency>,
 /**
  * The guided tours in `tours/`, each step checked against the code as it is now.
  */
-tours: Array<Tour>, annotations: ReviewAnnotations, };
+tours: Array<Tour>, 
+/**
+ * What hovering a word in a Lisp-family file's code shows.
+ */
+hover: Hover, annotations: ReviewAnnotations, };
 
 /**
  * The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`.

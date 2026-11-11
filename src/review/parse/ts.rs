@@ -58,7 +58,7 @@ impl FileParser<'_> {
                 "class_heritage" => self.heritage(oi, c),
                 "extends_clause" | "implements_clause" | "extends_type_clause" => {
                     for t in c.named_children(&mut c.walk()).filter(|t| t.kind() != "type_arguments") {
-                        let extended = Mention { path: base(self.t(t)), line: line(t) };
+                        let extended = Mention { path: base(self.t(t)), line: line(t), as_head: false };
                         self.boxes[oi].impls.insert(extended);
                     }
                 }

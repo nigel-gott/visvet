@@ -4,9 +4,12 @@ pub mod cargo;
 pub mod codegen;
 pub mod compare;
 pub mod coverage;
+pub mod definitions;
 pub mod dependencies;
+pub mod hover;
 pub mod markdown;
 pub mod parse;
+pub mod reference;
 pub mod resolve;
 pub mod tours;
 
@@ -39,6 +42,7 @@ pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
     }
     let (boxes, dependencies) = find_dependencies(all, &cur, &manifests);
     let tours = tours::read_tours(repo_root, &boxes);
-    Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, ..Default::default() })
+    let hover = hover::hover(&boxes);
+    Ok(Review { compared_against: GitRef(base.into()), boxes, dependencies, tours, hover, ..Default::default() })
 }
 

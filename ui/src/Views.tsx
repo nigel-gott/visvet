@@ -13,6 +13,7 @@ import { MarkdownPage } from './Markdown'
 import { currentText } from './pages'
 import { MARGIN_NOTE_WIDTH } from './size'
 import { useSite } from './view'
+import { fileOf, useWordHover } from './Hover'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -172,7 +173,7 @@ const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 export function FileText({ it, diff, language, notes = [], beside = false }: { it: Item; diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean }) {
   const [showsRaw, setShowsRaw] = useState(false)
   const rendersMarkdown = language === 'markdown' && !notes.length
-  if (!rendersMarkdown) return <DiffView diff={diff} language={language} notes={notes} beside={beside} />
+  if (!rendersMarkdown) return <DiffView diff={diff} language={language} notes={notes} beside={beside} file={fileOf(it)} />
   return (
     <div className="md-file">
       <button className="md-toggle" onClick={event => { event.stopPropagation(); setShowsRaw(!showsRaw) }}>{showsRaw ? 'Rendered' : 'Raw'}</button>
@@ -184,8 +185,9 @@ export function FileText({ it, diff, language, notes = [], beside = false }: { i
 /**
  * The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. A tour's notes on
  * code outline the exact code they are about, and sit under it, or with `beside`, next to it, on alternate sides.
+ * In a Lisp-family `file`, hovering a word shows what it is (see Hover.tsx).
  */
-export function DiffView({ diff, language, notes = [], beside = false }: { diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean }) {
+export function DiffView({ diff, language, notes = [], beside = false, file }: { diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean; file?: string }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
   /** The note the pointer is over, or whose code it is over: both stand out. */
   const [hotNote, setHotNote] = useState<number | null>(null)
@@ -195,6 +197,7 @@ export function DiffView({ diff, language, notes = [], beside = false }: { diff:
   const besideNotes = beside && notes.length > 0
   const view = useRef<HTMLDivElement>(null)
   useScrollToFirstNote(view, notes)
+  const wordHover = useWordHover(language === 'lisp' ? file : undefined, diff)
   const highlighter = useHighlighter()
   const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])
   // Long unchanged runs fold only around a change; unchanged code shows whole.
@@ -206,17 +209,17 @@ export function DiffView({ diff, language, notes = [], beside = false }: { diff:
     ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
     : lines.map((l, k) => (
       <Fragment key={start + k}>
-        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
+        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} data-row={start + k} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
           <span className="no">{l.line}</span>
           {markedText(l, coloured?.[start + k], notedColumns(l, notes), room.inLine, hotNote, setHotNote)}
         </div>
         {!beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)}
       </Fragment>
     )))
-  if (!besideNotes) return <div className="diff" ref={view}>{rows}</div>
+  if (!besideNotes) return <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{rows}{wordHover.card}</div>
   return (
     <div className="beside-notes" style={{ paddingLeft: MARGIN_NOTE_WIDTH }}>
-      <div className="diff" ref={view}>{rows}</div>
+      <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{rows}{wordHover.card}</div>
       <NotesBeside notes={notes} code={view} hotNote={hotNote} setHotNote={setHotNote} room={room} setRoom={setRoom} />
     </div>
   )

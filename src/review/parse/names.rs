@@ -47,7 +47,7 @@ const BINDERS: [(&str, &str); 11] = [
 impl FileParser<'_> {
     /// `n`'s text as a mention on `n`'s line, if it is a plain path (see `plain_path`).
     pub(super) fn mention(&self, n: Node) -> Option<Mention> {
-        plain_path(self.t(n)).map(|path| Mention { path, line: line(n) })
+        plain_path(self.t(n)).map(|path| Mention { path, line: line(n), as_head: false })
     }
 
     /// The types named under `n`, for "has" arrows: in Rust with their paths, like "fmt::Display".
@@ -142,7 +142,7 @@ impl FileParser<'_> {
             ("identifier" | "scoped_identifier", _) => self.mention(function),
             ("field_expression" | "member_expression", Some(value)) if matches!(self.t(value), "self" | "this") => {
                 let method = function.child_by_field_name("field").or(function.child_by_field_name("property"))?;
-                Some(Mention { path: format!("Self::{}", self.t(method)), line: line(function) })
+                Some(Mention { path: format!("Self::{}", self.t(method)), line: line(function), as_head: false })
             }
             _ => None,
         }

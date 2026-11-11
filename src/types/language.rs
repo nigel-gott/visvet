@@ -19,7 +19,7 @@ pub enum Language {
     Json,
     Toml,
     Markdown,
-    /// A Lisp-family file of s-expressions: `.lisp`, `.sexp`, `.scm`, `.clj` or `.el`. Coloured, not parsed into boxes.
+    /// A Lisp-family file of s-expressions: `.lisp`, `.sexp`, `.scm`, `.clj` or `.el`. Its top-level forms are boxes.
     Lisp,
     /// Anything else, e.g. YAML or a licence.
     #[default]
@@ -43,9 +43,9 @@ impl Language {
         }
     }
 
-    /// Whether visvet parses it into types and functions.
+    /// Whether visvet parses it into the boxes inside it: types and functions, or a Lisp-family file's forms.
     pub fn is_parsed(self) -> bool {
-        matches!(self, Self::Rust | Self::TypeScript | Self::Tsx)
+        matches!(self, Self::Rust | Self::TypeScript | Self::Tsx | Self::Lisp)
     }
 
     /// How a line of the file's leading description comment starts, e.g. `//!` in Rust.

@@ -150,6 +150,7 @@ main { grid-area: 2 / 2; min-height: 0 }
 .k-trait, .k-interface { --k: var(--k-trait) } .k-trait::before, .k-interface::before { content: '◇' }
 .k-type { --k: var(--k-type) } .k-type::before { content: '=' }
 .k-impl { --k: var(--k-struct) } .k-impl::before { content: '+' }
+.k-form { --k: var(--k-class) } .k-form::before { content: '❨' }
 .k-fn, .k-method { --k: var(--k-fn) } .k-fn::before, .k-method::before { content: 'ƒ' }
 .k-field { --k: var(--k-field) } .k-field::before { content: '•' }
 .k-variant { --k: var(--k-enum) } .k-variant::before { content: '▹' }
@@ -589,3 +590,19 @@ main { position: relative }
   .dimension-view .diff { margin-inline: 0; border-inline: 0; border-radius: 0 }
   .read-list { padding: 0 16px }
 }
+
+/* The card for the word under the pointer in a Lisp-family file's code (Hover.tsx): its definition, or its documentation. */
+.diff.at-word .tok { cursor: pointer }
+.word-card { position: fixed; z-index: 2000; width: max-content; max-width: 560px; max-height: 45vh; overflow: auto; padding: 4px 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--bg); color: var(--fg); box-shadow: 0 6px 24px rgb(0 0 0 / .3); font: 12px/1.45 system-ui, sans-serif; text-indent: 0; white-space: normal }
+.word-card section { padding: 8px 0; cursor: pointer }
+.word-card section + section, .word-mentioned { border-top: 1px solid var(--line) }
+.word-card p { margin: 2px 0 }
+.word-card pre { margin: 6px 0; padding: 6px 8px; overflow: hidden; border-radius: 6px; background: var(--panel); font: 11px/1.4 var(--mono); white-space: pre-wrap }
+.word-card code { font-size: 11px }
+.word-card a { color: var(--sel); cursor: pointer; font: 11px var(--mono) }
+.word-card a:hover { text-decoration: underline }
+.word-field { display: grid; grid-template-columns: 70px 1fr; gap: 8px }
+.word-field:has(> :only-child) { display: block }
+.word-label { color: var(--muted); font-size: 11px }
+.word-mentioned { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 0 }
