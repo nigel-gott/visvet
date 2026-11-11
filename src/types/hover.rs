@@ -15,7 +15,7 @@ pub struct Hover {
     /// written as a form's head means something else than it does as an argument (see `Definitions::meant`), that
     /// is under the symbol with `HEAD_MARK` before it, e.g. "(quiet", and may be no box at all.
     pub definitions: BTreeMap<BoxId, BTreeMap<String, Vec<BoxId>>>,
-    /// Each word of those files that the repository's Markdown documents, with where: the best few, best first.
+    /// Each word of those files that the repository's Markdown documents, with where: the best several, best first.
     pub documented: BTreeMap<String, Vec<DocEntry>>,
     /// Each such word that Rust or TypeScript code decides on, as a string in a `match` arm or a `case`: the first few places.
     pub mentioned: BTreeMap<String, Vec<CodeMention>>,
@@ -31,6 +31,9 @@ pub const HEAD_MARK: &str = "(";
 pub struct DocEntry {
     pub file: RepoPath,
     pub line: u32,
+    /// The heading the entry is under, without its `#`s; empty before the file's first heading. It says which of a
+    /// word's uses the entry is about.
+    pub under: String,
     /// A table row's cells, each under its column's heading; anything else is one field with no label.
     pub fields: Vec<DocField>,
 }

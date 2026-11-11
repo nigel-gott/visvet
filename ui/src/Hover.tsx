@@ -40,15 +40,44 @@ function wordAt(text: string, column: number) {
   return start === end || inString || inComment ? undefined : { word: text.slice(start, end), start }
 }
 
-/** The head of the form around `column` of line `row`, e.g. "simmer" inside `(simmer 40m :lid on)`: the word after the nearest `(` still open there. */
+/** The heads of the forms around `column` of line `row`, nearest first, e.g. ["simmer", "recipe"] inside `(recipe stew (simmer 40m :lid on))`. */
 // ponytail: a bracket inside a string or comment above counts too; skip those if a card ever names the wrong form.
-function headAround(lines: string[], row: number, column: number) {
+function headsAround(lines: string[], row: number, column: number) {
   const before = [...lines.slice(0, row), lines[row].slice(0, column)].join('\n')
+  const heads: string[] = []
   let closed = 0
   for (let at = before.length - 1; at >= 0; at--) {
     if (before[at] === ')') closed++
-    else if (before[at] === '(' && closed-- === 0) return before.slice(at + 1).match(/^[^\s()[\]{}"'`,;]+/)?.[0]
+    else if (before[at] === '(' && closed-- === 0) {
+      closed = 0
+      const head = before.slice(at + 1).match(/^[^\s()[\]{}"'`,;]+/)?.[0]
+      if (head) heads.push(head)
+    }
   }
+  return heads
+}
+
+/** How many letters two words must share at their start to count as one word in two forms, e.g. "modify" and "modifiers". */
+const SAME_STEM = 5
+/** Whether a heading's word and a form's head are one word: equal but for an ending, e.g. "triggers" and "trigger". */
+function sameWord(inHeading: string, head: string) {
+  let shared = 0
+  while (shared < inHeading.length && shared < head.length && inHeading[shared] === head[shared]) shared++
+  // A short word that merely starts a longer one ("to" and "tools") is not it.
+  return inHeading === head || shared >= SAME_STEM || (shared >= SAME_STEM - 1 && (shared === head.length || shared === inHeading.length))
+}
+
+/**
+ * A word's documentation entries, with the one about the use in hand first: the entry whose heading names the
+ * nearest of the forms the word sits in (`around`, nearest first). The rest keep their order.
+ */
+function fittingFirst(entries: DocEntry[], around: string[]) {
+  const nearness = (entry: DocEntry) => {
+    const words = entry.under.toLowerCase().split(/[^a-z0-9-]+/).filter(Boolean)
+    const at = around.findIndex(head => words.some(word => sameWord(word, head.toLowerCase())))
+    return at < 0 ? around.length : at
+  }
+  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => nearness(a.entry) - nearness(b.entry) || a.index - b.index).map(each => each.entry)
 }
 
 /** The text position under the pointer, in whichever way the browser gives it. */
@@ -92,6 +121,7 @@ function Documented({ entry }: { entry: DocEntry }) {
   const x = useContext(X)
   return (
     <section onClick={() => x.openFile(entry.file)}>
+      {entry.under && <div className="word-label">{entry.under}</div>}
       {entry.fields.filter(field => field.text).map((field, index) => (
         <div key={index} className="word-field">{field.label && <span className="word-label">{field.label}</span>}<Rich text={field.text} /></div>
       ))}
@@ -103,14 +133,15 @@ function Documented({ entry }: { entry: DocEntry }) {
 /** What the review knows of the word starting at `start` of line `row`, if anything: looked up in the hover index. */
 function meaningOf(hover: Hover, items: Map<string, Item>, file: string, diff: DiffLine[], row: number, found: { word: string; start: number }) {
   if (NUMBER.test(found.word)) return
-  const keywordOf = found.word.startsWith(':') ? headAround(diff.map(each => (each.kind === 'del' ? '' : each.text)), row, found.start) : undefined
+  const around = headsAround(diff.map(each => (each.kind === 'del' ? '' : each.text)), row, found.start)
+  const keywordOf = found.word.startsWith(':') ? around[0] : undefined
   const word = found.word.startsWith(':') ? keywordOf : found.word
   if (!word) return
   const inFile = hover.definitions[file] ?? {}
   // As a form's head, a word may mean something else than as an argument: the index then has it under "(word".
   const asHead = !!keywordOf || diff[row].text.slice(0, found.start).trimEnd().endsWith(HEAD_MARK)
   const definitions = ((asHead ? inFile[HEAD_MARK + word] : undefined) ?? inFile[word] ?? []).flatMap(id => items.get(id) ?? [])
-  const documented = definitions.length ? [] : hover.documented[word] ?? []
+  const documented = definitions.length ? [] : fittingFirst(hover.documented[word] ?? [], around)
   if (!definitions.length && !documented.length) return
   return { keywordOf, word, definitions, documented, mentioned: hover.mentioned[word] ?? [] }
 }
@@ -226,7 +257,11 @@ export function useWordHover(file: string | undefined, diff: DiffLine[]) {
       onMouseMove={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setCard(null) }}>
       {card.keywordOf && <div className="word-label">argument of ({card.keywordOf} …)</div>}
       {card.definitions.map(it => <Definition key={it.id} it={it} />)}
-      {card.documented.map((entry, index) => <Documented key={index} entry={entry} />)}
+      {card.documented.slice(0, 1).map((entry, index) => <Documented key={index} entry={entry} />)}
+      {card.documented.length > 1 && <details onClick={event => event.stopPropagation()}>
+        <summary className="word-label">also documented in {card.documented.length - 1} other {card.documented.length > 2 ? 'places' : 'place'}</summary>
+        {card.documented.slice(1).map((entry, index) => <Documented key={index} entry={entry} />)}
+      </details>}
       {card.mentioned.length > 0 && <div className="word-mentioned">
         <span className="word-label">"{card.word}" in code</span>
         {card.mentioned.map((place, index) => <a key={index} onClick={() => x.goTo(place.inside)}>{place.file}:{place.line}</a>)}

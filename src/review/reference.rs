@@ -4,8 +4,8 @@
 use crate::types::{DocEntry, DocField, RepoPath};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// How many entries a word keeps: the best few.
-const MOST_ENTRIES: usize = 3;
+/// How many entries a word keeps: enough for a word the reference documents once for each of its uses.
+const MOST_ENTRIES: usize = 8;
 /// How many characters of a cell or paragraph an entry keeps.
 const MOST_TEXT: usize = 600;
 
@@ -55,6 +55,7 @@ fn kept(text: &str) -> String {
 /// Every word Markdown `file`, whose text is `lines`, documents, with where. Fenced code blocks are skipped.
 fn documented_in<'a>(file: &RepoPath, lines: &[(u32, &'a str)]) -> Vec<Documented> {
     let (mut found, mut in_fence, mut headings): (Vec<Documented>, bool, Option<Vec<&'a str>>) = (vec![], false, None);
+    let mut under = "";
     let is_table_row = |text: &str| text.trim_start().starts_with('|');
     let is_rule = |text: &str| cells(text).iter().all(|cell| !cell.is_empty() && cell.chars().all(|letter| letter == '-' || letter == ':'));
     for (index, (line, text)) in lines.iter().enumerate() {
@@ -63,7 +64,8 @@ fn documented_in<'a>(file: &RepoPath, lines: &[(u32, &'a str)]) -> Vec<Documente
         if in_fence {
             continue;
         }
-        let entry = |fields| DocEntry { file: file.clone(), line: *line, fields };
+        let above = under;
+        let entry = |fields| DocEntry { file: file.clone(), line: *line, under: above.to_string(), fields };
         if is_table_row(text) {
             let row = cells(text);
             let next_is_rule = lines.get(index + 1).is_some_and(|(_, next)| is_table_row(next) && is_rule(next));
@@ -84,6 +86,9 @@ fn documented_in<'a>(file: &RepoPath, lines: &[(u32, &'a str)]) -> Vec<Documente
         let start = text.trim_start();
         let is_heading = start.starts_with('#');
         let start = start.trim_start_matches('#').trim_start();
+        if is_heading {
+            under = start;
+        }
         let start = BULLETS.iter().find_map(|bullet| start.strip_prefix(bullet)).unwrap_or(start).trim_start();
         let Some(word) = word_named(start) else { continue };
         // A heading is documented by the paragraph under it; anything else by its own paragraph.

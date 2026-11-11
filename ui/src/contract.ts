@@ -98,6 +98,11 @@ export type DiffLineKind = "ctx" | "add" | "del";
  */
 export type DocEntry = { file: RepoPath, line: number, 
 /**
+ * The heading the entry is under, without its `#`s; empty before the file's first heading. It says which of a
+ * word's uses the entry is about.
+ */
+under: string, 
+/**
  * A table row's cells, each under its column's heading; anything else is one field with no label.
  */
 fields: Array<DocField>, };
@@ -135,7 +140,7 @@ export type Hover = {
  */
 definitions: { [key in BoxId]: { [key in string]: Array<BoxId> } }, 
 /**
- * Each word of those files that the repository's Markdown documents, with where: the best few, best first.
+ * Each word of those files that the repository's Markdown documents, with where: the best several, best first.
  */
 documented: { [key in string]: Array<DocEntry> }, 
 /**
