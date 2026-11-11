@@ -30,6 +30,7 @@ caffeinate -is visvet serve --no-open --port 7880 --url https://nigels-macbook-p
 - `cd ui && npx tsc --noEmit -p .`
 - `visvet graph` prints coupling, cycles and complexity, each level by its own arrows: packages, the files of a package, the types and functions of a file.
 - Arrows are never guessed: `src/review/resolve.rs` traces each name through imports, modules and `Cargo.toml` (`src/review/cargo.rs`), and leaves out what it can't trace. Test it with small made-up workspaces, as `src/review/dependencies.rs` does.
+- Lisp-family files (`.lisp`, `.sexp`, `.scm`, `.clj`, `.el`) are read by `src/review/parse/lisp.rs`, a small reader of s-expressions that knows no one Lisp's words: each top-level form is a box with id `<file>::<head> <name>`. `src/review/definitions.rs` says which definition a symbol names (for "uses" arrows and hover cards), `src/review/reference.rs` finds where the Markdown documents a word, and `src/review/hover.rs` puts both in `Review.hover`, which `ui/src/Hover.tsx` only looks words up in. Never teach any of them one language's words: test with small made-up Lisp and Markdown.
 - `visvet tours` checks the tours in `tours/` against the code. After changing code a tour shows, fix its stale steps.
 - `visvet coverage` runs the Rust tests under `cargo llvm-cov`; boxes then show a 🧪 low-coverage debuff. Rerun it after changing tests.
 

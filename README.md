@@ -43,6 +43,21 @@ Each view draws the arrows of its own level: one per pair of the boxes it shows,
 
 Box descriptions come from doc comments in the code. Comment threads are kept in `.visvet/threads/`, one Markdown file per message, and are committed with the code: pushing and pulling shares them, so several people can review in the same threads. Everything else in `.visvet/` is local and ignored by git.
 
+## Lisp-family files
+
+In a `.lisp`, `.sexp`, `.scm`, `.clj` or `.el` file, each top-level form is a box, named by its first two words (`recipe stew` for `(recipe stew ...)`; its id is `<file>::recipe stew`) and described by the `;` comment lines right above it. A top-level form that only groups definitions, i.e. whose head is followed by nothing but lists starting with two symbols, like `(private (recipe stew ...) (recipe broth ...))`, gives a box for each of those instead. visvet knows no one Lisp's words: all of this comes from the shape of the text.
+
+A form with a name is a definition, and a file is a namespace named after the file. A symbol inside a form gets a "uses" arrow to the definition it names: a bare `stew` means the file's own `stew`, else the one definition of that name in any file; `kitchen/stew` means the one in `kitchen.lisp`. A name that could mean definitions in different files gets no arrow, and neither does one a file defines twice. Written as a form's head, `(stew ...)`, a name only means a definition that has a body, so `(mode quiet)` is not what `(quiet ...)` means.
+
+Hover a word in a Lisp-family file's code for a card saying what it is; click the word, or the card, to go there (Back returns):
+
+- A symbol that names a definition shows it: its name, description, first lines and `file:line`. A name the file defines twice shows both.
+- Any other word shows where the repository's Markdown documents it, with nothing to configure: a table row whose first cell names the word (in backticks, alone or as the head of a form like `` `(simmer time :lid on)` ``, or in bold), shown as its cells under their column headings; or a heading, list item or paragraph that starts with the word in backticks or bold. When several files document a word, the file that documents the most of the Lisp files' words comes first; a card shows up to three entries.
+- A `:keyword` shows the card of the form it is an argument of.
+- Under either, up to three places where Rust or TypeScript code decides on the word as a string: a `match` arm like `"simmer" =>`, or a `case "simmer":`.
+
+Numbers, strings and comments show nothing, and nor does a word that is neither defined nor documented.
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT), at your option.

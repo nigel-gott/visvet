@@ -44,6 +44,7 @@ Symbol forms:
 - `<file>::<Type>`: a type
 - `<file>::<Type>::<member>`: a field or method
 - `<file>::<fn>`: a free function
+- `<file>::<head> <name>`: a top-level form of a Lisp-family file (`.lisp`, `.sexp`, `.scm`, `.clj`, `.el`), by its first two words, e.g. `"food/kitchen.lisp::recipe stew"` for `(recipe stew ...)`; just `<file>::<head>` when its second element is not a symbol, e.g. `(serves 4)`. Quote it: it has a space. A second form of the same name in a file ends in `#2`
 - `<folder>/`: a folder, e.g. `src/types/`
 - `<from> -> <to>`: an edge between any two of these
 
