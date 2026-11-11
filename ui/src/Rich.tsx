@@ -1,4 +1,4 @@
-// Light Markdown for messages, notes and tour steps: paragraphs, lists, `code`, **bold** and [links](https://…).
+// Light Markdown for messages, notes and tour steps: paragraphs, headings, lists, fenced code, `code`, **bold** and [links](https://…).
 
 import { Fragment, useContext, type ReactNode } from 'react'
 import { X } from './context'
@@ -36,12 +36,24 @@ const piece = (part: string, key: number) => {
 /** Inline `code`, **bold** and [links](address) in a line of a message. */
 const inline = (line: string) => line.split(/(\[[^\]]+\]\([^)\s]+\)|`[^`]+`|\*\*[^*]+\*\*)/).map(piece)
 
-/** A message with light markdown: blank lines split paragraphs, "- " and "1. " lines make lists, `code`, **bold** and [links](address) inline. */
-export function Rich({ text }: { text: string }) {
-  return text.split(/\n\s*\n/).map((block, i) => {
-    const lines = block.split('\n')
-    if (lines.every(l => /^\s*[-*] /.test(l))) return <ul key={i}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*[-*] /, ''))}</li>)}</ul>
-    if (lines.every(l => /^\s*\d+[.)] /.test(l))) return <ol key={i}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*\d+[.)] /, ''))}</li>)}</ol>
-    return <p key={i}>{lines.map((l, j) => <Fragment key={j}>{j > 0 && <br />}{inline(l)}</Fragment>)}</p>
+/** Text between fences: paragraphs, "# " heading lines, and "- " and "1. " lists. */
+function blocks(text: string, at: number) {
+  return text.split(/\n\s*\n/).filter(block => block.trim()).map((block, i) => {
+    const key = `${at}-${i}`, lines = block.split('\n')
+    const heading = lines.length === 1 && lines[0].match(/^(#{1,4}) +(.*)$/)
+    if (heading) return <div key={key} className={`rich-heading h${heading[1].length}`}>{inline(heading[2])}</div>
+    if (lines.every(l => /^\s*[-*] /.test(l))) return <ul key={key}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*[-*] /, ''))}</li>)}</ul>
+    if (lines.every(l => /^\s*\d+[.)] /.test(l))) return <ol key={key}>{lines.map((l, j) => <li key={j}>{inline(l.replace(/^\s*\d+[.)] /, ''))}</li>)}</ol>
+    return <p key={key}>{lines.map((l, j) => <Fragment key={j}>{j > 0 && <br />}{inline(l)}</Fragment>)}</p>
   })
+}
+
+/**
+ * A message with light markdown: blank lines split paragraphs, a "# " line is a heading, "- " and "1. " lines make
+ * lists, lines between ``` fences are code kept as written, and `code`, **bold** and [links](address) work inline.
+ */
+export function Rich({ text }: { text: string }) {
+  // Every other piece is the inside of a fence; the word after the opening ``` (a language) is dropped.
+  return text.split(/^```[^\n]*\n([\s\S]*?)^```[ \t]*$/m).map((part, at) =>
+    at % 2 ? <pre key={at} className="rich-code">{part.replace(/\n$/, '')}</pre> : blocks(part, at))
 }

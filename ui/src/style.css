@@ -655,3 +655,8 @@ main { position: relative }
 .word-others summary b { color: var(--fg); font-weight: 600 }
 .word-others details[open] summary { white-space: normal }
 .word-others section { margin: 2px 0 6px 6px; padding: 6px 0 0 10px; border-left: 2px solid var(--line) }
+
+/* Light markdown (Rich.tsx): a heading line and a fenced block of code. */
+.rich-heading { margin: 10px 0 4px; font-weight: 600 }
+.rich-heading.h1, .rich-heading.h2 { font-size: 1.1em }
+.rich-code { margin: 6px 0; padding: 6px 8px; overflow-x: auto; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font: 12px/1.45 var(--mono); white-space: pre }
