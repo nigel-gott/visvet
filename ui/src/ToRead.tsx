@@ -16,6 +16,9 @@ const UNRATED_SCORE = 50
 /** Up to here the meter is green (little left), from there yellow, and from `MUCH_LEFT` red. */
 const SOME_LEFT = 25, MUCH_LEFT = 55
 
+/** How important the AI rates `file`, 0 to 100; the middle for a file nothing rates. */
+export const importanceOf = (x: Ctx, file: Item) => x.importance.get(file.id)?.score ?? UNRATED_SCORE
+
 /** The files a row stands for: every file in a folder, or the file itself; none for a box inside a file. */
 const filesOf = (it: Item) => (it.kind === 'folder' ? subtree(it).filter(inside => inside.kind === 'file') : it.kind === 'file' ? [it] : [])
 
@@ -36,7 +39,7 @@ function leftToRead(x: Ctx, it: Item) {
   for (const file of filesOf(it)) {
     const explored = exploredOf(x, file)
     if (!explored.lines) continue
-    const left = (x.importance.get(file.id)?.score ?? UNRATED_SCORE) * (1 - explored.seen / explored.lines)
+    const left = importanceOf(x, file) * (1 - explored.seen / explored.lines)
     lines += explored.lines
     leftRaised += explored.lines * left ** LEAN_TO_MOST_LEFT
   }

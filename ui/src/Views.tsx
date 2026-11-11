@@ -6,7 +6,7 @@ import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useS
 import { getSinceReviewed, within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
 import { hidesReviewed, looksReviewed, reviewedLook, ReviewProgress } from './Reviewed'
 import { useShownText } from './Explored'
-import { LeftToRead, ToRead } from './ToRead'
+import { importanceOf, LeftToRead, ToRead } from './ToRead'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
@@ -472,20 +472,19 @@ function Related({ id, it }: { id: string; it?: Item }) {
 const isFile = (it: Item) => it.kind === 'file'
 
 /**
- * Prev and Next from file `it`, each naming the file it opens: through the changed files in review order when `it` is
- * one of them, else through every file in the tree's order. Nothing for a folder or a box inside a file.
+ * Prev and Next from file `it`, each naming the file it opens: through every file, the most important first, as the
+ * AI rates them (see ToRead.tsx); files rated the same stay in the tree's order. Nothing for a folder or a box inside a file.
  */
 export function NavBar({ it }: { it: Item }) {
   const x = useContext(X)
-  const changed = x.ix.order.filter(isFile)
-  const files = changed.includes(it) ? changed : x.ix.all.filter(isFile)
+  const files = x.ix.all.filter(isFile).sort((one, other) => importanceOf(x, other) - importanceOf(x, one))
   const at = files.indexOf(it)
   if (at < 0) return null
   const previous = files[at - 1], next = files[at + 1]
   return (
     <div className="nav">
-      <button disabled={!previous} title={previous?.id} onClick={() => x.focus(previous.id, true)}>◂ {previous?.name ?? 'Prev'}</button>
-      <button disabled={!next} title={next?.id} onClick={() => x.focus(next.id, true)}>{next?.name ?? 'Next'} ▸</button>
+      <button disabled={!previous} title={previous && `${previous.id}: more important, or as important`} onClick={() => x.focus(previous.id, true)}>◂ {previous?.name ?? 'Prev'}</button>
+      <button disabled={!next} title={next && `${next.id}: the next most important file`} onClick={() => x.focus(next.id, true)}>{next?.name ?? 'Next'} ▸</button>
     </div>
   )
 }
