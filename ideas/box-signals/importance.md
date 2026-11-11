@@ -13,6 +13,8 @@ Why a score and not tiers or a ranking: on a repository of thousands of files a 
 
 A side effect that is wanted: a long file that mixes important and unimportant code sits high on the list for a long time, so the AI is pushed to split what matters from what doesn't, at file level.
 
+A folder's number is a power mean (to the 4th) of its files' numbers, weighed by lines: a plain average hid one important file among many dull ones, and the highest file alone would not move as the rest is read.
+
 Still only ideas:
 
 - **Your override.** The AI rates its own work. A click to set a score yourself, which wins and stays.

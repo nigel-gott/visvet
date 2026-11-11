@@ -66,7 +66,7 @@ It combines two things:
 - **How important the file is to understand**, as the AI working in the repository rates it: from 0 (a lock file) to 100 (you can't change the project safely without it), with a one-line reason. A file nothing rates counts as 50.
 - **How much of it you have explored**, a fog of war as in games: the lines you have had on screen.
 
-A file's number is its importance times the share of it you haven't explored. A folder's is that of every file in it, however deep, each weighed by its lines.
+A file's number is its importance times the share of it you haven't explored. A folder's is a mean of that over every file in it, however deep, each weighed by its lines. The mean leans towards the files with the most left (a power mean, to the 4th power), so one important unread file still shows on a folder of many dull ones: a 100-line file with 90 left among 4,900 lines with 10 left gives the folder 34, where a plain average would give 12.
 
 **To read**, beside the tree's filters, lists the files with the most left first, each with the AI's reason. A file drops off once you have explored all of it or marked it as reviewed. It shows the first 50.
 

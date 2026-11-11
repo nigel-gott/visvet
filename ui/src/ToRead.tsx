@@ -20,17 +20,27 @@ const SOME_LEFT = 25, MUCH_LEFT = 55
 const filesOf = (it: Item) => (it.kind === 'folder' ? subtree(it).filter(inside => inside.kind === 'file') : it.kind === 'file' ? [it] : [])
 
 /**
+ * How far a folder's number leans towards its files with the most left to read: the power of a power mean. 1 would be
+ * the plain average, where one important file drowns among many dull ones; the higher, the nearer to the highest file.
+ * At 4, a 100-line file with 90 left among 4,900 lines with 10 left gives its folder 34, where the average gives 12.
+ */
+const LEAN_TO_MOST_LEFT = 4
+
+/**
  * How much of `it` is left to read, 0 to 100: a file's importance times the share of its lines not explored. A folder's
- * is that of all the files in it, however deep, each weighed by its lines. None for anything with no text.
+ * is a mean of that over all the files in it, however deep, each weighed by its lines, leaning towards the files
+ * with the most left (see `LEAN_TO_MOST_LEFT`). None for anything with no text.
  */
 function leftToRead(x: Ctx, it: Item) {
-  let lines = 0, left = 0
+  let lines = 0, leftRaised = 0
   for (const file of filesOf(it)) {
     const explored = exploredOf(x, file)
+    if (!explored.lines) continue
+    const left = (x.importance.get(file.id)?.score ?? UNRATED_SCORE) * (1 - explored.seen / explored.lines)
     lines += explored.lines
-    left += (x.importance.get(file.id)?.score ?? UNRATED_SCORE) * (explored.lines - explored.seen)
+    leftRaised += explored.lines * left ** LEAN_TO_MOST_LEFT
   }
-  return lines ? left / lines : undefined
+  return lines ? (leftRaised / lines) ** (1 / LEAN_TO_MOST_LEFT) : undefined
 }
 
 /**
@@ -43,7 +53,7 @@ export function LeftToRead({ it }: { it: Item }) {
   const left = leftToRead(x, it)
   if (left === undefined) return <span />
   const rated = x.importance.get(it.id), explored = exploredOf(x, it)
-  const ofFile = it.kind !== 'file' ? 'Its files weigh in by their lines.'
+  const ofFile = it.kind !== 'file' ? 'A mean over its files, by their lines, leaning towards those with the most left.'
     : `${rated ? `Importance ${rated.score}: ${rated.reason}` : 'Not rated by the AI yet.'} You have explored ${Math.floor(100 * explored.seen / explored.lines)}%.`
   return <meter className="left-to-read" max={100} low={SOME_LEFT} high={MUCH_LEFT} optimum={0} value={left} title={`Left to read: ${Math.round(left)} of 100. ${ofFile}`} />
 }
