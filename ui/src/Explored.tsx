@@ -3,7 +3,7 @@
 // changes starts unexplored again. The file tree shows each file's and folder's share as a small meter.
 
 import { useContext, useEffect, type RefObject } from 'react'
-import { X } from './context'
+import { X, type Ctx } from './context'
 import { post, subtree, type DiffLine, type Item } from './model'
 
 /** After this long with no mouse move, click, key, scroll or touch, the user counts as away, and nothing on screen as seen. */
@@ -68,6 +68,12 @@ export function useExploring() {
   }, [])
 }
 
+/** How many lines `file` has now, and how many of them the user has seen: all of them once it is marked as reviewed. */
+export function exploredOf(x: Ctx, file: Item) {
+  const lines = currentLines(file.diff).length
+  return { lines, seen: x.reviewed.get(file.id) === 'reviewed' ? lines : Math.min(lines, x.explored.get(file.id) ?? 0) }
+}
+
 /**
  * On a file tree row: how much of a file, or of all the files in a folder, the user has explored, as a small meter;
  * the exact share is in its tooltip. A file marked as reviewed counts as explored in full, until it changes. Empty for
@@ -78,9 +84,9 @@ export function ExploredMeter({ it }: { it: Item }) {
   const files = it.kind === 'folder' ? subtree(it).filter(inside => inside.kind === 'file') : it.kind === 'file' ? [it] : []
   let lines = 0, seen = 0
   for (const file of files) {
-    const fileLines = currentLines(file.diff).length
-    lines += fileLines
-    seen += x.reviewed.get(file.id) === 'reviewed' ? fileLines : Math.min(fileLines, x.explored.get(file.id) ?? 0)
+    const explored = exploredOf(x, file)
+    lines += explored.lines
+    seen += explored.seen
   }
   if (!lines) return <span />
   return <meter className="explored" max={lines} value={seen} title={`Explored ${Math.floor(100 * seen / lines)}%: you have seen ${seen} of ${lines} lines`} />

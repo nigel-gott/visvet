@@ -72,6 +72,19 @@ The user works through the repository by marking each file as reviewed in the UI
 - To read progress: `visvet view` ends with it (e.g. "7/12 files reviewed, 1 changed since"), and `visvet reviewed --list` prints every file: `✓` reviewed, `~` changed since the user reviewed it, blank not yet.
 - When you change a file the user has reviewed, its mark turns to "changed since reviewed" by itself, and the UI shows them the diff since the version they reviewed. That is intended: leave it for them to mark again.
 
+## Rate how important each file is to understand
+The user can't read everything, so you tell them what matters: a score from 0 to 100 per file for how important it is that they understand it, with one line on why. visvet orders their "To read" list by your score times how much of the file they haven't explored yet.
+```bash
+visvet importance src/types/ 90 "The data model the server and the UI share; every feature starts from these types."
+visvet importance src/main.rs 10 "Twelve lines that start the program."
+visvet importance        # every file's score, then the files nothing rates yet
+```
+- A folder's score holds for every file under it without a closer rating: rate folders first, then the files that differ.
+- Use the whole range, or the order means nothing. 90 and up: the project can't be changed safely without understanding it (the data model, the entry points, anything that can lose data or let someone in). 50 to 80: real logic worth a read. 20 to 50: plumbing, formatting, tests that say nothing new. Under 20: generated files, lock files, looks.
+- Rate what the file is for, not how hard or how new it is; the reason says what goes wrong if the user doesn't know it.
+- Keep what matters apart from what doesn't, at file level: when a file mixes a few lines the user must understand with a lot they needn't, split it, so the important file is short and scores high and the rest scores low.
+- Rate every file you add, re-rate one whose job changes, and commit `.visvet/importance` with the code. `visvet importance` must end with "0 files not rated".
+
 ## Follow and steer what the user sees
 The user keeps visvet open beside this session.
 - A hook runs `visvet view` on every user message. So when the user says "this", "here" or "that arrow", read the view first: the zoomed box, the selected symbol and the boxes on screen. If it is many seconds old, they may have looked away.

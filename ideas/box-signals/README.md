@@ -23,4 +23,5 @@ People:
 You:
 
 - [Fog of war](fog-of-war.md): where you haven't looked or understood yet.
+- [Importance](importance.md): what the AI says you most need to understand; with the fog of war it orders what to read.
 - [Review debt](review-debt.md): changed lines not yet reviewed, as a number and a trend.

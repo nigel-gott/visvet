@@ -1,0 +1,38 @@
+{"path":".claude/","score":70,"reason":"The review loop the AI follows: how it annotates, answers threads and rates files."}
+{"path":".gitignore","score":5,"reason":"What git leaves out; rarely matters."}
+{"path":"CLAUDE.md","score":80,"reason":"The rules the AI works by in this repo; wrong rules here mean wrong changes everywhere."}
+{"path":"Cargo.lock","score":0,"reason":"Generated lock file."}
+{"path":"Cargo.toml","score":30,"reason":"The Rust dependencies; skim when one is added."}
+{"path":"LICENSE-APACHE","score":0,"reason":"Licence text."}
+{"path":"LICENSE-MIT","score":0,"reason":"Licence text."}
+{"path":"README.md","score":85,"reason":"What visvet is and every feature as the user meets it: the reference for what the code must do."}
+{"path":"ideas/","score":25,"reason":"Thinking, not plans: read a note when its theme comes up."}
+{"path":"issues/","score":40,"reason":"Work still to do: read the open ones when picking what is next."}
+{"path":"issues/done/","score":5,"reason":"Finished work, kept for the record."}
+{"path":"src/","score":55,"reason":"The Rust server and command line."}
+{"path":"src/cli/","score":40,"reason":"What each command prints; mostly formatting."}
+{"path":"src/cli.rs","score":70,"reason":"Every command, as one type: the AI's whole interface to visvet."}
+{"path":"src/git.rs","score":65,"reason":"The only code that reads the git repository."}
+{"path":"src/main.rs","score":10,"reason":"Twelve lines that start the program."}
+{"path":"src/review/","score":60,"reason":"The steps of building a review: parsing, comparing, arrows."}
+{"path":"src/review/compare.rs","score":75,"reason":"Works out what changed: every added, changed and removed mark comes from here."}
+{"path":"src/review/dependencies.rs","score":75,"reason":"Turns names used in code into the arrows between boxes."}
+{"path":"src/review/parse/","score":45,"reason":"One reader per language; read the one for the language you care about."}
+{"path":"src/review/resolve.rs","score":80,"reason":"Decides which arrows the map draws; a mistake here draws wrong dependencies."}
+{"path":"src/review.rs","score":85,"reason":"How a review is built, end to end: the order everything else in src/review/ runs in."}
+{"path":"src/server/","score":50,"reason":"Watching the repository for changes."}
+{"path":"src/server.rs","score":80,"reason":"Every way the UI talks to the server, and the host check that keeps other web pages out."}
+{"path":"src/state/","score":75,"reason":"What visvet saves in .visvet/: threads, reviewed marks, explored lines, ratings. A bug here loses review work."}
+{"path":"src/types/","score":90,"reason":"The data model the server and the UI share; every feature starts from these types."}
+{"path":"tours/","score":35,"reason":"Guided walks through the code: taken as tours, not read as files."}
+{"path":"ui/","score":15,"reason":"Build settings for the UI."}
+{"path":"ui/package-lock.json","score":0,"reason":"Generated lock file."}
+{"path":"ui/src/","score":50,"reason":"The browser UI."}
+{"path":"ui/src/Graph.tsx","score":65,"reason":"The map itself: layout and drawing of boxes and arrows."}
+{"path":"ui/src/context.ts","score":85,"reason":"Everything every view can read or do, as one type: the UI's map of itself."}
+{"path":"ui/src/contract.ts","score":5,"reason":"Generated from src/types/: read the Rust types instead."}
+{"path":"ui/src/main.tsx","score":85,"reason":"The app shell: all navigation state, and how tours, Read mode and the map hand over to each other."}
+{"path":"ui/src/model.ts","score":80,"reason":"How the server's review becomes the tree of items every view draws."}
+{"path":"ui/src/nestedZoom.tsx","score":55,"reason":"The zoom animation between map levels; intricate, but only motion."}
+{"path":"ui/src/style.css","score":20,"reason":"Looks only."}
+{"path":"ui/src/view.ts","score":70,"reason":"Decides which boxes and arrows the map shows at a zoom level."}

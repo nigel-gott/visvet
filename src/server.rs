@@ -3,7 +3,7 @@ mod watch;
 use crate::state::visvet_dir::HandOff;
 use watch::RepoEvent;
 use crate::review::{build_review, compare, coverage};
-use crate::state::{explored, reviewed, store};
+use crate::state::{explored, importance, reviewed, store};
 use crate::{types::{Author, DiffLine, MapId, RepoPath, Review, ReviewAnnotations, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
@@ -105,9 +105,11 @@ async fn review(State(app): State<App>) -> Res<Json<Review>> {
     m.await.map_err(err)?.map(Json).map_err(err)
 }
 
-/// The stored review state: the comment threads, the files marked as reviewed, and what the user has explored.
+/// The stored review state: the comment threads, the files marked as reviewed, what the user has explored, and how
+/// important the AI rates each file.
 fn annotations(repo_root: &Path) -> anyhow::Result<ReviewAnnotations> {
-    Ok(ReviewAnnotations { reviewed: reviewed::files(repo_root)?, explored: explored::files(repo_root)?, ..store::load(repo_root)? })
+    let importance = importance::files(repo_root)?.into_iter().filter_map(|(_, rated)| rated).collect();
+    Ok(ReviewAnnotations { reviewed: reviewed::files(repo_root)?, explored: explored::files(repo_root)?, importance, ..store::load(repo_root)? })
 }
 
 /// The comment threads and reviewed marks alone, which the UI fetches when only they changed: far smaller than the review.

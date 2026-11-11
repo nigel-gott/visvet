@@ -2,5 +2,6 @@
 !.gitignore
 !.gitattributes
 !reviewed
+!importance
 !threads/
 !threads/**

@@ -30,6 +30,7 @@ The server prints its address and opens it in your browser. It has no login. It 
 | `visvet reply <id> "<text>" [--resolve \| --ask]` | Claude's answer to a thread |
 | `visvet wait` | Wait for a new comment (Claude runs it while idle) |
 | `visvet coverage [-- <args>]` | Run the Rust tests under `cargo llvm-cov` (args passed on, e.g. to pick tests), so boxes show low test coverage |
+| `visvet importance [<path> <0-100> <reason>]` | Rate how important it is that you understand a file or folder; alone, print every file's score |
 | `visvet view` | Print what you have open and how far you are through marking files as reviewed (a hook adds it to each message you send) |
 | `visvet reviewed [<path>...] [--undo] [--list]` | For you, not Claude: mark files (or every file under a folder) as reviewed, or unmark them; with no paths, or `--list`, print every file's state and the progress |
 | `visvet show <symbol> --highlight <ids...>` | Open a symbol in your UI and outline boxes or arrows |
@@ -66,6 +67,14 @@ A fog of war, as in games: visvet notes which lines of each file you have had on
 - A folder's meter is its files' lines added up, so a big file weighs more than a small one.
 - A file you mark as reviewed counts as explored in full, until it changes.
 - A new version of a file starts unexplored. A file that moves, or goes back to a version you explored, stays explored.
+
+## Read the most important files first
+
+The AI working in the repository rates how important it is that you understand each file, from 0 (a lock file) to 100 (you can't change the project safely without it), with a one-line reason. Each file's row in the file tree shows its score before the meter; hover it for the reason.
+
+- **To read**, beside the tree's filters, lists the files in the order to read them: the score times the share of the file you haven't explored, highest first. A file drops off the list once you have explored all of it or marked it as reviewed. It shows the first 50.
+- The AI rates with `visvet importance <path> <0-100> <reason>`. A folder's score holds for every file under it that has no closer rating of its own. `visvet importance` alone prints every file's score, then the files nothing rates yet.
+- The ratings are in `.visvet/importance`, one JSON line per rated file or folder, and are committed with the code. A rating is about what the file is for, so it stays when the file changes.
 
 What you explored is yours alone: it is in `.visvet/explored/`, which git ignores, one small record per file version.
 

@@ -4,10 +4,10 @@ use std::{fs, io, path::{Path, PathBuf}};
 
 /// The folder's name, in the repository's top folder.
 pub const NAME: &str = ".visvet";
-/// Its `.gitignore`: everything is local except the threads and the reviewed marks.
-const IGNORE: &str = "*\n!.gitignore\n!.gitattributes\n!reviewed\n!threads/\n!threads/**\n";
-/// Its `.gitattributes`: when two people mark files as reviewed, git merges their marks by keeping both sides' lines.
-const ATTRIBUTES: &str = "reviewed merge=union\n";
+/// Its `.gitignore`: everything is local except the threads, the reviewed marks and the importance ratings.
+const IGNORE: &str = "*\n!.gitignore\n!.gitattributes\n!reviewed\n!importance\n!threads/\n!threads/**\n";
+/// Its `.gitattributes`: when two people mark files as reviewed, or rate them, git merges by keeping both sides' lines.
+const ATTRIBUTES: &str = "reviewed merge=union\nimportance merge=union\n";
 
 /// A small JSON file passed between the UI and the AI, local to this machine.
 #[derive(Clone, Copy)]
@@ -48,6 +48,11 @@ impl VisvetDir {
         self.0.join("reviewed")
     }
 
+    /// How important the AI thinks each file is to understand, one line per rated file or folder.
+    pub fn importance(&self) -> PathBuf {
+        self.0.join("importance")
+    }
+
     /// The lines of each file the user has seen, one record per file content.
     pub fn explored(&self) -> PathBuf {
         self.0.join("explored")
@@ -75,9 +80,10 @@ pub fn affects_review(rel: &Path) -> bool {
     is_annotation(rel) || rel == Path::new(NAME).join("coverage.lcov")
 }
 
-/// Whether `rel`, a path from the repository's top folder, is part of a comment thread, the reviewed marks, or what
-/// the user has explored.
+/// Whether `rel`, a path from the repository's top folder, is part of a comment thread, the reviewed marks, the importance
+/// ratings, or what the user has explored.
 pub fn is_annotation(rel: &Path) -> bool {
     let in_folder = |folder: &str| rel.starts_with(Path::new(NAME).join(folder));
-    in_folder("threads") || in_folder("explored") || rel == Path::new(NAME).join("reviewed")
+    let is_file = |name: &str| rel == Path::new(NAME).join(name);
+    in_folder("threads") || in_folder("explored") || is_file("reviewed") || is_file("importance")
 }

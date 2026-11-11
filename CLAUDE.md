@@ -40,6 +40,9 @@ The user ticks files off as reviewed (the mark on a tree row or box, Alt+R, or `
 ## Explored lines
 Fog of war: `ui/src/Explored.tsx` tells the server which lines of which files are on screen while the user is active, and draws a meter per file and folder in the file tree. `src/state/explored.rs` keeps them in `.visvet/explored/` (local, ignored by git), one record per file content, so a changed file starts unexplored. They are the user's, like the reviewed marks: never write there yourself.
 
+## Importance ratings
+You rate how important it is that the user understands each file, 0 to 100 with a reason: `visvet importance <path> <score> <reason>` (see the skill). `src/state/importance.rs` keeps them in `.visvet/importance` (committed); `ui/src/ToRead.tsx` shows the score on each tree row and the "To read" list, ordered by score times the share the user hasn't explored. Rate every file you add, and commit `.visvet/importance` with it.
+
 ## Comment threads
 See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`, and only there: don't repeat thread answers in the chat. When idle, keep `visvet wait` running in the background so new comments wake you. The stop hook also lists threads whose box was renamed or deleted: move each with `visvet move <id> <box id>`.
 

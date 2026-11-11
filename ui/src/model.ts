@@ -13,7 +13,7 @@ const req = (path: string, init?: RequestInit) =>
 /** Fetches the review model. */
 export const getReview = (): Promise<Review> => req('/api/review').then(r => r.json())
 
-/** Fetches the comment threads, reviewed marks and explored lines alone: small, where the review of a big repository is megabytes. */
+/** Fetches the comment threads, reviewed marks, explored lines and importance ratings alone: small, where the review of a big repository is megabytes. */
 export const getThreads = (): Promise<ReviewAnnotations> => req('/api/threads').then(r => r.json())
 
 /** Fetches what changed in `file` since it was marked as reviewed, as a diff; null when git no longer has what was reviewed. */

@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import './style.css'
-import type { ExploredFile, ReviewedFile, StepView } from './contract'
+import type { ExploredFile, FileImportance, ReviewedFile, StepView } from './contract'
 import { ancestorsOf, flip, flipAll, within, getReview, getThreads, index, reportView, type Index, type Item, type Review, type Show, type Thread } from './model'
 import Graph, { WHOLE_MAP } from './Graph'
 import { journeyMotion, moves, SpeedPicker, stopZooms, zoomer, type ViewSetup } from './nestedZoom'
@@ -58,7 +58,7 @@ function latestOnly<Loaded>(fetch: () => Promise<Loaded>, show: (loaded: Loaded)
 }
 
 /**
- * The review model, reloaded on every server `change` event; the comment threads, reviewed marks and explored lines, reloaded on their
+ * The review model, reloaded on every server `change` event; the comment threads, reviewed marks, explored lines and importance ratings, reloaded on their
  * own on a `threads` event too (a new comment or mark changes nothing else, and on a big repository the model is
  * megabytes); the last load error, and the last `visvet show` request.
  */
@@ -67,10 +67,11 @@ function useModel() {
   const [threads, setThreads] = useState<Thread[]>()
   const [reviewed, setReviewed] = useState<ReviewedFile[]>()
   const [explored, setExplored] = useState<ExploredFile[]>()
+  const [importance, setImportance] = useState<FileImportance[]>()
   const [error, setError] = useState<string>()
   const [show, setShow] = useState<Show>()
   useEffect(() => {
-    const loadThreads = latestOnly(getThreads, loaded => { setThreads(loaded.threads); setReviewed(loaded.reviewed); setExplored(loaded.explored) }, problem => setError(problem.message))
+    const loadThreads = latestOnly(getThreads, loaded => { setThreads(loaded.threads); setReviewed(loaded.reviewed); setExplored(loaded.explored); setImportance(loaded.importance) }, problem => setError(problem.message))
     const loadModel = latestOnly(getReview, loaded => { setModel(loaded); setError(undefined) }, problem => setError(problem.message))
     // `change` comes on connect and after every edit.
     const load = () => { loadThreads(); loadModel() }
@@ -87,7 +88,7 @@ function useModel() {
     connect()
     return () => events.close()
   }, [])
-  return { model, threads: threads ?? model?.annotations.threads ?? [], reviewed: reviewed ?? model?.annotations.reviewed, explored: explored ?? model?.annotations.explored, error, show }
+  return { model, threads: threads ?? model?.annotations.threads ?? [], reviewed: reviewed ?? model?.annotations.reviewed, explored: explored ?? model?.annotations.explored, importance: importance ?? model?.annotations.importance, error, show }
 }
 
 /** The current history entry's state: {scope, map, hl (highlighted ids), vp (map viewport), scroll (of the asides)}. */
@@ -310,7 +311,7 @@ function Drawer() {
  * and server events. The detail view (in Views.tsx) is hidden for now; the user talks to the AI about what they select.
  */
 function App() {
-  const { model, threads, reviewed, explored, error, show } = useModel()
+  const { model, threads, reviewed, explored, importance, error, show } = useModel()
   const { sel, scope, map, hl, pop, back, select, go, ...nav } = useNav()
   // Expanded map boxes belong to one view (zoomed box or the whole map); another view starts with none.
   const view = scope ?? WHOLE_MAP
@@ -333,6 +334,7 @@ function App() {
   const [hideReviewed, setHideReviewed] = useSetting('visvet:hide-reviewed', 'no')
   const reviewedById = useMemo(() => new Map(reviewed?.map(marked => [marked.file, marked.state])), [reviewed])
   const seenLinesById = useMemo(() => new Map(explored?.map(file => [file.file, file.seen_lines])), [explored])
+  const importanceById = useMemo(() => new Map(importance?.map(rated => [rated.file, rated])), [importance])
   const [treeShown, showTree] = useState(!(reading && isPhone()))
   const [docShown, showDoc] = useState<DocToShow | null>(null)
   const [dimension, setDimension] = useState<string | null>(null)
@@ -494,7 +496,7 @@ function App() {
     tour, showStep, notesBeside: notesPlace !== 'in', setNotesBeside: beside => setNotesPlace(beside ? 'beside' : 'in'), docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
-    threads, reviewed: reviewedById, explored: seenLinesById, hideReviewed: hideReviewed === 'yes', setHideReviewed: hide => setHideReviewed(hide ? 'yes' : 'no'),
+    threads, reviewed: reviewedById, explored: seenLinesById, importance: importanceById, hideReviewed: hideReviewed === 'yes', setHideReviewed: hide => setHideReviewed(hide ? 'yes' : 'no'),
     detail: detail?.id === sel ? detail : null, showDetail: (id, kind) => showDetail(kind ? { id, kind } : null),
     draft: draft?.target === sel ? draft : null, setDraft, inbox, setInbox, full: full === sel, setFull,
   }

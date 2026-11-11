@@ -149,6 +149,12 @@ export type EntryKind = "form" | "name";
 export type ExploredFile = { file: RepoPath, seen_lines: number, };
 
 /**
+ * A file's importance and the AI's one-line reason for it: the file's own rating, or that of the closest folder
+ * around it. A file nothing rates is not listed.
+ */
+export type FileImportance = { file: RepoPath, score: Importance, reason: string, };
+
+/**
  * A git commit, branch or tag name, e.g. "HEAD", "main" or "a1b2c3d".
  */
 export type GitRef = string;
@@ -173,6 +179,12 @@ documented: { [key in string]: Array<DocEntry> },
  * Each such word that Rust or TypeScript code decides on, as a string in a `match` arm or a `case`: the first few places.
  */
 mentioned: { [key in string]: Array<CodeMention> }, };
+
+/**
+ * How important it is that the user understands a file, as the AI rates it: 0 (never needs reading, e.g. a lock
+ * file) to 100 (the project can't be changed safely without it).
+ */
+export type Importance = number;
 
 /**
  * The languages visvet tells apart.
@@ -287,7 +299,11 @@ reviewed: Array<ReviewedFile>,
 /**
  * Filled by the server (see `state::explored`); the thread store leaves it empty.
  */
-explored: Array<ExploredFile>, };
+explored: Array<ExploredFile>, 
+/**
+ * Filled by the server (see `state::importance`); the thread store leaves it empty.
+ */
+importance: Array<FileImportance>, };
 
 /**
  * A file the user marked as reviewed, and whether it changed since. A file with no mark is not listed.

@@ -6,6 +6,7 @@ import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useS
 import { getSinceReviewed, within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
 import { hidesReviewed, looksReviewed, reviewedLook, ReviewProgress } from './Reviewed'
 import { ExploredMeter, useShownText } from './Explored'
+import { ImportanceScore, ToRead } from './ToRead'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
@@ -52,7 +53,7 @@ export function Notes({ it }: { it: Item }) {
 
 /**
  * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, its threads and debuffs, then
- * in columns lines added and removed and how much of it the user has explored (see Explored.tsx), and a reviewed file or folder is greyed, one that changed since it was reviewed has its name underlined; the tree has no control for it (it is marked where it is read). It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
+ * in columns lines added and removed, how important the AI rates it (see ToRead.tsx) and how much of it the user has explored (see Explored.tsx), and a reviewed file or folder is greyed, one that changed since it was reviewed has its name underlined; the tree has no control for it (it is marked where it is read). It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
  * view when it becomes the selection. A click shows its box on the map; a double click zooms into it.
  */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
@@ -80,6 +81,7 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
       {/* Columns, so every row's line counts line up: lines added, then lines removed. */}
       <span className="tree-added">{it.diffCount.added > 0 && `+${it.diffCount.added}`}</span>
       <span className="tree-removed">{it.diffCount.removed > 0 && `−${it.diffCount.removed}`}</span>
+      <ImportanceScore it={it} />
       <ExploredMeter it={it} />
     </div>
   )
@@ -98,11 +100,13 @@ const FILTERS: [string, (it: Item, x: Ctx) => boolean][] = [
   ['Has threads', (it, x) => x.threads.some(t => t.target === it.id)],
 ]
 
-/** The file tree: search, filters, the review's progress and the folder → file → box → member tree, opened to where the map is zoomed. */
+/** The file tree: search, filters, the review's progress and the folder → file → box → member tree, opened to where the map is zoomed; or with "To read" chosen, the files in the order to read them (see ToRead.tsx). */
 export function Outline() {
   const x = useContext(X)
   const [q, setQ] = useState('')
   const [f, setF] = useState(0)
+  /** Whether the "To read" list shows in place of the tree. */
+  const [listsToRead, setListsToRead] = useState(false)
   // Rows the user toggled since the map last changed view; every other row mirrors what the map shows.
   const [toggled, setToggled] = useState(new Map<string, boolean>())
   const [view, setView] = useState(x.scope)
@@ -132,10 +136,11 @@ export function Outline() {
     <div className="body">
       <input type="search" placeholder="Search name, path or doc" value={q} onChange={e => setQ(e.target.value)} />
       <div className="chips">
-        {FILTERS.map(([label], i) => <button key={label} className={i === f ? 'on' : ''} onClick={() => setF(i)}>{label}</button>)}
+        {FILTERS.map(([label], i) => <button key={label} className={!listsToRead && i === f ? 'on' : ''} onClick={() => { setF(i); setListsToRead(false) }}>{label}</button>)}
+        <button className={listsToRead ? 'on' : ''} title="Files in the order to read them: the most important ones you have explored least first" onClick={() => setListsToRead(true)}>To read</button>
       </div>
       <ReviewProgress />
-      {tree(x.ix.roots)}
+      {listsToRead ? <ToRead /> : tree(x.ix.roots)}
     </div>
   )
 }

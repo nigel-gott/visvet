@@ -1,6 +1,7 @@
 //! The command line: `visvet serve` (the default) runs the review UI; the other commands are for agents: notes,
-//! comment threads, what the user sees, the map as text, tours, and test coverage; `visvet reviewed` is for the user.
+//! comment threads, importance ratings, what the user sees, the map as text, tours, and test coverage; `visvet reviewed` is for the user.
 mod graph;
+mod importance;
 mod reviewed;
 mod threads;
 mod tours;
@@ -9,7 +10,7 @@ mod view;
 use crate::review::coverage;
 use crate::state::store;
 use crate::state::visvet_dir::HandOff;
-use crate::types::{Author, MapId, Show, ThreadId, ThreadState};
+use crate::types::{Author, Importance, MapId, RepoPath, Show, ThreadId, ThreadState};
 use crate::{git, server};
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
@@ -106,6 +107,17 @@ enum Cmd {
         #[arg(long)]
         list: bool,
     },
+    /// Rate how important it is that the user understands a file or folder; with nothing, print every file's score
+    Importance {
+        /// A file or folder, from the repository's top folder; a folder's score holds for every file under it without a closer one
+        #[arg(requires = "score")]
+        path: Option<PathBuf>,
+        /// 0 (never needs reading) to 100 (the project can't be changed safely without understanding it)
+        #[arg(requires = "reason", value_parser = clap::value_parser!(u8).range(0..=100))]
+        score: Option<u8>,
+        /// One line on why the user needs to understand it, or doesn't
+        reason: Vec<String>,
+    },
     /// Print what the user is looking at in the UI
     View,
     /// Open a symbol in the UI and highlight boxes and arrows
@@ -138,6 +150,10 @@ pub async fn run() -> anyhow::Result<()> {
         Cmd::Move { id, to } => store::move_thread(&repo_root, id, MapId(to)),
         Cmd::Wait => threads::wait(&repo_root),
         Cmd::Reviewed { paths, undo, list } => reviewed::run(&repo_root, paths, undo, list),
+        Cmd::Importance { path, score, reason } => {
+            let new = path.zip(score).map(|(path, score)| importance::NewRating { path: RepoPath(path), score: Importance(score), reason: reason.join(" ") });
+            importance::run(&repo_root, new)
+        }
         Cmd::Show { symbol, highlight } => store::put(&repo_root, HandOff::Show, &Show { target: MapId(symbol), highlight: highlight.into_iter().map(MapId).collect() }),
     }
 }

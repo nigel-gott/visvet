@@ -90,6 +90,18 @@ pub struct ReviewedFile { pub file: RepoPath, pub state: ReviewedState }
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct ExploredFile { pub file: RepoPath, pub seen_lines: usize }
 
+/// How important it is that the user understands a file, as the AI rates it: 0 (never needs reading, e.g. a lock
+/// file) to 100 (the project can't be changed safely without it).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct Importance(pub u8);
+
+/// A file's importance and the AI's one-line reason for it: the file's own rating, or that of the closest folder
+/// around it. A file nothing rates is not listed.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct FileImportance { pub file: RepoPath, pub score: Importance, pub reason: String }
+
 /// The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`, the files
 /// marked as reviewed, kept in `.visvet/reviewed`, and what the user has explored, kept in `.visvet/explored/`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]
@@ -100,4 +112,6 @@ pub struct ReviewAnnotations {
     pub reviewed: Vec<ReviewedFile>,
     /// Filled by the server (see `state::explored`); the thread store leaves it empty.
     pub explored: Vec<ExploredFile>,
+    /// Filled by the server (see `state::importance`); the thread store leaves it empty.
+    pub importance: Vec<FileImportance>,
 }

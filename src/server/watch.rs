@@ -90,6 +90,7 @@ mod tests {
         assert!(counts("src/main.rs") && counts(".visvet/threads/k3f9a2/1-ann.md") && counts(".git/HEAD"));
         assert!(visvet_dir::is_annotation(Path::new(".visvet/threads/k3f9a2/1-ann.md")) && !visvet_dir::is_annotation(Path::new(".visvet/coverage.lcov")));
         assert!(counts(".visvet/reviewed") && visvet_dir::is_annotation(Path::new(".visvet/reviewed")));
+        assert!(counts(".visvet/importance") && visvet_dir::is_annotation(Path::new(".visvet/importance")));
         assert!(visvet_dir::is_annotation(Path::new(".visvet/explored/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")) && !counts(".visvet/explored.tmp"));
         assert!(!counts(".visvet/view.json") && !counts("target/debug/visvet") && !counts(".git/index"));
     }
