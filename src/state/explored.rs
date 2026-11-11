@@ -83,12 +83,32 @@ pub fn add(repo_root: &Path, on_screen: Vec<LinesOnScreen>) -> Result<()> {
             first_seen_now.push(ReadLately { file, lines: seen.len() - seen_before, at: now });
         }
     }
-    if !first_seen_now.is_empty() {
-        let lately = first_seen_lately(&dir).into_iter().chain(first_seen_now);
-        let lines: String = lately.map(|seen| Ok(serde_json::to_string(&seen)? + "\n")).collect::<Result<_>>()?;
-        fs::write(dir.read_lately(), lines)?;
+    note_read(&dir, first_seen_now)
+}
+
+/// Notes `read_now` for the reading pace, after what was read in the last half hour.
+fn note_read(dir: &VisvetDir, read_now: Vec<ReadLately>) -> Result<()> {
+    if read_now.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let lately = first_seen_lately(dir).into_iter().chain(read_now);
+    let lines: String = lately.map(|seen| Ok(serde_json::to_string(&seen)? + "\n")).collect::<Result<_>>()?;
+    Ok(fs::write(dir.read_lately(), lines)?)
+}
+
+/// Counts `files`, which the user has just marked as reviewed, towards the reading pace: each one's lines not seen
+/// before, as read now.
+// ponytail: a file marked, unmarked and marked again within half an hour counts twice; note the mark's content id
+// with it if that ever skews the pace.
+pub fn note_reviewed(repo_root: &Path, files: &[RepoPath]) -> Result<()> {
+    let git = GitRepo::open(repo_root)?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as u64;
+    let read_now = files.iter().filter_map(|file| {
+        let all_lines = fs::read_to_string(repo_root.join(&file.0)).ok()?.lines().count();
+        let lines = all_lines.saturating_sub(lines_in(&record_of(&git, repo_root, file)?).len());
+        (lines > 0).then_some(ReadLately { file: file.clone(), lines, at: now })
+    });
+    note_read(&VisvetDir::of(repo_root), read_now.collect())
 }
 
 #[cfg(test)]
@@ -111,6 +131,10 @@ mod tests {
         see(&[1, 3]);
         let lately = read_lately(&root);
         assert_eq!(lately.iter().map(|read| (read.file.to_string(), read.lines)).collect::<Vec<_>>(), [("a.rs".into(), 3)]);
+        // Marking a file as reviewed counts its lines not seen before: none here, all 2 of a file never opened.
+        fs::write(root.join("b.rs"), "one\ntwo\n").unwrap();
+        note_reviewed(&root, &[RepoPath("a.rs".into()), RepoPath("b.rs".into())]).unwrap();
+        assert_eq!(read_lately(&root).iter().map(|read| read.lines).collect::<Vec<_>>(), [3, 2]);
         // What was first seen more than half an hour ago is forgotten.
         fs::write(root.join(".visvet/read-lately"), r#"{"file":"a.rs","lines":3,"at":1000}"#).unwrap();
         assert!(read_lately(&root).is_empty());

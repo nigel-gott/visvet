@@ -122,8 +122,11 @@ async fn threads(State(app): State<App>) -> Res<Json<ReviewAnnotations>> {
 #[derive(Deserialize)]
 struct SetReviewed { files: Vec<RepoPath>, reviewed: bool }
 
-/// Marks files as reviewed for the user, or unmarks them.
+/// Marks files as reviewed for the user, or unmarks them. Marking counts towards their reading pace.
 async fn set_reviewed(State(app): State<App>, Json(marked): Json<SetReviewed>) -> Res<()> {
+    if marked.reviewed {
+        explored::note_reviewed(&app.repo_root, &marked.files).map_err(err)?;
+    }
     reviewed::set(&app.repo_root, &marked.files, marked.reviewed).map(|_| ()).map_err(err)
 }
 
