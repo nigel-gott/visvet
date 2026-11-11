@@ -24,14 +24,6 @@ pub enum BoxKind {
 }
 
 impl BoxKind {
-    /// The kind's name, as in JSON, e.g. "struct" or "type".
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Struct => "struct", Self::Enum => "enum", Self::Trait => "trait", Self::Class => "class",
-            Self::Interface => "interface", Self::TypeAlias => "type", Self::Impl => "impl", Self::File => "file",
-        }
-    }
-
     /// The id of a box of this kind named `name` in `file`: a file's own box is just its path, e.g. "src/a.rs"; a
     /// type adds "::" and its name, e.g. "src/a.rs::Thread".
     pub fn box_id(self, file: &RepoPath, name: &str) -> BoxId {
@@ -53,13 +45,6 @@ pub enum MemberKind {
     Variant,
     /// A free function: a member of its file.
     Fn,
-}
-
-impl MemberKind {
-    /// The kind's name, as in JSON, e.g. "method".
-    pub fn label(self) -> &'static str {
-        match self { Self::Field => "field", Self::Method => "method", Self::Variant => "variant", Self::Fn => "fn" }
-    }
 }
 
 /// How many of a function's or file's coverable lines the tests ran (`visvet coverage`).
