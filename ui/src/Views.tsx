@@ -13,7 +13,7 @@ import { MarkdownPage } from './Markdown'
 import { currentText } from './pages'
 import { MARGIN_NOTE_WIDTH } from './size'
 import { useSite } from './view'
-import { fileOf, useWordHover } from './Hover'
+import { fileOf, useUnderlinedWords, useWordHover } from './Hover'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -185,7 +185,7 @@ export function FileText({ it, diff, language, notes = [], beside = false }: { i
 /**
  * The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. A tour's notes on
  * code outline the exact code they are about, and sit under it, or with `beside`, next to it, on alternate sides.
- * In a Lisp-family `file`, hovering a word shows what it is (see Hover.tsx).
+ * In a Lisp-family `file`, a word the review knows is underlined and a click on it shows what it is (see Hover.tsx).
  */
 export function DiffView({ diff, language, notes = [], beside = false, file }: { diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean; file?: string }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
@@ -203,6 +203,7 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   // Long unchanged runs fold only around a change; unchanged code shows whole.
   // Folding never hides a tour's noted lines.
   const changed = diff.some(l => l.kind !== 'ctx') && !notes.length
+  useUnderlinedWords(view, language === 'lisp' ? file : undefined, diff, [coloured, unfolded])
   const runs: { start: number; lines: DiffLine[] }[] = []
   diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
   const rows = runs.flatMap(({ start, lines }) => changed && lines.length > 8 && !unfolded.has(start)

@@ -49,7 +49,7 @@ In a `.lisp`, `.sexp`, `.scm`, `.clj` or `.el` file, each top-level form is a bo
 
 A form with a name is a definition, and a file is a namespace named after the file. A symbol inside a form gets a "uses" arrow to the definition it names: a bare `stew` means the file's own `stew`, else the one definition of that name in any file; `kitchen/stew` means the one in `kitchen.lisp`. A name that could mean definitions in different files gets no arrow, and neither does one a file defines twice. Written as a form's head, `(stew ...)`, a name only means a definition that has a body, so `(mode quiet)` is not what `(quiet ...)` means.
 
-Hover a word in a Lisp-family file's code for a card saying what it is; click the word, or the card, to go there (Back returns):
+In a Lisp-family file's code, a word the review knows something about is underlined. Click it for a card saying what it is; click the card to go there (Back returns), or anywhere else to close it:
 
 - A symbol that names a definition shows it: its name, description, first lines and `file:line`. A name the file defines twice shows both.
 - Any other word shows where the repository's Markdown documents it, with nothing to configure: a table row whose first cell names the word (in backticks, alone or as the head of a form like `` `(simmer time :lid on)` ``, or in bold), shown as its cells under their column headings; or a heading, list item or paragraph that starts with the word in backticks or bold. When several files document a word, the file that documents the most of the Lisp files' words comes first; a card shows up to three entries.

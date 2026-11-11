@@ -1,11 +1,12 @@
-// Hovering a word in a Lisp-family file's code: a card says what the word is, from the review's hover index
-// (src/review/hover.rs). A symbol that names a definition shows that definition; any other word, where the
-// repository's Markdown documents it. A click on the word, or on the card, goes there.
+// A word in a Lisp-family file's code that the review knows something about is underlined; a click on it opens
+// a card that says what it is, from the review's hover index (src/review/hover.rs). A symbol that names a
+// definition shows that definition; any other word, where the repository's Markdown documents it. A click on
+// the card goes there; a click anywhere else, or Escape, closes it.
 
-import { useContext, useRef, useState, type MouseEvent } from 'react'
+import { useContext, useEffect, useState, type MouseEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from './context'
-import type { CodeMention, DiffLine, DocEntry } from './contract'
+import type { CodeMention, DiffLine, DocEntry, Hover } from './contract'
 import type { Item } from './model'
 import { Rich } from './Rich'
 
@@ -20,8 +21,6 @@ const BETWEEN_WORDS = /[\s()[\]{}"'`,;]/
 const NUMBER = /^[+\-.]*\d/
 /** What goes before a symbol in the hover index to ask what it means as a form's head (`HEAD_MARK` in src/types/hover.rs). */
 const HEAD_MARK = '('
-/** How long the card stays after the pointer leaves its word, in milliseconds: time to move onto the card. */
-const CARD_LINGERS = 250
 /** How far under the pointer the card's top is, in pixels: close, so the pointer reaches it without crossing other words. */
 const CARD_BELOW_POINTER = 8
 /** The card's greatest width, in pixels (as in style.css), so it is kept inside the window. */
@@ -100,18 +99,95 @@ function Documented({ entry }: { entry: DocEntry }) {
   )
 }
 
+/** What the review knows of the word starting at `start` of line `row`, if anything: looked up in the hover index. */
+function meaningOf(hover: Hover, items: Map<string, Item>, file: string, diff: DiffLine[], row: number, found: { word: string; start: number }) {
+  if (NUMBER.test(found.word)) return
+  const keywordOf = found.word.startsWith(':') ? headAround(diff.map(each => (each.kind === 'del' ? '' : each.text)), row, found.start) : undefined
+  const word = found.word.startsWith(':') ? keywordOf : found.word
+  if (!word) return
+  const inFile = hover.definitions[file] ?? {}
+  // As a form's head, a word may mean something else than as an argument: the index then has it under "(word".
+  const asHead = !!keywordOf || diff[row].text.slice(0, found.start).trimEnd().endsWith(HEAD_MARK)
+  const definitions = ((asHead ? inFile[HEAD_MARK + word] : undefined) ?? inFile[word] ?? []).flatMap(id => items.get(id) ?? [])
+  const documented = definitions.length ? [] : hover.documented[word] ?? []
+  if (!definitions.length && !documented.length) return
+  return { keywordOf, word, definitions, documented, mentioned: hover.mentioned[word] ?? [] }
+}
+
+/** The name the underline's highlight has in style.css. */
+const UNDERLINED = 'known-word'
+/** The underlined ranges of every code view on screen, by the element holding its lines: one highlight draws them all. */
+const underlined = new Map<Element, Range[]>()
+
+/** Underlines every word of the code under `view` that a click opens a card for; `drawn` is whatever redraws the lines. */
+export function useUnderlinedWords(view: RefObject<HTMLElement | null>, file: string | undefined, diff: DiffLine[], drawn: unknown[]) {
+  const x = useContext(X)
+  useEffect(() => {
+    const code = view.current
+    // ponytail: a browser without the highlight API shows no underlines; words still open their card on a click.
+    if (!code || !file || !('highlights' in CSS)) return
+    const ranges: Range[] = []
+    for (const line of code.querySelectorAll<HTMLElement>('.ln')) {
+      const row = Number(line.dataset.row), text = diff[row]?.text
+      if (text === undefined) continue
+      // Each text node of the line after its number, with the column it starts at.
+      const nodes: { node: Text; from: number }[] = []
+      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT)
+      let column = 0
+      while (walker.nextNode()) {
+        const node = walker.currentNode as Text
+        if (node.parentElement?.closest('.no')) continue
+        nodes.push({ node, from: column })
+        column += node.data.length
+      }
+      const place = (at: number) => {
+        const within = nodes.findLast(each => each.from <= at)
+        return within && { node: within.node, offset: Math.min(at - within.from, within.node.data.length) }
+      }
+      for (let at = 0; at < text.length; at++) {
+        const found = wordAt(text, at)
+        if (!found) continue
+        const end = found.start + found.word.length
+        const from = place(found.start), to = place(end)
+        if (from && to && meaningOf(x.model.hover, x.ix.items, file, diff, row, found)) {
+          const range = document.createRange()
+          range.setStart(from.node, from.offset)
+          range.setEnd(to.node, to.offset)
+          ranges.push(range)
+        }
+        at = end
+      }
+    }
+    underlined.set(code, ranges)
+    CSS.highlights.set(UNDERLINED, new Highlight(...[...underlined.values()].flat()))
+    return () => {
+      underlined.delete(code)
+      CSS.highlights.set(UNDERLINED, new Highlight(...[...underlined.values()].flat()))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, diff, x.model, ...drawn])
+}
+
 /**
- * Hover cards for the code of Lisp-family file `file`, shown as the diff lines `diff`; with no `file`, nothing.
+ * Cards for the code of Lisp-family file `file`, shown as the diff lines `diff`; with no `file`, nothing.
  * Returns the handlers for the element holding the code's lines (each a `.ln` with its row in `data-row`), and the card.
  */
 export function useWordHover(file: string | undefined, diff: DiffLine[]) {
   const x = useContext(X)
   const [card, setCard] = useState<WordCard | null>(null)
-  const hiding = useRef(0)
+  const [pointsAtWord, setPointsAtWord] = useState(false)
+  useEffect(() => {
+    if (!card) return
+    const close = (event: Event) => {
+      const on = event.target instanceof Element ? event.target : null
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !on?.closest('.word-card, .diff')) setCard(null)
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', close)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close) }
+  }, [card])
   if (!file) return { handlers: {}, card: null, pointsAtWord: false }
-  const keep = () => clearTimeout(hiding.current)
-  const hideSoon = () => { keep(); hiding.current = window.setTimeout(() => setCard(null), CARD_LINGERS) }
-  /** What the word at the pointer shows, if anything: looked up in the hover index. */
+  /** What the word at the pointer shows, if anything. */
   const cardAt = (event: MouseEvent): WordCard | undefined => {
     const target = event.target as Element, line = target.closest<HTMLElement>('.ln')
     const caret = caretAt(event.clientX, event.clientY)
@@ -122,39 +198,26 @@ export function useWordHover(file: string | undefined, diff: DiffLine[]) {
     upToCaret.setEnd(caret.node, caret.offset)
     const row = Number(line.dataset.row)
     const found = wordAt(diff[row].text, upToCaret.toString().length)
-    if (!found || NUMBER.test(found.word)) return
-    const keywordOf = found.word.startsWith(':') ? headAround(diff.map(each => (each.kind === 'del' ? '' : each.text)), row, found.start) : undefined
-    const word = found.word.startsWith(':') ? keywordOf : found.word
-    if (!word) return
-    const hover = x.model.hover, inFile = hover.definitions[file] ?? {}
-    // As a form's head, a word may mean something else than as an argument: the index then has it under "(word".
-    const asHead = !!keywordOf || diff[row].text.slice(0, found.start).trimEnd().endsWith(HEAD_MARK)
-    const definitions = ((asHead ? inFile[HEAD_MARK + word] : undefined) ?? inFile[word] ?? []).flatMap(id => x.ix.items.get(id) ?? [])
-    const documented = definitions.length ? [] : hover.documented[word] ?? []
-    if (!definitions.length && !documented.length) return
+    const meaning = found && meaningOf(x.model.hover, x.ix.items, file, diff, row, found)
+    if (!found || !meaning) return
     const left = Math.max(0, Math.min(event.clientX, innerWidth - CARD_WIDTH))
     const inLowerHalf = event.clientY > innerHeight / 2
     const place = inLowerHalf ? { left, bottom: innerHeight - event.clientY + CARD_BELOW_POINTER } : { left, top: event.clientY + CARD_BELOW_POINTER }
-    return { at: `${row}:${found.start}`, place, keywordOf, word, definitions, documented, mentioned: hover.mentioned[word] ?? [] }
+    return { at: `${row}:${found.start}`, place, ...meaning }
   }
   const handlers = {
-    onMouseMove: (event: MouseEvent) => {
+    // Over a word with a card, the pointer says it can be clicked.
+    onMouseMove: (event: MouseEvent) => { const at = !!cardAt(event); if (at !== pointsAtWord) setPointsAtWord(at) },
+    onMouseLeave: () => setPointsAtWord(false),
+    // A click on an underlined word opens its card, a second closes it, and one anywhere else in the code closes it; not while selecting text.
+    onClick: (event: MouseEvent) => {
+      if (getSelection()?.toString()) return
       const next = cardAt(event)
-      if (!next) return hideSoon()
-      keep()
-      if (next.at !== card?.at) setCard(next)
-    },
-    onMouseLeave: hideSoon,
-    // A click on the word goes to its definition, or else to its documentation; not while selecting text.
-    onClick: () => {
-      if (!card || getSelection()?.toString()) return
-      if (card.definitions.length) x.goTo(card.definitions[0].id)
-      else x.openFile(card.documented[0].file)
-      setCard(null)
+      setCard(next && next.at !== card?.at ? next : null)
     },
   }
   const shown = card && createPortal(
-    <div className="word-card" style={card.place} onMouseEnter={keep} onMouseLeave={hideSoon}
+    <div className="word-card" style={card.place}
       // React passes the card's events on to the code it belongs to, though it is drawn outside it: they stop here.
       onMouseMove={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); setCard(null) }}>
       {card.keywordOf && <div className="word-label">argument of ({card.keywordOf} …)</div>}
@@ -165,5 +228,5 @@ export function useWordHover(file: string | undefined, diff: DiffLine[]) {
         {card.mentioned.map((place, index) => <a key={index} onClick={() => x.goTo(place.inside)}>{place.file}:{place.line}</a>)}
       </div>}
     </div>, document.body)
-  return { handlers, card: shown, pointsAtWord: !!card }
+  return { handlers, card: shown, pointsAtWord }
 }
