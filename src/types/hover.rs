@@ -31,6 +31,8 @@ pub const HEAD_MARK: &str = "(";
 pub struct DocEntry {
     pub file: RepoPath,
     pub line: u32,
+    /// Whether it documents a form the word heads, or only names the word.
+    pub kind: EntryKind,
     /// The heading the entry is under, without its `#`s; empty before the file's first heading. It says which of a
     /// word's uses the entry is about.
     pub under: String,
@@ -43,6 +45,18 @@ pub struct DocEntry {
     /// with no label; a list item or paragraph is one. So of several fields, the first names the word, often as a
     /// form like `(simmer time :lid on)`, and the second says what it means.
     pub fields: Vec<DocField>,
+}
+
+/// What a `DocEntry` documents its word as, told from how the Markdown writes the word.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub enum EntryKind {
+    /// A form the word heads, written whole in brackets, like `(simmer time :lid on)`: something to write.
+    Form,
+    /// A bare word, like `heat` or **stock**: the name of something. Several code spans in one table cell, like
+    /// `heat`, `:heat`, are the spellings of one name.
+    Name,
 }
 
 /// One piece of a `DocEntry`, as Markdown: a table cell labelled by its column's heading, or a paragraph with no label.

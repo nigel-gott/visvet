@@ -98,6 +98,10 @@ export type DiffLineKind = "ctx" | "add" | "del";
  */
 export type DocEntry = { file: RepoPath, line: number, 
 /**
+ * Whether it documents a form the word heads, or only names the word.
+ */
+kind: EntryKind, 
+/**
  * The heading the entry is under, without its `#`s; empty before the file's first heading. It says which of a
  * word's uses the entry is about.
  */
@@ -132,6 +136,11 @@ export type DocKind = "issue" | "milestone" | "idea" | "hub" | "tour" | "dimensi
  * What a Markdown file's front matter says about it, e.g. `kind: issue` and `status: open`. Other keys are ignored.
  */
 export type DocLabels = { kind: DocKind | null, status: WorkStatus | null, };
+
+/**
+ * What a `DocEntry` documents its word as, told from how the Markdown writes the word.
+ */
+export type EntryKind = "form" | "name";
 
 /**
  * A git commit, branch or tag name, e.g. "HEAD", "main" or "a1b2c3d".

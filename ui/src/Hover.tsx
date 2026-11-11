@@ -8,7 +8,7 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from './context'
-import type { CodeMention, DiffLine, DocEntry, DocField, Hover, Language } from './contract'
+import type { CodeMention, DiffLine, DocEntry, DocField, EntryKind, Hover, Language } from './contract'
 import { colourLines, languageOf, useHighlighter } from './highlight'
 import type { Item } from './model'
 import { Rich } from './Rich'
@@ -20,6 +20,8 @@ export function fileOf(it: Item): string | undefined {
 
 /** A character that is not part of a word in Lisp-family code: space, brackets, quoting marks and `;`. */
 const BETWEEN_WORDS = /[\s()[\]{}"'`,;]/
+/** The words of a form as written, e.g. ["simmer", "40m", ":lid", "on"] for `(simmer 40m :lid on)`. */
+const wordsOf = (form: string) => form.split(BETWEEN_WORDS).filter(Boolean)
 /** A word that is a number, with or without a sign or unit, e.g. `-3` or `40s`. */
 const NUMBER = /^[+\-.]*\d/
 /** What goes before a symbol in the hover index to ask what it means as a form's head (`HEAD_MARK` in src/types/hover.rs). */
@@ -50,21 +52,50 @@ function wordAt(text: string, column: number) {
   return start === end || inString || inComment ? undefined : { word: text.slice(start, end), start }
 }
 
-/** The heads of the forms around `column` of line `row`, nearest first, e.g. ["simmer", "recipe"] inside `(recipe stew (simmer 40m :lid on))`. */
+/** A form around a word: its first word, the word after that when there is one (a definition's name), and the line it starts on. */
+type FormAround = { head: string; name?: string; row: number }
+
+/**
+ * The forms around `column` of line `row`, nearest first, e.g. `simmer 40m` then `recipe stew` inside
+ * `(recipe stew (simmer 40m :lid on))`. The last is the top-level form.
+ */
 // ponytail: a bracket inside a string or comment above counts too; skip those if a card ever names the wrong form.
-function headsAround(lines: string[], row: number, column: number) {
+function formsAround(lines: string[], row: number, column: number) {
   const before = [...lines.slice(0, row), lines[row].slice(0, column)].join('\n')
-  const heads: string[] = []
+  const forms: FormAround[] = []
   let closed = 0
   for (let at = before.length - 1; at >= 0; at--) {
     if (before[at] === ')') closed++
     else if (before[at] === '(' && closed-- === 0) {
       closed = 0
-      const head = before.slice(at + 1).match(/^[^\s()[\]{}"'`,;]+/)?.[0]
-      if (head) heads.push(head)
+      const [, head, name] = before.slice(at + 1).match(/^([^\s()[\]{}"'`,;]+)(?:[ \t]+([^\s()[\]{}"'`,;]+))?/) ?? []
+      if (head) forms.push({ head, name, row: before.slice(0, at).split('\n').length - 1 })
     }
   }
-  return heads
+  return forms
+}
+
+/** A character of a symbol list like `(params heat lid)` that says it is not one: a bracket inside it, a string or a comment. */
+const NOT_A_SYMBOL_LIST = /[()"';]/
+
+/**
+ * Where the top-level form `top` declares `word`, if it does: the first list right inside it, above line `row`,
+ * that is only bare words and has `word` after its first, e.g. `(params heat lid)` for `heat`. Told from that
+ * shape alone, whatever the list's first word is.
+ */
+// ponytail: only asked for a word written in a {hole}; any earlier list of bare words would be a guess for other
+// words. A bracket in a string or comment counts too, as in formsAround.
+function declaredIn(lines: string[], top: FormAround, row: number, column: number, word: string) {
+  const above = [...lines.slice(top.row, row), lines[row].slice(0, column)].join('\n')
+  let depth = 0
+  for (let at = 0; at < above.length; at++) {
+    if (above[at] === ')') depth--
+    else if (above[at] === '(' && depth++ === 1) {
+      const inside = above.slice(at + 1).split(')')[0], words = wordsOf(inside)
+      const isSymbolList = !NOT_A_SYMBOL_LIST.test(inside) && words.every(each => !each.startsWith(':') && !NUMBER.test(each))
+      if (isSymbolList && words.slice(1).includes(word)) return { row: top.row + above.slice(0, at).split('\n').length - 1, text: `(${words.join(' ')})` }
+    }
+  }
 }
 
 /** How many letters two words must share at their start to count as one word in two forms, e.g. "modify" and "modifiers". */
@@ -78,23 +109,33 @@ function sameWord(inHeading: string, head: string) {
 }
 
 /**
- * A word's documentation entries, with the one about the use in hand first: the entry whose heading names the
- * nearest of the forms the word sits in (`around`, nearest first). The rest keep their order.
+ * A word's documentation entries, with the one about the use in hand first. Entries of the kind `prefer`red come
+ * before the others: names for a word written as one, forms for a form's head. Then comes the entry about the
+ * nearest of the forms the word sits in (`around`, nearest first): its heading names that form's head, or a cell
+ * after its first has the form's head or name in a `code span`, as "the technique `slow-cook`" does. The rest keep their order.
  */
-function fittingFirst(entries: DocEntry[], around: string[]) {
-  const nearness = (entry: DocEntry) => {
-    const words = entry.under.toLowerCase().split(/[^a-z0-9-]+/).filter(Boolean)
-    const at = around.findIndex(head => words.some(word => sameWord(word, head.toLowerCase())))
-    return at < 0 ? around.length : at
-  }
-  return entries.map((entry, index) => ({ entry, index })).sort((a, b) => nearness(a.entry) - nearness(b.entry) || a.index - b.index).map(each => each.entry)
+function fittingFirst(entries: DocEntry[], around: FormAround[], prefer?: EntryKind) {
+  /** How near the nearest form is that `fits` the entry: 0 for the form right around the word, more when none does. */
+  const nearest = (fits: (form: FormAround) => boolean) => { const at = around.findIndex(fits); return at < 0 ? around.length : at }
+  const ranked = entries.map((entry, index) => {
+    const inHeading = entry.under.toLowerCase().split(/[^a-z0-9-]+/).filter(Boolean)
+    const inCells = entry.fields.slice(1).flatMap(field => [...field.text.matchAll(/`([^`]+)`/g)].flatMap(span => wordsOf(span[1])))
+    const byHeading = nearest(form => inHeading.some(word => sameWord(word, form.head.toLowerCase())))
+    const byCells = nearest(form => inCells.includes(form.head) || (!!form.name && inCells.includes(form.name)))
+    return { entry, index, unwanted: Number(!!prefer && entry.kind !== prefer), nearness: Math.min(byHeading, byCells), byCells }
+  })
+  // Rows under one fitting heading are told apart by their cells.
+  return ranked.sort((a, b) => a.unwanted - b.unwanted || a.nearness - b.nearness || a.byCells - b.byCells || a.index - b.index).map(each => each.entry)
 }
 
-/** Documentation entries in the order given, with the rows of one table together: they are the ways of writing the word. */
+/**
+ * Documentation entries in the order given, with the rows of one table that document the word as a form together:
+ * they are the ways of writing it. An entry that names the word stays on its own: another row is another thing of that name.
+ */
 function byTable(entries: DocEntry[]) {
   const tables: DocEntry[][] = []
   for (const entry of entries) {
-    const sameTable = entry.table_line ? tables.find(rows => rows[0].file === entry.file && rows[0].table_line === entry.table_line) : undefined
+    const sameTable = entry.table_line && entry.kind === 'form' ? tables.find(rows => rows[0].kind === 'form' && rows[0].file === entry.file && rows[0].table_line === entry.table_line) : undefined
     if (sameTable) sameTable.push(entry)
     else tables.push([entry])
   }
@@ -135,6 +176,8 @@ type WordCard = {
   written: string
   /** For a `:keyword`, the form it is an argument of, whose card this is. */
   keywordOf?: string
+  /** For a word written in a {hole} that its top-level form declares: the declaring list, the line it is on, and a jump there. */
+  declared?: { text: string; line: number; show: () => void }
   word: string
   /** The words of the form in the code that the word heads or, for a `:keyword`, is an argument of; else none. */
   site: string[]
@@ -228,9 +271,6 @@ function Rest({ entry }: { entry: DocEntry }) {
   </>
 }
 
-/** The words of a form as written, e.g. ["simmer", "40m", ":lid", "on"] for `(simmer 40m :lid on)`. */
-const wordsOf = (form: string) => form.split(BETWEEN_WORDS).filter(Boolean)
-
 /** How a documentation entry writes `word`'s form: of the forms in its first cell, the one with the word; "" when it only names the word. */
 function formIn(entry: DocEntry, word: string) {
   const forms = onlyCode(partsOf(entry).names?.text ?? '') ?? []
@@ -253,13 +293,38 @@ function waysOf(entries: DocEntry[], word: string, site: string[]) {
   return { written, differsAt, here }
 }
 
+/** The ways a documentation entry that names a word spells it, e.g. `heat`, `:heat`: the code spans of its first cell. */
+const spellingsOf = (entry: DocEntry) => onlyCode(partsOf(entry).names?.text ?? '') ?? []
+
+/**
+ * What one place in the Markdown says of a word it only names (a parameter, a property, a term), `written` in the
+ * code: what it means, each further cell as a short line after its column's heading, the other ways the same cell
+ * spells it, and where the entry is. Nothing to open: a name has no ways of writing it.
+ */
+function Named({ entry, written }: { entry: DocEntry; written: string }) {
+  const x = useContext(X)
+  const meaning = meaningIn(entry)
+  const otherSpellings = spellingsOf(entry).filter(spelling => spelling !== written)
+  return (
+    <section>
+      <Long><Meaning entry={entry} /></Long>
+      {partsOf(entry).says.filter(field => field !== meaning).map((field, index) => (
+        <div key={index} className="word-line">{field.label && <span className="word-label">{field.label}: </span>}<Rich text={field.text} /></div>
+      ))}
+      {otherSpellings.length > 0 && <div className="word-line word-label">also written {otherSpellings.map((spelling, index) => <Fragment key={spelling}>{index > 0 && ', '}<code>{spelling}</code></Fragment>)}</div>}
+      <footer><a onClick={() => x.openFile(entry.file)} title="Open the page that documents it">{entry.file}:{entry.line} →</a></footer>
+    </section>
+  )
+}
+
 /**
  * What one place in the Markdown says of the word, to read top to bottom: how the word is written, what it means,
  * what the table it is in is about, then the rest. Several rows of one table are the ways of writing it: after
  * what the table is about, all are listed with their meanings, the one written in the code (`site`: that form's
  * words) first and open.
  */
-function Documented({ entries, word, keyword, site }: { entries: DocEntry[]; word: string; keyword?: string; site: string[] }) {
+function Documented({ entries, word, clicked, keyword, site }: { entries: DocEntry[]; word: string; clicked: string; keyword?: string; site: string[] }) {
+  if (entries[0].kind === 'name') return <Named entry={entries[0]} written={clicked} />
   const intro = entries[0].intro && <Long><div className="word-intro"><Rich text={entries[0].intro} /></div></Long>
   if (entries.length === 1) {
     const [entry] = entries, { names } = partsOf(entry), form = formIn(entry, word)
@@ -333,6 +398,10 @@ function Title({ card, close }: { card: WordCard; close: () => void }) {
         {card.keywordOf && <span className="word-kind">argument of <code>{card.word}</code></span>}
       </div>
       <div className="word-kind">{defined ? <>defined in {where}{kind && <> · <b>{kind}</b></>}</> : <><a title="Go to where it is documented" onClick={() => documentedIn && x.openFile(documentedIn.file)}>documented</a>{kind && <> · <Rich text={kind} /></>}</>}</div>
+      {card.declared && <>
+        <div className="word-kind">written as a hole: filled in when this definition is used</div>
+        <div className="word-kind">declared here: <a title="Go to where it is declared" onClick={card.declared.show}><code>{card.declared.text}</code> line {card.declared.line} →</a></div>
+      </>}
       <button className="word-close" title="Close (Esc)" aria-label="Close" onClick={close}>×</button>
     </header>
   )
@@ -355,13 +424,13 @@ function Card({ card, close }: { card: WordCard; close: () => void }) {
       onMouseMove={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
       <Title card={card} close={close} />
       {card.definitions.map(it => <Definition key={it.id} it={it} named={card.definitions.length > 1} />)}
-      {card.documented.slice(0, 1).map(entries => <Documented key={entries[0].file + entries[0].line} entries={entries} word={card.word} keyword={keyword} site={card.site} />)}
+      {card.documented.slice(0, 1).map(entries => <Documented key={entries[0].file + entries[0].line} entries={entries} word={card.word} clicked={card.written} keyword={keyword} site={card.site} />)}
       {card.documented.length > 1 && <div className="word-others">
         <div className="word-label">Also documented as</div>
         {card.documented.slice(1).map(entries => (
           <details key={entries[0].file + entries[0].line}>
             <summary><b>{kindOf(entries[0]).replace(/`/g, '') || entries[0].file}</b> {entries.length > 1 ? `${entries.length} ways to write it` : firstSentence((meaningIn(entries[0]) ?? entries[0].fields[0]).text)}</summary>
-            <Documented entries={entries} word={card.word} keyword={keyword} site={card.site} />
+            <Documented entries={entries} word={card.word} clicked={card.written} keyword={keyword} site={card.site} />
           </details>
         ))}
       </div>}
@@ -411,22 +480,45 @@ function placeBy(word: DOMRect): CSSProperties {
     : { left, width, bottom: innerHeight - word.top + CARD_GAP, maxHeight: Math.min(above, CARD_HEIGHT) }
 }
 
+/** How long a line of code a card jumped to stays marked, in milliseconds (the `shown-line` fade in style.css). */
+const SHOWN_FOR = 2000
+/** Brings a line of the code into view and marks it for a moment. */
+function showLine(line: HTMLElement | null | undefined) {
+  if (!line) return
+  line.scrollIntoView({ block: 'center' })
+  line.classList.add('shown-line')
+  setTimeout(() => line.classList.remove('shown-line'), SHOWN_FOR)
+}
+
 /** What the review knows of the word starting at `start` of line `row`, if anything: looked up in the hover index. */
 function meaningOf(hover: Hover, items: Map<string, Item>, file: string, diff: DiffLine[], row: number, found: { word: string; start: number }) {
   if (NUMBER.test(found.word)) return
   const lines = diff.map(each => (each.kind === 'del' ? '' : each.text))
-  const around = headsAround(lines, row, found.start)
-  const keywordOf = found.word.startsWith(':') ? around[0] : undefined
-  const word = found.word.startsWith(':') ? keywordOf : found.word
-  if (!word) return
+  const around = formsAround(lines, row, found.start)
+  const isKeyword = found.word.startsWith(':')
+  const keywordOf = isKeyword ? around[0]?.head : undefined
+  const word = isKeyword ? keywordOf : found.word
   const inFile = hover.definitions[file] ?? {}
+  const text = diff[row].text, end = found.start + found.word.length
   // As a form's head, a word may mean something else than as an argument: the index then has it under "(word".
-  const asHead = !!keywordOf || diff[row].text.slice(0, found.start).trimEnd().endsWith(HEAD_MARK)
-  const definitions = ((asHead ? inFile[HEAD_MARK + word] : undefined) ?? inFile[word] ?? []).flatMap(id => items.get(id) ?? [])
+  const isHead = text.slice(0, found.start).trimEnd().endsWith(HEAD_MARK)
+  const asHead = !!keywordOf || isHead
+  const definitions = word ? ((asHead ? inFile[HEAD_MARK + word] : undefined) ?? inFile[word] ?? []).flatMap(id => items.get(id) ?? []) : []
+  // A word in a {hole} or after a dot, like `pot.heat`, is written as a name; a form's head as a form.
+  const inHole = text[found.start - 1] === '{' && text[end] === '}'
+  const prefer = inHole || found.word.includes('.') ? 'name' : isHead ? 'form' : undefined
   // A name the repository defines shows its definition only, whatever the Markdown says of the word.
-  const documented = definitions.length ? [] : byTable(fittingFirst(hover.documented[word] ?? [], around))
-  if (!definitions.length && !documented.length) return
-  return { keywordOf, word, site: asHead ? formAround(lines, row, found.start) : [], definitions, documented, mentioned: hover.mentioned[word] ?? [] }
+  const documented = definitions.length || !word ? [] : byTable(fittingFirst(hover.documented[word] ?? [], around, prefer))
+  // A `:keyword` the Markdown documents as a name, spelled with its colon, is that name, unless the form it is an
+  // argument of is documented with the keyword in it: then the form says more about it.
+  const named = isKeyword ? fittingFirst((hover.documented[found.word.slice(1)] ?? []).filter(entry => entry.kind === 'name' && spellingsOf(entry).includes(found.word)), around) : []
+  const formWritesIt = documented[0]?.some(entry => wordsOf(formIn(entry, keywordOf!)).includes(found.word))
+  if (named.length && formWritesIt) return { keywordOf, word: keywordOf!, site: formAround(lines, row, found.start), definitions, documented: [...documented, ...byTable(named)], mentioned: hover.mentioned[keywordOf!] ?? [] }
+  if (named.length) return { word: found.word.slice(1), site: [], definitions: [], documented: [...byTable(named), ...documented], mentioned: hover.mentioned[found.word.slice(1)] ?? [] }
+  if (!word || (!definitions.length && !documented.length)) return
+  const top = around.at(-1)
+  const declared = inHole && top ? declaredIn(lines, top, row, found.start, word) : undefined
+  return { keywordOf, word, declaredAt: declared, site: asHead ? formAround(lines, row, found.start) : [], definitions, documented, mentioned: hover.mentioned[word] ?? [] }
 }
 
 /** The names the highlights have in style.css: a word the repository defines, one its Markdown documents, and the word whose card is open. */
@@ -523,7 +615,10 @@ export function useWordHover(file: string | undefined, diff: DiffLine[]) {
     const meaning = found && meaningOf(x.model.hover, x.ix.items, file, diff, row, found)
     if (!found || !meaning) return
     const inCode = rangeIn(textOf(line), found.start, found.start + found.word.length)
-    return inCode && { at: `${row}:${found.start}`, place: placeBy(inCode.getBoundingClientRect()), inCode, written: found.word, ...meaning }
+    const { declaredAt } = meaning
+    const code = line.parentElement
+    const declared = declaredAt && { text: declaredAt.text, line: diff[declaredAt.row].line ?? declaredAt.row + 1, show: () => { setCard(null); showLine(code?.querySelector<HTMLElement>(`.ln[data-row="${declaredAt.row}"]`)) } }
+    return inCode && { at: `${row}:${found.start}`, place: placeBy(inCode.getBoundingClientRect()), inCode, written: found.word, declared, ...meaning }
   }
   const handlers = {
     // Over a word with a card, the pointer says it can be clicked.

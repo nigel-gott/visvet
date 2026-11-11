@@ -670,6 +670,10 @@ main { position: relative }
 .word-field { margin-top: 4px }
 .word-field .word-long { font-size: 13px }
 .word-label { color: var(--muted); font-size: 12px }
+.word-line { margin-bottom: 4px; font-size: 13px }
+.word-line p { display: inline; margin: 0 }
+.ln.shown-line { animation: shown-line 2s }
+@keyframes shown-line { from { background: var(--sel-bg); box-shadow: inset 4px 0 var(--sel) } }
 .word-meaning .word-label { font-size: inherit }
 .word-meaning p:first-of-type { display: inline }
 .word-card pre { margin: 2px 0 8px; padding: 8px 10px; overflow-x: auto; border-radius: 6px; background: var(--panel); font: 12px/1.5 var(--mono) }
