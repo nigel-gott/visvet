@@ -78,8 +78,8 @@ impl<'a> FileParser<'a> {
 
     /// Handles one top-level item: imports, types, impls and free functions.
     pub(super) fn item(&mut self, n: Node) {
-        if let Some(s) = n.child_by_field_name("source") {
-            return self.ts_import(s);
+        if let Some(source) = n.child_by_field_name("source") {
+            return self.ts_import(n, source);
         }
         match n.kind() {
             "export_statement" => n.child_by_field_name("declaration").into_iter().for_each(|d| self.item(d)),
@@ -88,6 +88,10 @@ impl<'a> FileParser<'a> {
             }
             "lexical_declaration" => self.const_fns(n),
             "use_declaration" => self.rust_use(n),
+            "mod_item" if n.child_by_field_name("body").is_none() => {
+                let declared = n.child_by_field_name("name").map(|name| self.t(name).to_string());
+                self.boxes[0].mods.extend(declared);
+            }
             "impl_item" => self.rust_impl(n),
             k => type_kind(k).into_iter().for_each(|kind| self.type_item(n, kind)),
         }
@@ -136,10 +140,13 @@ impl<'a> FileParser<'a> {
         }
         if let Some(tp) = owner.child_by_field_name("type_parameters") {
             for nm in tp.named_children(&mut tp.walk()).filter_map(|p| p.child_by_field_name("name")) {
-                let t = self.t(nm);
+                let generic = self.t(nm);
                 let o = &mut self.boxes[oi];
-                o.refs.remove(t);
-                o.members.iter_mut().for_each(|m| { m.types.remove(t); });
+                o.refs.retain(|named| named.first_name() != generic);
+                for m in &mut o.members {
+                    m.types.retain(|named| named.first_name() != generic);
+                    m.calls.retain(|called| called.first_name() != generic);
+                }
             }
         }
     }
@@ -151,10 +158,20 @@ impl<'a> FileParser<'a> {
         // A struct-like enum variant's signature stops at its name, e.g. "Threads", not its whole field list; More shows the fields.
         let sig = if kind == MemberKind::Variant { sig.split(" {").next().unwrap_or(&sig).to_string() } else { sig };
         let sig = sig.trim_end_matches([',', ';']).trim_end().into();
-        let ((start, line, doc), mut calls) = (self.head(n), vec![]);
-        let complexity = 1 + body.map_or(0, |b| self.calls(oi, b, &mut calls));
+        let ((start, line, doc), mut calls, mut creates) = (self.head(n), vec![], vec![]);
+        let complexity = 1 + body.map_or(0, |b| self.calls(b, &mut calls, &mut creates));
+        // In source order (the walk finds them last first), so the first mention of each thing is the one its arrow keeps.
+        calls.reverse();
+        creates.reverse();
         let text = self.src[start..n.end_byte()].into();
-        let types = if matches!(kind, MemberKind::Fn | MemberKind::Method) { self.unpacked(n).into_iter().chain(body.map(|b| self.uses(b)).unwrap_or_default()).collect() } else { self.type_names(n) };
-        self.boxes[oi].members.push(ParsedMember { name: name.into(), kind, sig, text, doc, line, calls, complexity, types });
+        let is_function = matches!(kind, MemberKind::Fn | MemberKind::Method);
+        let mut types = if is_function { self.unpacked(n).into_iter().chain(body.map(|b| self.uses(b)).unwrap_or_default()).collect() } else { self.type_names(n) };
+        if is_function {
+            // What the function names itself (a parameter, a closure, `<T>`) is never a function or type elsewhere.
+            let locals = self.local_names(n);
+            types.retain(|named| !locals.contains(named.first_name()));
+            calls.retain(|called| !locals.contains(called.first_name()));
+        }
+        self.boxes[oi].members.push(ParsedMember { name: name.into(), kind, sig, text, doc, line, calls, creates, complexity, types });
     }
 }

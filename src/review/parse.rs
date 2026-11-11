@@ -20,11 +20,15 @@ pub struct ParsedBox {
     pub line: u32,
     pub text: String,
     pub doc: String,
-    pub impls: BTreeSet<String>,
+    /// The traits, interfaces or base classes it implements or extends, as written.
+    pub impls: BTreeSet<Mention>,
     pub members: Vec<ParsedMember>,
-    pub refs: BTreeSet<String>,
-    /// File boxes only: per import, candidate repo paths in preference order.
-    pub uses: Vec<Vec<RepoPath>>,
+    /// Types it names outside any member: a type alias's, a tuple struct's.
+    pub refs: BTreeSet<Mention>,
+    /// File boxes only: each name the file imports.
+    pub imports: Vec<Import>,
+    /// File boxes only: the Rust modules it declares to live in other files, e.g. "parse" for `mod parse;`.
+    pub mods: Vec<String>,
     /// File boxes only: the parse has a top-level syntax error (e.g. mid-edit).
     pub broken: bool,
 }
@@ -38,14 +42,48 @@ pub struct ParsedMember {
     pub text: String,
     pub doc: String,
     pub line: u32,
-    /// Fns and methods only: calls and constructions in the body, see `FileParser::calls`.
-    pub calls: Vec<(String, String)>,
+    /// Fns and methods only: the functions the body calls, see `FileParser::calls`.
+    pub calls: Vec<Mention>,
+    /// Fns and methods only: the types the body builds, with a Rust struct literal or a TS `new`.
+    pub creates: Vec<Mention>,
     /// 1 + the body's decision points (see `decision`); 1 for members without a body.
     pub complexity: u32,
     /// Type names for arrows: a field's or variant's type ("has"), or the types a function's body
     /// really uses, see `FileParser::uses` ("uses").
-    pub types: BTreeSet<String>,
+    pub types: BTreeSet<Mention>,
 }
+
+/// A name the code mentions, as written, and the line it is on: a Rust path such as "fmt::Display" or "Self::new",
+/// or a TypeScript name such as "Review". Nothing says yet what it means; `resolve` works that out.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Mention {
+    pub path: String,
+    pub line: u32,
+}
+
+impl Mention {
+    /// The first name of the path, e.g. "fmt" of "fmt::Display".
+    pub fn first_name(&self) -> &str {
+        self.path.split("::").next().unwrap_or("")
+    }
+}
+
+/// One name a file brings into scope, or a whole module's names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Import {
+    /// The name code in the file then uses, e.g. "Json" for `use axum::Json` or "S" for `use a::Store as S`;
+    /// `EVERY_NAME` for a glob such as `use a::*` or `export * from './a'`.
+    pub name: String,
+    /// Rust: the whole path as written, e.g. ["crate", "types", "MapBox"]. TypeScript: the name inside the imported
+    /// file, e.g. ["Review"] or ["default"], or nothing when the file itself is meant (`import * as model`).
+    pub path: Vec<String>,
+    /// TypeScript only: the repo files the import's source may be, in preference order.
+    pub files: Vec<RepoPath>,
+    pub line: u32,
+}
+
+/// An `Import::name` that stands for every name of the module imported.
+pub const EVERY_NAME: &str = "*";
 
 /// The "file" box (whole text, free fns as members, imports) followed by the file's types.
 /// Only .rs/.ts/.tsx files are parsed.
@@ -145,8 +183,9 @@ mod tests {
         o.members.iter().map(|m| (m.kind, m.name.as_str())).collect()
     }
 
-    fn set(xs: &[&str]) -> BTreeSet<String> {
-        xs.iter().map(|x| x.to_string()).collect()
+    /// The paths of `mentions`, in order.
+    fn paths(mentions: &BTreeSet<Mention>) -> Vec<&str> {
+        mentions.iter().map(|mention| mention.path.as_str()).collect()
     }
 
     #[test]
@@ -161,8 +200,8 @@ mod tests {
         let src = "//! File doc.\n//!\n//! More.\nimpl Foo {\n    /// Makes one.\n    pub fn new(\n        x: u8,\n    ) -> Self { todo!() }\n    pub fn a(&self) -> u8 { 1 }\n}\nimpl fmt::Display for Foo<T> { fn fmt(&self) {} }\n/// The foo.\n/// Really.\n///\n/// Details.\n#[derive(\n    Debug,\n)]\npub struct Foo { pub a: Vec<Bar>, b: u8 }\nenum E { A(Baz), B }\nimpl Ext for Other {}\n// plain\nfn free() {}\n#[cfg(test)]\nmod tests { struct Hidden; }\n";
         let boxes = parse(&RepoPath("a.rs".into()), src);
         let foo = get(&boxes, "Foo");
-        assert_eq!((foo.kind, foo.line, &foo.impls, &foo.refs), (BoxKind::Struct, 12, &set(&["Display"]), &set(&[])));
-        assert_eq!(foo.members[3].types, set(&["Bar", "Vec"]));
+        assert_eq!((foo.kind, foo.line, paths(&foo.impls), paths(&foo.refs)), (BoxKind::Struct, 12, vec!["fmt::Display"], vec![]));
+        assert_eq!(paths(&foo.members[3].types), ["Bar", "Vec"]);
         assert!(foo.text.starts_with("/// The foo.\n") && foo.text.ends_with("b: u8 }"));
         assert_eq!(names(foo), [(Method, "new"), (Method, "a"), (Method, "fmt"), (Field, "a#2"), (Field, "b")]);
         assert_eq!(foo.members[0].sig, "pub fn new( x: u8, ) -> Self");
@@ -171,8 +210,8 @@ mod tests {
         let docs = (boxes[0].doc.as_str(), foo.doc.as_str(), foo.members[0].doc.as_str(), boxes[0].members[0].doc.as_str());
         assert_eq!(docs, ("File doc.", "The foo. Really.", "Makes one.", ""));
         let e = get(&boxes, "E");
-        assert_eq!((&e.members[0].types, names(e), e.members[1].text.as_str()), (&set(&["Baz"]), vec![(Variant, "A"), (Variant, "B")], "B"));
-        assert_eq!((get(&boxes, "Other").kind, &get(&boxes, "Other").impls), (BoxKind::Impl, &set(&["Ext"])));
+        assert_eq!((paths(&e.members[0].types), names(e), e.members[1].text.as_str()), (vec!["Baz"], vec![(Variant, "A"), (Variant, "B")], "B"));
+        assert_eq!((get(&boxes, "Other").kind, paths(&get(&boxes, "Other").impls)), (BoxKind::Impl, vec!["Ext"]));
         assert_eq!((boxes[0].kind, boxes[0].text.as_str(), names(&boxes[0])), (BoxKind::File, src, vec![(MemberKind::Fn, "free")]));
         assert!(boxes.iter().all(|o| o.name != "Hidden"));
     }
@@ -182,8 +221,8 @@ mod tests {
         let src = "/** The C class.\n * More.\n *\n * Details. */\nexport class C extends Base<T> implements I {\n  x: Foo; // trailing\n  // Runs it.\n  run(a: { b: number }): void {}\n  get v() { return 1 }\n  set v(x) {}\n}\ninterface I extends J { p: Bar; m(): void; }\nexport const f = (a: number) => { return a };\nfunction g() {}\ntype U = Foo | Baz;\nenum E { A, B = 2 }\ntype P<K> = { a: K; m(): Foo }\nconst U = () => 1;\n";
         let boxes = parse(&RepoPath("a.tsx".into()), src);
         let c = get(&boxes, "C");
-        assert_eq!((c.kind, c.line, &c.impls, &c.refs), (BoxKind::Class, 1, &set(&["Base", "I"]), &set(&[])));
-        assert_eq!(c.members[0].types, set(&["Foo"]));
+        assert_eq!((c.kind, c.line, paths(&c.impls), paths(&c.refs)), (BoxKind::Class, 1, vec!["Base", "I"], vec![]));
+        assert_eq!(paths(&c.members[0].types), ["Foo"]);
         assert!(c.text.starts_with("/** The C class.") && c.text.contains("\nexport class C"));
         assert_eq!(names(c), [(Field, "x"), (Method, "run"), (Method, "v"), (Method, "v#2")]);
         assert_eq!(c.members[1].sig, "run(a: { b: number }): void");
@@ -194,14 +233,14 @@ mod tests {
             assert_eq!(parse(&RepoPath(p.into()), s)[0].doc, d);
         }
         let i = get(&boxes, "I");
-        assert_eq!((i.kind, &i.impls, &i.members[0].types), (BoxKind::Interface, &set(&["J"]), &set(&["Bar"])));
+        assert_eq!((i.kind, paths(&i.impls), paths(&i.members[0].types)), (BoxKind::Interface, vec!["J"], vec!["Bar"]));
         assert_eq!(names(i), [(Field, "p"), (Method, "m")]);
         let m = get(&boxes, "a.tsx");
         assert_eq!((m.kind, names(m)), (BoxKind::File, vec![(MemberKind::Fn, "f"), (MemberKind::Fn, "g"), (MemberKind::Fn, "U#2")]));
         assert_eq!(m.members[0].sig, "const f = (a: number) =>");
-        assert_eq!(get(&boxes, "U").refs, set(&["Baz", "Foo", "U"]));
+        assert_eq!(paths(&get(&boxes, "U").refs), ["Baz", "Foo", "U"]);
         let p = get(&boxes, "P");
-        assert_eq!((names(p), &p.refs), (vec![(Field, "a"), (Method, "m")], &set(&["Foo", "P"])));
+        assert_eq!((names(p), paths(&p.refs)), (vec![(Field, "a"), (Method, "m")], vec!["Foo", "P"]));
         assert_eq!(names(get(&boxes, "E")), [(Variant, "A"), (Variant, "B")]);
     }
 }

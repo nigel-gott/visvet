@@ -66,12 +66,16 @@ export type Dependency = { from: MapId, to: MapId, kind: DependencyKind,
 /**
  * Words on the arrow, e.g. "owns" from a Markdown link's title; most arrows have none.
  */
-label: string | null, };
+label: string | null, 
+/**
+ * The line of `from`'s file that mentions `to`, when one line does.
+ */
+line: number | null, };
 
 /**
  * How `from` depends on `to`.
  */
-export type DependencyKind = "has" | "implements" | "imports" | "calls" | "creates" | "uses" | "generates" | "links";
+export type DependencyKind = "has" | "implements" | "imports" | "calls" | "creates" | "uses" | "generates" | "links" | "depends";
 
 /**
  * One line of a diff. `line` is its 1-based line number in the new file, or in the old file for a removed line.

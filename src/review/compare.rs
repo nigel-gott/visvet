@@ -1,25 +1,37 @@
 //! Comparing a file's two versions: parses both, pairs old and new types and members by name, and diffs each pair,
 //! so every box knows whether it was added, changed, removed or is the same.
-use crate::review::parse::{ParsedMember, ParsedBox, parse};
+use crate::review::parse::{Import, Mention, ParsedMember, ParsedBox, parse};
 use super::{codegen, markdown};
 use crate::types::{Language, BoxContent, ChangeStatus, MapBox, DiffLine, DiffLineKind, LineRange, Member, MemberId, MemberKind, RepoPath, BoxId, BoxKind};
 use similar::{ChangeTag, TextDiff};
 use std::collections::HashMap;
 
-/// A box as parsed, with the names it mentions before they are resolved into dependencies:
-/// type names it uses outside any member (a type alias, a tuple struct), type names per member as
-/// `(member id, kind, names)`, traits it implements, candidate files per import, and calls or
-/// constructions as `[from member id, qualifier, name]`, the ids of the types a code generator writes from it, and
-/// for a Markdown file, the boxes and files it names.
+/// A box as parsed, with the names it mentions before `find_dependencies` resolves them into dependencies.
 pub struct Parsed {
     pub map_box: MapBox,
-    pub types: Vec<String>,
-    pub member_types: Vec<(String, MemberKind, Vec<String>)>,
-    pub traits: Vec<String>,
-    pub imports: Vec<Vec<RepoPath>>,
-    pub calls: Vec<[String; 3]>,
+    /// Types it names outside any member: a type alias's, a tuple struct's.
+    pub types: Vec<Mention>,
+    /// What each of its members mentions.
+    pub members: Vec<MemberMentions>,
+    /// The traits, interfaces or base classes it implements or extends.
+    pub traits: Vec<Mention>,
+    /// A file's own box only: each name the file imports, and the Rust modules it declares in other files.
+    pub imports: Vec<Import>,
+    pub mods: Vec<String>,
+    /// The ids of the boxes a code generator writes from it.
     pub generates: Vec<String>,
+    /// A Markdown file only: the boxes and files it names.
     pub links: Vec<markdown::DocLink>,
+}
+
+/// What one member mentions: the types a field holds or a function's body uses, and for a function, the functions
+/// it calls and the types it builds.
+pub struct MemberMentions {
+    pub member: MemberId,
+    pub kind: MemberKind,
+    pub types: Vec<Mention>,
+    pub calls: Vec<Mention>,
+    pub creates: Vec<Mention>,
 }
 
 /// The lines `text` spans when it starts on line `first`.
@@ -45,14 +57,13 @@ pub fn compare_file(file: &RepoPath, new: Option<&[u8]>, old: Option<&[u8]>) -> 
 fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, broken: bool, file_status: ChangeStatus) -> Parsed {
     let x = n.or(o).unwrap();
     let id = x.kind.box_id(file, &x.name);
-    let (mut calls, mut member_types) = (vec![], vec![]);
+    let mut mentions = vec![];
     let members: Vec<Member> = pair(n.map_or(&[][..], |n| &n.members[..]), o.map_or(&[][..], |o| &o.members[..]), |m| &m.name)
         .into_iter().filter(|(nm, _)| nm.is_some() || !broken)
         .map(|(nm, om)| {
             let m = compare_member(&id, nm, om);
             let raw = nm.or(om).unwrap();
-            calls.extend(raw.calls.iter().map(|(q, n)| [m.id.0.clone(), q.clone(), n.clone()]));
-            member_types.push((m.id.0.clone(), m.kind, raw.types.iter().cloned().collect()));
+            mentions.push(MemberMentions { member: m.id.clone(), kind: m.kind, types: raw.types.iter().cloned().collect(), calls: raw.calls.clone(), creates: raw.creates.clone() });
             m
         })
         .collect();
@@ -72,7 +83,7 @@ fn compare_box(file: &RepoPath, n: Option<&ParsedBox>, o: Option<&ParsedBox>, br
         diff: diff(n.map(|n| (&*n.text, n.line)), o.map(|o| (&*o.text, o.line))),
         content: kind.content,
     };
-    Parsed { map_box, types: x.refs.iter().cloned().collect(), member_types, traits: x.impls.iter().cloned().collect(), imports: x.uses.clone(), calls, generates: kind.generates, links: kind.links }
+    Parsed { map_box, types: x.refs.iter().cloned().collect(), members: mentions, traits: x.impls.iter().cloned().collect(), imports: x.imports.clone(), mods: x.mods.clone(), generates: kind.generates, links: kind.links }
 }
 
 /// The parts of a box that depend on whether it is a file's own box or a type in it: its status, content, the ids

@@ -4,7 +4,7 @@ use ts_rs::TS;
 use super::MapId;
 
 /// How `from` depends on `to`.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, TS)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 #[serde(rename_all = "lowercase")]
 pub enum DependencyKind {
@@ -12,7 +12,8 @@ pub enum DependencyKind {
     Has,
     /// `from` implements or extends trait, interface or class `to`.
     Implements,
-    /// File `from` imports file `to`.
+    /// File `from` imports `to` (a type, a function or a whole file) and no other arrow from the file says what
+    /// for: e.g. a trait imported for its methods, a constant, or a type only named in signatures.
     Imports,
     /// Function `from` calls function `to`.
     Calls,
@@ -26,6 +27,8 @@ pub enum DependencyKind {
     Generates,
     /// Markdown file `from` names box or file `to`, in a `code span` or a link.
     Links,
+    /// The Cargo package of manifest `from` lists the package of manifest `to` as a dependency.
+    Depends,
 }
 
 impl DependencyKind {
@@ -33,12 +36,12 @@ impl DependencyKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Has => "has", Self::Implements => "implements", Self::Imports => "imports",
-            Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses", Self::Generates => "generates", Self::Links => "links",
+            Self::Calls => "calls", Self::Creates => "creates", Self::Uses => "uses", Self::Generates => "generates", Self::Links => "links", Self::Depends => "depends",
         }
     }
 
     /// Whether arrows of this kind can make a cycle a reader must untangle: code links only, not Markdown "links",
-    /// generated files or trait implementations.
+    /// generated files, trait implementations or what a manifest declares.
     pub fn counts_for_cycles(self) -> bool {
         matches!(self, Self::Calls | Self::Uses | Self::Has | Self::Imports | Self::Creates)
     }
@@ -53,4 +56,6 @@ pub struct Dependency {
     pub kind: DependencyKind,
     /// Words on the arrow, e.g. "owns" from a Markdown link's title; most arrows have none.
     pub label: Option<String>,
+    /// The line of `from`'s file that mentions `to`, when one line does.
+    pub line: Option<u32>,
 }
