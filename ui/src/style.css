@@ -622,6 +622,11 @@ main { position: relative }
   .reading .tree-open { display: block }
   .reading .path { display: none }
   .reading .review-status { margin-left: auto }
+  /* A phone's top bar has no room for everything: what is left to read and the threads waiting stay; the change's
+     line counts and the count of resolved threads go. If it still doesn't fit, it wraps and nothing is cut off. */
+  .reading .review-status { flex-wrap: wrap; justify-content: flex-end }
+  .reading .review-status > span.counts, .reading .review-status .talk.resolved { display: none }
+  .left-to-read-page { font-size: 11px }
   .app:has(.dimension-view) .dimensions.modes { order: 0; flex: none }
   .reading .tree:not(.hidden) { display: block; grid-area: 2 / 1 / 3 / 3; z-index: 5; width: 100% !important; max-width: none }
   .reading .tree.hidden, .reading .tree-edge, .reading:has(.tree:not(.hidden)) .peek { display: none }

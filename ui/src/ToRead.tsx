@@ -4,7 +4,7 @@
 // important file not read yet, falling to 0 as it is read. The file tree shows it as a meter, and "To read" lists
 // the files with the most left first.
 
-import { useContext } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { X, type Ctx } from './context'
 import { exploredOf } from './Explored'
 import { subtree, type Item } from './model'
@@ -82,7 +82,8 @@ export function ToRead() {
 
 /**
  * In Read mode, in the top bar before the change's line counts: how much of the file being read (the one the page is,
- * or is in) is left to read, as the meter and in words, e.g. "importance 85 · 40% read". It moves as the page is read.
+ * or is in) is left to read, as the meter, then its importance and the share of it read, e.g. "rated 85 · 40% read"; then the
+ * same for the whole repository, and the time to go (see `TimeToGoal`). It moves as the page is read.
  */
 export function LeftToReadOfPage() {
   const x = useContext(X)
@@ -92,7 +93,70 @@ export function LeftToReadOfPage() {
   if (!file || !explored?.lines) return null
   return (
     <span className="left-to-read-page" title={x.importance.get(file.id)?.reason}>
-      <LeftToRead it={file} /> importance {importanceOf(x, file)} · {Math.floor(100 * explored.seen / explored.lines)}% read
+      <LeftToRead it={file} /> rated {importanceOf(x, file)} · {Math.floor(100 * explored.seen / explored.lines)}% read{' '}
+      <TimeToGoal />
     </span>
   )
+}
+
+/** The share of what matters that counts as a good portion of it read: the goal the time left is worked out for. */
+const GOAL_SHARE = 0.8
+/** The reading pace is taken over this long, up to now. */
+const PACE_OVER_MS = 10 * 60_000
+/** With less than this long to go by, a pace would be a guess, so no time is shown yet. */
+const PACE_NEEDS_MS = 30_000
+
+/** The time shown is worked out again this often, so it grows while nothing is being read. */
+const PACE_AGAIN_EVERY_MS = 5_000
+
+/** How much of what matters was read at one moment (`at`, in milliseconds since 1970). */
+type ReadAt = { at: number; read: number }
+/** What was read at each moment it changed, over the last `PACE_OVER_MS`, oldest first, since this page was opened. */
+const readOverTime: ReadAt[] = []
+
+/**
+ * How much of what matters there is in the whole repository, and how much of it is read: every file's lines, and its
+ * lines explored, each counted as many times as the file's importance. So a line of a file rated 90 weighs as nine
+ * lines of a file rated 10.
+ */
+function whatMatters(x: Ctx) {
+  let all = 0, read = 0
+  for (const file of x.ix.all.filter(it => it.kind === 'file')) {
+    const explored = exploredOf(x, file)
+    all += importanceOf(x, file) * explored.lines
+    read += importanceOf(x, file) * explored.seen
+  }
+  return { all, read }
+}
+
+/** A stretch of time in a word, e.g. "40s", "25m", "3h" or "12d". */
+function shortTime(milliseconds: number) {
+  const minutes = milliseconds / 60_000
+  if (minutes < 1) return `${Math.ceil(minutes * 60)}s`
+  if (minutes < 90) return `${Math.round(minutes)}m`
+  return minutes < 48 * 60 ? `${Math.round(minutes / 60)}h` : `${Math.round(minutes / 60 / 24)}d`
+}
+
+/**
+ * Beside the file's meter, for the whole repository: how much of what matters is read, and at the pace of the last
+ * ten minutes, how long until a good portion (`GOAL_SHARE`) of it is, e.g. "all 12% · ⏱ 3h". A tick once it is; no
+ * time while there is no pace to go by.
+ */
+function TimeToGoal() {
+  const { all, read } = whatMatters(useContext(X))
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    const again = setInterval(() => setNow(Date.now()), PACE_AGAIN_EVERY_MS)
+    return () => clearInterval(again)
+  }, [])
+  if (readOverTime.at(-1)?.read !== read) readOverTime.push({ at: now, read })
+  // The oldest moment kept is the last one before the ten minutes began, so the pace covers all of them.
+  while (readOverTime.length > 1 && readOverTime[1].at < now - PACE_OVER_MS) readOverTime.shift()
+  const since = readOverTime[0], goal = GOAL_SHARE * all
+  const overall = `· all ${Math.floor(100 * read / all)}%`
+  const says = `Of what matters in the whole repository, ${Math.floor(100 * read / all)}% is read.`
+  if (read >= goal) return <span title={says}>{overall} ✓</span>
+  const readPerMillisecond = (read - since.read) / (now - since.at)
+  if (now - since.at < PACE_NEEDS_MS || readPerMillisecond <= 0) return <span title={says}>{overall}</span>
+  return <span title={`${says} At your pace since ${shortTime(now - since.at)} ago, ${100 * GOAL_SHARE}% takes this much longer.`}>{overall} · ⏱ {shortTime((goal - read) / readPerMillisecond)}</span>
 }
