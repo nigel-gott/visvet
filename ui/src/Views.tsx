@@ -4,7 +4,7 @@ import { Debuffs } from './Debuffs'
 import { X, type Ctx } from './context'
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { getSinceReviewed, within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
-import { hidesReviewed, looksReviewed, ReviewedMark, ReviewProgress } from './Reviewed'
+import { hidesReviewed, looksReviewed, reviewedLook, ReviewProgress } from './Reviewed'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
@@ -51,7 +51,7 @@ export function Notes({ it }: { it: Item }) {
 
 /**
  * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, its threads and debuffs, then
- * in columns lines added and removed, and for a file or folder its reviewed mark; a reviewed one is greyed. It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
+ * in columns lines added and removed, and a reviewed file or folder is greyed, one that changed since it was reviewed has its name underlined; the tree has no control for it (it is marked where it is read). It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
  * view when it becomes the selection. A click shows its box on the map; a double click zooms into it.
  */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
@@ -66,7 +66,7 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
   /** One click shows the row's box on the map; the second of a double click zooms the map into it, as on the map. */
   const click = (clicks: number) => (clicks === 2 && zoomable ? x.zoom(it.id) : x.goTo(it.id))
   return (
-    <div ref={ref} className={`orow ${sel ? 'sel' : ''} ${tourMark} ${looksReviewed(x, it) ? 'reviewed' : ''}`} title={it.doc ?? it.m?.signature} onClick={e => click(e.detail)}>
+    <div ref={ref} className={`orow ${sel ? 'sel' : ''} ${tourMark} ${reviewedLook(x, it)}`} title={it.doc ?? it.m?.signature} onClick={e => click(e.detail)}>
       {children}
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
       <span className={'badge k-' + kind} title={kind} />
@@ -79,7 +79,6 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
       {/* Columns, so every row's line counts line up: lines added, then lines removed. */}
       <span className="tree-added">{it.diffCount.added > 0 && `+${it.diffCount.added}`}</span>
       <span className="tree-removed">{it.diffCount.removed > 0 && `−${it.diffCount.removed}`}</span>
-      <ReviewedMark it={it} />
     </div>
   )
 }

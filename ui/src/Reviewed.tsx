@@ -22,6 +22,8 @@ const isReviewed = (x: Ctx, file: Item) => x.reviewed.get(file.id) === 'reviewed
 const allReviewed = (x: Ctx, it: Item) => { const files = filesIn(it); return files.length > 0 && files.every(file => isReviewed(x, file)) }
 /** Whether `it` takes the quiet look: a reviewed file, or a folder whose every file is reviewed. */
 export const looksReviewed = (x: Ctx, it: Item) => (it.kind === 'folder' ? allReviewed(x, it) : isFile(it) && isReviewed(x, it))
+/** The class a tree row takes for `it`: "reviewed" (greyed), "changed-since" for a file that changed after it was reviewed, or none. */
+export const reviewedLook = (x: Ctx, it: Item) => (looksReviewed(x, it) ? 'reviewed' : isFile(it) && x.reviewed.get(it.id) === 'changed' ? 'changed-since' : '')
 /**
  * Whether "Hide reviewed" hides `it` from the tree and the map: every file in it is reviewed (for a Rust module's
  * file, the files of its folder too), and the selection isn't in it.
@@ -93,6 +95,28 @@ export function ReviewedMark({ it }: { it: Item }) {
         {it.kind === 'file' ? mark : `${state === 'reviewed' ? '✓ ' : ''}${done}/${files.length}`}
       </button>
     </span>
+  )
+}
+
+/**
+ * In Read mode, over and under a file's text: one wide button that marks the file as reviewed, or unmarks it, and says
+ * which it is in words. A file that changed since it was reviewed says so, with a button to see what changed.
+ */
+export function ReviewedBar({ it }: { it: Item }) {
+  const x = useContext(X)
+  let file: Item | undefined = it
+  while (file && file.kind !== 'file') file = file.parent
+  if (!file || !isFile(file)) return null
+  const at = file, state = x.reviewed.get(at.id) ?? 'unreviewed'
+  const showChanges = () => { x.select(at.id, true); x.showDetail(at.id, SINCE_REVIEWED) }
+  return (
+    <div className={`reviewed-bar ${state}`}>
+      {state === 'changed' && <><span>Changed since you reviewed it</span><button onClick={showChanges}>Show what changed</button></>}
+      <button className="reviewed-toggle" aria-pressed={state === 'reviewed'} title="Alt+R" onClick={() => setReviewed(at, state !== 'reviewed')}>
+        {state === 'reviewed' ? '✓ Reviewed' : state === 'changed' ? 'Mark as reviewed again' : 'Mark as reviewed'}
+      </button>
+      {state !== 'reviewed' ? null : <button title="Go to the next file that isn't reviewed (Alt+N)" onClick={() => nextUnreviewed(x)}>Next unreviewed ▸</button>}
+    </div>
   )
 }
 
