@@ -593,7 +593,8 @@ main { position: relative }
 
 /* The card for the word under the pointer in a Lisp-family file's code (Hover.tsx): its definition, or its documentation. */
 .diff.at-word .tok { cursor: pointer }
-::highlight(known-word) { text-decoration: underline dotted; text-decoration-color: var(--muted) }
+::highlight(defined-word) { color: var(--k-fn) }
+::highlight(documented-word) { color: var(--k-struct) }
 .word-card { position: fixed; z-index: 2000; width: max-content; max-width: 560px; max-height: 45vh; overflow: auto; padding: 4px 12px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--bg); color: var(--fg); box-shadow: 0 6px 24px rgb(0 0 0 / .3); font: 12px/1.45 system-ui, sans-serif; text-indent: 0; white-space: normal }
 .word-card section { padding: 8px 0; cursor: pointer }

@@ -1,4 +1,5 @@
-// A word in a Lisp-family file's code that the review knows something about is underlined; a click on it opens
+// A word in a Lisp-family file's code that the review knows something about is coloured, one colour for a name
+// the repository's own files define and another for a word its Markdown documents; a click on it opens
 // a card that says what it is, from the review's hover index (src/review/hover.rs). A symbol that names a
 // definition shows that definition; any other word, where the repository's Markdown documents it. A click on
 // the card goes there; a click anywhere else, or Escape, closes it.
@@ -114,19 +115,24 @@ function meaningOf(hover: Hover, items: Map<string, Item>, file: string, diff: D
   return { keywordOf, word, definitions, documented, mentioned: hover.mentioned[word] ?? [] }
 }
 
-/** The name the underline's highlight has in style.css. */
-const UNDERLINED = 'known-word'
-/** The underlined ranges of every code view on screen, by the element holding its lines: one highlight draws them all. */
-const underlined = new Map<Element, Range[]>()
+/** The names the two colours' highlights have in style.css: a word the repository defines, and one its Markdown documents. */
+const DEFINED = 'defined-word', DOCUMENTED = 'documented-word'
+/** The coloured ranges of every code view on screen, by the element holding its lines: one highlight of each colour draws them all. */
+const coloured = new Map<Element, { defined: Range[]; documented: Range[] }>()
+/** Draws every view's ranges again. */
+function recolour() {
+  CSS.highlights.set(DEFINED, new Highlight(...[...coloured.values()].flatMap(each => each.defined)))
+  CSS.highlights.set(DOCUMENTED, new Highlight(...[...coloured.values()].flatMap(each => each.documented)))
+}
 
-/** Underlines every word of the code under `view` that a click opens a card for; `drawn` is whatever redraws the lines. */
-export function useUnderlinedWords(view: RefObject<HTMLElement | null>, file: string | undefined, diff: DiffLine[], drawn: unknown[]) {
+/** Colours every word of the code under `view` that a click opens a card for; `drawn` is whatever redraws the lines. */
+export function useColouredWords(view: RefObject<HTMLElement | null>, file: string | undefined, diff: DiffLine[], drawn: unknown[]) {
   const x = useContext(X)
   useEffect(() => {
     const code = view.current
-    // ponytail: a browser without the highlight API shows no underlines; words still open their card on a click.
+    // ponytail: a browser without the highlight API shows no colours; words still open their card on a click.
     if (!code || !file || !('highlights' in CSS)) return
-    const ranges: Range[] = []
+    const ranges = { defined: [] as Range[], documented: [] as Range[] }
     for (const line of code.querySelectorAll<HTMLElement>('.ln')) {
       const row = Number(line.dataset.row), text = diff[row]?.text
       if (text === undefined) continue
@@ -149,21 +155,19 @@ export function useUnderlinedWords(view: RefObject<HTMLElement | null>, file: st
         if (!found) continue
         const end = found.start + found.word.length
         const from = place(found.start), to = place(end)
-        if (from && to && meaningOf(x.model.hover, x.ix.items, file, diff, row, found)) {
+        const meaning = from && to && meaningOf(x.model.hover, x.ix.items, file, diff, row, found)
+        if (from && to && meaning) {
           const range = document.createRange()
           range.setStart(from.node, from.offset)
           range.setEnd(to.node, to.offset)
-          ranges.push(range)
+          ;(meaning.definitions.length ? ranges.defined : ranges.documented).push(range)
         }
         at = end
       }
     }
-    underlined.set(code, ranges)
-    CSS.highlights.set(UNDERLINED, new Highlight(...[...underlined.values()].flat()))
-    return () => {
-      underlined.delete(code)
-      CSS.highlights.set(UNDERLINED, new Highlight(...[...underlined.values()].flat()))
-    }
+    coloured.set(code, ranges)
+    recolour()
+    return () => { coloured.delete(code); recolour() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, diff, x.model, ...drawn])
 }
@@ -209,7 +213,7 @@ export function useWordHover(file: string | undefined, diff: DiffLine[]) {
     // Over a word with a card, the pointer says it can be clicked.
     onMouseMove: (event: MouseEvent) => { const at = !!cardAt(event); if (at !== pointsAtWord) setPointsAtWord(at) },
     onMouseLeave: () => setPointsAtWord(false),
-    // A click on an underlined word opens its card, a second closes it, and one anywhere else in the code closes it; not while selecting text.
+    // A click on a coloured word opens its card, a second closes it, and one anywhere else in the code closes it; not while selecting text.
     onClick: (event: MouseEvent) => {
       if (getSelection()?.toString()) return
       const next = cardAt(event)
