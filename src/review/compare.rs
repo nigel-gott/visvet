@@ -154,7 +154,7 @@ fn status<T: PartialEq>(new: Option<T>, old: Option<T>) -> ChangeStatus {
 }
 
 /// Line diff of `(text, first line)`; removed lines use old-file numbers, others new-file.
-fn diff(new: Option<(&str, u32)>, old: Option<(&str, u32)>) -> Vec<DiffLine> {
+pub fn diff(new: Option<(&str, u32)>, old: Option<(&str, u32)>) -> Vec<DiffLine> {
     let ((n, nl), (o, ol)) = (new.unwrap_or_default(), old.unwrap_or_default());
     let (n, o): (Vec<&str>, Vec<&str>) = (n.lines().collect(), o.lines().collect());
     TextDiff::from_slices(&o, &n).iter_all_changes().map(|c| {

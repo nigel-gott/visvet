@@ -6,6 +6,7 @@ import { codeOf, type Item } from './model'
 import type { CodeNote } from './contract'
 import { X } from './context'
 import { FileText, Head, Notes } from './Views'
+import { looksReviewed, ReviewedMark } from './Reviewed'
 import { languageOf } from './highlight'
 import { ThreadChip } from './Threads'
 import { BoxBubble } from './Tours'
@@ -179,6 +180,7 @@ function Rows({ rows, click }: Part) {
  * function opens or closes its More.
  * The More button expands the box in place, downwards: one level in, as rows, or a function's code. Open all, on the
  * zoomed box, presses More on each of its children. Drag a box by its header.
+ * A file's or folder's header has its reviewed mark (see Reviewed.tsx); a reviewed one is dimmed.
  */
 export function Card({ data }: NodeProps<Node<CardData>>) {
   const { it, rows, ext } = data
@@ -198,11 +200,12 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
       {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
       {cue && <span className="cue-label">{cue === 'into' ? 'Double-click to go in' : 'Click to view'}</span>}
       <Handle type="target" position={Position.Left} />
-      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${stepHere ? 'tour-step' : ''} ${cue ? 'tour-cue' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
+      <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${stepHere ? 'tour-step' : ''} ${cue ? 'tour-cue' : ''} ${looksReviewed(x, it) ? 'reviewed' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} />
           <ThreadChip it={it} />
+          <ReviewedMark it={it} />
           {data.commonUsers && <span className="common-mark" title={`Common: ${data.commonUsers} boxes here point at this one, so those arrows are hidden unless the legend's "common" is on.`}>◎ {data.commonUsers}</span>}
           {data.openAll.length > 0 && <button className="grow" onClick={e => { e.stopPropagation(); x.expandAll(data.openAll) }}>
             {data.openAll.every(id => x.expanded.has(id)) ? 'Close all' : 'Open all'}</button>}

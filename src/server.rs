@@ -2,12 +2,12 @@
 mod watch;
 use crate::state::visvet_dir::HandOff;
 use watch::RepoEvent;
-use crate::review::{build_review, coverage};
-use crate::state::store;
-use crate::{types::{Author, MapId, Review, ReviewAnnotations, ThreadId, ThreadState, View}};
+use crate::review::{build_review, compare, coverage};
+use crate::state::{reviewed, store};
+use crate::{types::{Author, DiffLine, MapId, RepoPath, Review, ReviewAnnotations, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
-    extract::{Path as UrlPath, Request, State},
+    extract::{Path as UrlPath, Query, Request, State},
     http::{StatusCode, Uri, header},
     middleware::{self, Next},
     response::{IntoResponse, Response, sse::{Event, Sse}},
@@ -15,7 +15,7 @@ use axum::{
 };
 use serde::Deserialize;
 use std::{convert::Infallible, fmt::Display};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::sync::broadcast;
 use tower_http::compression::CompressionLayer;
 use tokio_stream::{Stream, StreamExt, wrappers::BroadcastStream};
@@ -68,6 +68,8 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
         .route("/api/view", post(set_view))
         .route("/api/threads", get(threads).post(new_thread))
         .route("/api/threads/{id}", post(reply))
+        .route("/api/reviewed", post(set_reviewed))
+        .route("/api/reviewed/diff", get(since_reviewed))
         .fallback(static_file)
         // The review of a big repository is megabytes of JSON; compressed, it loads fast on a phone too.
         .layer(CompressionLayer::new())
@@ -95,25 +97,52 @@ async fn check_host(State(app): State<App>, req: Request, next: Next) -> Respons
 async fn review(State(app): State<App>) -> Res<Json<Review>> {
     let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {
         let mut m = build_review(&app.repo_root, &app.base)?;
-        m.annotations = store::load(&app.repo_root)?;
+        m.annotations = annotations(&app.repo_root)?;
         coverage::add(&app.repo_root, &mut m);
         Ok(m)
     });
     m.await.map_err(err)?.map(Json).map_err(err)
 }
 
-/// The comment threads alone, which the UI fetches when only they changed: far smaller than the review.
-async fn threads(State(app): State<App>) -> Res<Json<ReviewAnnotations>> {
-    store::load(&app.repo_root).map(Json).map_err(err)
+/// The stored review state: the comment threads, and the files marked as reviewed.
+fn annotations(repo_root: &Path) -> anyhow::Result<ReviewAnnotations> {
+    Ok(ReviewAnnotations { reviewed: reviewed::files(repo_root)?, ..store::load(repo_root)? })
 }
 
-/// Server-sent events: `change` on connect and per burst of file changes, or `threads` when only comment threads
-/// changed; `show` with the JSON `visvet show` wrote.
+/// The comment threads and reviewed marks alone, which the UI fetches when only they changed: far smaller than the review.
+async fn threads(State(app): State<App>) -> Res<Json<ReviewAnnotations>> {
+    annotations(&app.repo_root).map(Json).map_err(err)
+}
+
+/// Body of POST /api/reviewed: the files (or folders) the user marks as reviewed, or with `reviewed` false, unmarks.
+#[derive(Deserialize)]
+struct SetReviewed { files: Vec<RepoPath>, reviewed: bool }
+
+/// Marks files as reviewed for the user, or unmarks them.
+async fn set_reviewed(State(app): State<App>, Json(marked): Json<SetReviewed>) -> Res<()> {
+    reviewed::set(&app.repo_root, &marked.files, marked.reviewed).map(|_| ()).map_err(err)
+}
+
+/// The query of GET /api/reviewed/diff: which file.
+#[derive(Deserialize)]
+struct OneFile { file: RepoPath }
+
+/// What changed in a file since the user marked it as reviewed, as a diff; nothing when it has no mark, or git no
+/// longer has what they reviewed. Only a marked file is read.
+async fn since_reviewed(State(app): State<App>, Query(asked): Query<OneFile>) -> Res<Json<Option<Vec<DiffLine>>>> {
+    let Some(then) = reviewed::content_reviewed(&app.repo_root, &asked.file).map_err(err)? else { return Ok(Json(None)) };
+    let now = std::fs::read(app.repo_root.join(&asked.file.0)).map_err(err)?;
+    let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).into_owned();
+    Ok(Json(Some(compare::diff(Some((&text(&now), 1)), Some((&text(&then), 1))))))
+}
+
+/// Server-sent events: `change` on connect and per burst of file changes, or `threads` when only comment threads or
+/// reviewed marks changed; `show` with the JSON `visvet show` wrote.
 async fn events(State(app): State<App>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let pushes = tokio_stream::once(Ok(RepoEvent::Changed)).chain(BroadcastStream::new(app.tx.subscribe()));
     Sse::new(pushes.map(|p| Ok(match p {
         Ok(RepoEvent::Show(json)) => Event::default().event("show").data(json),
-        Ok(RepoEvent::ThreadsChanged) => Event::default().event("threads").data("threads"),
+        Ok(RepoEvent::AnnotationsChanged) => Event::default().event("threads").data("threads"),
         _ => Event::default().event("change").data("change"),
     })))
 }

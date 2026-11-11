@@ -8,8 +8,8 @@ const pen = document.createElement('canvas').getContext('2d')!
 /** The width of `text` in `font`, in pixels. */
 const measure = (text: string, font: string) => { pen.font = font; return pen.measureText(text).width }
 const HEAD_FONT = '600 13px system-ui, sans-serif', ROW_FONT = '13px ui-monospace, SFMono-Regular, Menlo, monospace'
-/** Room a header or member row needs besides its name: padding, border, kind badge, size bar and More button. */
-const CHROME = 170
+/** Room a header or member row needs besides its name: padding, border, kind badge, size bar, reviewed mark and More button. */
+const CHROME = 200
 /**
  * A box's width: enough to show its name (or signature) and its member rows' signatures in full, from 320px up
  * to 640px. Anything longer wraps onto more lines (see `wraps`) instead of being cut off.

@@ -11,7 +11,7 @@ string_methods!(GitRef);
 
 /// One review, as the UI shows it. GET /api/review returns it.
 /// It has two halves: `boxes`, `dependencies` and `hover` describe the code and are rebuilt from git on every
-/// request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
+/// request; `annotations` holds the comment threads and the reviewed marks, kept in `.visvet/`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct Review {

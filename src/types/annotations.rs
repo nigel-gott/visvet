@@ -1,7 +1,8 @@
-//! The review work saved in `.visvet/threads/`: the comment threads between people and the AI, which also hold the AI's notes.
+//! The review work saved in `.visvet/`: the comment threads between people and the AI, which also hold the AI's notes,
+//! and the files the user marked as reviewed.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::MapId;
+use super::{MapId, RepoPath};
 
 /// Whether a person or the AI wrote a message in a comment thread.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
@@ -67,9 +68,28 @@ impl std::fmt::Display for ThreadId {
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct Thread { pub id: ThreadId, pub target: MapId, pub state: ThreadState, pub messages: Vec<ThreadMessage> }
 
-/// The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`.
+/// Where a file the user marked as reviewed stands now.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+#[serde(rename_all = "lowercase")]
+pub enum ReviewedState {
+    /// Its content is what the user reviewed.
+    Reviewed,
+    /// It changed after the user reviewed it, so it needs another look.
+    Changed,
+}
+
+/// A file the user marked as reviewed, and whether it changed since. A file with no mark is not listed.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct ReviewedFile { pub file: RepoPath, pub state: ReviewedState }
+
+/// The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`, and the files
+/// marked as reviewed, kept in `.visvet/reviewed`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct ReviewAnnotations {
     pub threads: Vec<Thread>,
+    /// Filled by the server (see `state::reviewed`); the thread store leaves it empty.
+    pub reviewed: Vec<ReviewedFile>,
 }

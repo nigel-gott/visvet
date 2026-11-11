@@ -34,6 +34,9 @@ caffeinate -is visvet serve --no-open --port 7880 --url https://nigels-macbook-p
 - `visvet tours` checks the tours in `tours/` against the code. After changing code a tour shows, fix its stale steps.
 - `visvet coverage` runs the Rust tests under `cargo llvm-cov`; boxes then show a 🧪 low-coverage debuff. Rerun it after changing tests.
 
+## Reviewed marks
+The user ticks files off as reviewed (the mark on a tree row or box, Alt+R, or `visvet reviewed`). The marks are theirs: never run `visvet reviewed <path>` yourself and never edit `.visvet/reviewed`; commit it with the code when it has changed. `src/state/reviewed.rs` keeps the file (one line per file: the content's git blob id, then the path), so a file that changes shows as changed since it was reviewed and a moved file keeps its mark; `ui/src/Reviewed.tsx` draws the marks, the progress, Next and Hide reviewed.
+
 ## Comment threads
 See the skill. When you finish a task, the stop hook hands you open threads; answer each with `visvet reply`, and only there: don't repeat thread answers in the chat. When idle, keep `visvet wait` running in the background so new comments wake you. The stop hook also lists threads whose box was renamed or deleted: move each with `visvet move <id> <box id>`.
 

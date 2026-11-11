@@ -148,10 +148,13 @@ function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, ow
  * file; only the selected box's (`sel`) links end at their exact boxes, drawn inside those. So every view draws the
  * arrows of its own level: each stands for all the links beneath its two boxes, and a link inside one box isn't drawn.
  * Arrows to a common box (see `COMMON`) are left out unless `shows('common')`; `common` says which boxes those are.
+ * A box that `hides` says to leave out (a reviewed one, with "Hide reviewed" on) isn't shown, nor are its arrows.
  */
 export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
-  shows: (kind: string) => boolean, expanded: Set<string>, sel: string | null) {
-  const inner = viewBoxes(ix, top)
+  shows: (kind: string) => boolean, expanded: Set<string>, sel: string | null, hides: (it: Item) => boolean) {
+  const leftOut = new Set(viewBoxes(ix, top).filter(it => it !== top && hides(it)).map(it => it.id))
+  const inner = viewBoxes(ix, top).filter(it => !leftOut.has(it.id))
+  links = links.filter(e => !lift(ix, leftOut, e.from) && !lift(ix, leftOut, e.to))
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
   const ids = new Set(inner.map(it => it.id))

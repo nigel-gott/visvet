@@ -1,6 +1,6 @@
 // Comment threads between the user and the AI: a chip on each box, a panel on the selected box, counts in the top bar.
 
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { post, type Index, type Item, type Thread, type ThreadMessage, type ThreadState } from './model'
 import { DebuffDetail } from './Debuffs'
@@ -124,11 +124,11 @@ export function ThreadButton({ target }: { target: string }) {
 export const hasPanel = (x: Ctx, target: string) => x.threads.some(t => t.target === target) || !!x.detail || !!x.draft
 
 /**
- * The side drawer for the selected box: a clicked debuff's details, then its conversation with the AI like a chat (the
+ * The side drawer for the selected box: a clicked debuff's details or `detail`, then its conversation with the AI like a chat (the
  * user right, the AI left, an avatar on the last message of a run), then the comment being typed. Typing continues
  * the current thread, or starts one if none is open.
  */
-export function ThreadPanel({ target }: { target: string }) {
+export function ThreadPanel({ target, detail }: { target: string; detail?: ReactNode }) {
   const x = useContext(X)
   const ts = x.threads.filter(t => t.target === target)
   const { live, send } = sender(x, target)
@@ -146,6 +146,7 @@ export function ThreadPanel({ target }: { target: string }) {
     <div ref={ref} className="threads nowheel" onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}>
       <div className="who">💬 {x.ix.items.get(target)?.name ?? target}<button className="close" title="Close" onClick={() => { x.setFull(null); x.showDetail(target, null) }}>✕</button></div>
       {x.detail && <DebuffDetail id={x.detail.id} kind={x.detail.kind} />}
+      {detail}
       {ts.map(t => (
         <div key={t.id} className={'thread ' + t.state}>
           {t.messages.map((m, i) => (

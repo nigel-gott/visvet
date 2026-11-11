@@ -5,6 +5,7 @@ import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, us
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
 import { reportView, type Dependency, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
+import { hidesReviewed } from './Reviewed'
 import { STEP_BUBBLE, StepBubble, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { anchor, Card, lastDrag, MAP_ZOOM, placeOf, type CardData } from './Card'
 import { allLines, height, showsCode, width } from './size'
@@ -506,7 +507,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   const shows = showsIn(kinds, top)
   const view = top ? top.id : WHOLE_MAP
   // A tour step's box (highlighted) doesn't bring in its peers: only the user's own selection does.
-  const v = mapView(x.ix, x.model.dependencies, top, shows, x.expanded, x.sel && !x.hl.has(x.sel) ? x.sel : null)
+  const v = mapView(x.ix, x.model.dependencies, top, shows, x.expanded, x.sel && !x.hl.has(x.sel) ? x.sel : null, hidesReviewed(x))
   // A box showing its code doesn't also list what's inside it as rows.
   const rowsOf = (it: Item) => (showsCode(it, x) ? [] : v.rowsOf(it))
   const { layout: graph, current } = useLayout(view, v, it => height(it, x, rowsOf(it)), it => width(it, rowsOf(it), x), stepBubbleBox(x))

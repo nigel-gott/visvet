@@ -2,7 +2,7 @@
 //! there, and the user's name. Nothing here runs the `git` program or reads its text output.
 use crate::types::RepoPath;
 use anyhow::{Context, anyhow};
-use git2::{DiffOptions, ObjectType, Repository, Status, StatusOptions, TreeWalkMode, TreeWalkResult};
+use git2::{DiffOptions, ObjectType, Oid, Repository, Status, StatusOptions, TreeWalkMode, TreeWalkResult};
 use std::path::{Path, PathBuf};
 
 /// The top folder of the git repository holding `folder`.
@@ -15,6 +15,24 @@ pub fn top_folder(folder: &Path) -> anyhow::Result<PathBuf> {
 /// The user's git `user.name`, or none when it isn't set.
 pub fn user_name(repo_root: &Path) -> Option<String> {
     Repository::open(repo_root).ok()?.config().ok()?.get_string("user.name").ok()
+}
+
+/// A file's content as git names it: the id of its blob, written as 40 hex digits. The same content always has the
+/// same id, whatever the file is called.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ContentId(Oid);
+
+impl ContentId {
+    /// Reads an id from its hex digits; none if `hex` isn't one.
+    pub fn parse(hex: &str) -> Option<Self> {
+        Oid::from_str(hex).ok().map(Self)
+    }
+}
+
+impl std::fmt::Display for ContentId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 /// A repository opened once, to answer every question one review asks of it.
@@ -72,6 +90,22 @@ impl GitRepo {
         let tree = self.repo.revparse_single(base).ok()?.peel_to_tree().ok()?;
         let blob = tree.get_path(&file.0).ok()?.to_object(&self.repo).ok()?.peel_to_blob().ok()?;
         Some(blob.content().to_vec())
+    }
+
+    /// The id of the content `file` has now in the working tree, byte for byte; none if it can't be read.
+    pub fn content_id(&self, file: &RepoPath) -> Option<ContentId> {
+        Oid::hash_file(ObjectType::Blob, self.repo.workdir()?.join(&file.0)).ok().map(ContentId)
+    }
+
+    /// Like `content_id`, and also keeps that content in the repository, so `content` can return it once the file has changed.
+    pub fn keep_content(&self, file: &RepoPath) -> Option<ContentId> {
+        let bytes = std::fs::read(self.repo.workdir()?.join(&file.0)).ok()?;
+        self.repo.blob(&bytes).ok().map(ContentId)
+    }
+
+    /// The content with this id, if the repository has it.
+    pub fn content(&self, id: ContentId) -> Option<Vec<u8>> {
+        Some(self.repo.find_blob(id.0).ok()?.content().to_vec())
     }
 }
 

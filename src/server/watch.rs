@@ -15,14 +15,14 @@ const LONGEST_BURST: Duration = Duration::from_secs(1);
 pub enum RepoEvent {
     /// Files that make up the review changed, so it should be rebuilt.
     Changed,
-    /// Only comment threads changed: the code map stays as it is.
-    ThreadsChanged,
+    /// Only comment threads or reviewed marks changed: the code map stays as it is.
+    AnnotationsChanged,
     /// `visvet show` asked to navigate somewhere; its JSON.
     Show(String),
 }
 
 /// Watches the repository and calls `on` once per burst of file changes that matter (see `QUIET`, `LONGEST_BURST`):
-/// with `Show` if `visvet show` wrote `.visvet/show.json`, with `ThreadsChanged` if only comment threads changed, and
+/// with `Show` if `visvet show` wrote `.visvet/show.json`, with `AnnotationsChanged` if only comment threads or reviewed marks changed, and
 /// with `Changed` if any other relevant file did. Changes to other files are dropped as they come: a program that
 /// writes all the time into an ignored folder (a database, a build) once kept a burst from ever ending, so the UI
 /// never heard of a new comment. Watching stops when the returned watcher is dropped.
@@ -57,7 +57,7 @@ pub fn watch(repo_root: PathBuf, on: impl Fn(RepoEvent) + Send + 'static) -> not
             }
             let mut in_review = paths.iter().filter(|path| **path != show).map(|path| path.strip_prefix(&repo_root).unwrap_or(path)).peekable();
             if in_review.peek().is_some() {
-                on(if in_review.all(visvet_dir::is_thread) { RepoEvent::ThreadsChanged } else { RepoEvent::Changed });
+                on(if in_review.all(visvet_dir::is_annotation) { RepoEvent::AnnotationsChanged } else { RepoEvent::Changed });
             }
         }
     });
@@ -65,7 +65,7 @@ pub fn watch(repo_root: PathBuf, on: impl Fn(RepoEvent) + Send + 'static) -> not
 }
 
 /// Inside `.git`, only HEAD and ref moves count, so commits and checkouts refresh.
-/// Inside `.visvet`, only the comment threads and test coverage count, not the view and show hand-offs.
+/// Inside `.visvet`, only the comment threads, the reviewed marks and test coverage count, not the view and show hand-offs.
 /// Elsewhere, files that `git`'s ignore rules leave out don't count: they are not on the map.
 fn relevant(repo_root: &Path, path: &Path, git: Option<&GitRepo>) -> bool {
     let rel = path.strip_prefix(repo_root).unwrap_or(path);
@@ -88,7 +88,8 @@ mod tests {
         let r = Path::new("/repo");
         let counts = |p: &str| relevant(r, &r.join(p), None);
         assert!(counts("src/main.rs") && counts(".visvet/threads/k3f9a2/1-ann.md") && counts(".git/HEAD"));
-        assert!(visvet_dir::is_thread(Path::new(".visvet/threads/k3f9a2/1-ann.md")) && !visvet_dir::is_thread(Path::new(".visvet/coverage.lcov")));
+        assert!(visvet_dir::is_annotation(Path::new(".visvet/threads/k3f9a2/1-ann.md")) && !visvet_dir::is_annotation(Path::new(".visvet/coverage.lcov")));
+        assert!(counts(".visvet/reviewed") && visvet_dir::is_annotation(Path::new(".visvet/reviewed")));
         assert!(!counts(".visvet/view.json") && !counts("target/debug/visvet") && !counts(".git/index"));
     }
 }

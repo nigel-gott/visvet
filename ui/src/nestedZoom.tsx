@@ -10,6 +10,7 @@ import { anchor, placeOf } from './Card'
 import { Head, Notes } from './Views'
 import { height, showsCode, width } from './size'
 import { mapView } from './view'
+import { hidesReviewed } from './Reviewed'
 import { STEP_BUBBLE, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { ancestorsOf, subtree, type Item } from './model'
 import type { CodeNote } from './contract'
@@ -176,7 +177,7 @@ function copyOfMap(map: HTMLElement | null, origin: { x: number; y: number }) {
 function layOutView(x: Ctx, top: Item | undefined, kinds: Record<string, boolean>, opened: Set<string>, bubble: StepBubbleBox | undefined, notes: CodeNote[] | undefined) {
   // The step's box shows its code, with room for the step's notes on it.
   const scoped: Ctx = { ...x, scope: top?.id ?? null, expanded: opened, stepBox: bubble?.target ?? x.stepBox, stepNotes: notes ?? x.stepNotes }
-  const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null)
+  const v = mapView(x.ix, x.model.dependencies, top, showsIn(kinds, top), scoped.expanded, null, hidesReviewed(x))
   const rowsOf = (it: Item) => (showsCode(it, scoped) ? [] : v.rowsOf(it))
   return layOut(top?.id ?? WHOLE_MAP, v, it => height(it, scoped, rowsOf(it)), it => width(it, rowsOf(it), scoped), bubble)
 }

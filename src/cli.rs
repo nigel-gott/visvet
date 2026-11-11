@@ -1,6 +1,7 @@
 //! The command line: `visvet serve` (the default) runs the review UI; the other commands are for agents: notes,
-//! comment threads, what the user sees, the map as text, tours, and test coverage.
+//! comment threads, what the user sees, the map as text, tours, and test coverage; `visvet reviewed` is for the user.
 mod graph;
+mod reviewed;
 mod threads;
 mod tours;
 mod view;
@@ -94,6 +95,17 @@ enum Cmd {
     },
     /// Wait until the user leaves a comment, then print it (run in the background while idle)
     Wait,
+    /// For the user, never the AI: mark files as reviewed, or with no paths, print every file's state and the progress
+    Reviewed {
+        /// Files or folders, from the repository's top folder; a folder means every file under it
+        paths: Vec<PathBuf>,
+        /// Unmark them instead
+        #[arg(long)]
+        undo: bool,
+        /// Print every file's state as well: "✓" reviewed, "~" changed since it was, " " not yet
+        #[arg(long)]
+        list: bool,
+    },
     /// Print what the user is looking at in the UI
     View,
     /// Open a symbol in the UI and highlight boxes and arrows
@@ -125,6 +137,7 @@ pub async fn run() -> anyhow::Result<()> {
         }
         Cmd::Move { id, to } => store::move_thread(&repo_root, id, MapId(to)),
         Cmd::Wait => threads::wait(&repo_root),
+        Cmd::Reviewed { paths, undo, list } => reviewed::run(&repo_root, paths, undo, list),
         Cmd::Show { symbol, highlight } => store::put(&repo_root, HandOff::Show, &Show { target: MapId(symbol), highlight: highlight.into_iter().map(MapId).collect() }),
     }
 }

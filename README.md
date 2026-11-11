@@ -30,7 +30,8 @@ The server prints its address and opens it in your browser. It has no login. It 
 | `visvet reply <id> "<text>" [--resolve \| --ask]` | Claude's answer to a thread |
 | `visvet wait` | Wait for a new comment (Claude runs it while idle) |
 | `visvet coverage [-- <args>]` | Run the Rust tests under `cargo llvm-cov` (args passed on, e.g. to pick tests), so boxes show low test coverage |
-| `visvet view` | Print what you have open (a hook adds it to each message you send) |
+| `visvet view` | Print what you have open and how far you are through marking files as reviewed (a hook adds it to each message you send) |
+| `visvet reviewed [<path>...] [--undo] [--list]` | For you, not Claude: mark files (or every file under a folder) as reviewed, or unmark them; with no paths, or `--list`, print every file's state and the progress |
 | `visvet show <symbol> --highlight <ids...>` | Open a symbol in your UI and outline boxes or arrows |
 | `visvet explain <symbol> "<note>"` | Add a review note to a box or edge |
 | `visvet graph` | Print the map as text, each level by its own arrows: package dependencies, cycles (among packages, files, and a file's types and functions), zoom views and complexity |
@@ -41,7 +42,21 @@ An arrow means what the source says, never a guess: a name is traced through the
 
 Each view draws the arrows of its own level: one per pair of the boxes it shows, standing for every use beneath them, with a count and thickness for how many. Hover an arrow for the uses beneath it; click it to list them all with file and line. The legend switches kinds on and off and says what is hidden: Markdown "links" inside code, and arrows to a "common" box that at least 5 and half of its siblings use.
 
-Box descriptions come from doc comments in the code. Comment threads are kept in `.visvet/threads/`, one Markdown file per message, and are committed with the code: pushing and pulling shares them, so several people can review in the same threads. Everything else in `.visvet/` is local and ignored by git.
+Box descriptions come from doc comments in the code. Comment threads are kept in `.visvet/threads/`, one Markdown file per message, and are committed with the code: pushing and pulling shares them, so several people can review in the same threads. The reviewed marks (below) are committed too. Everything else in `.visvet/` is local and ignored by git.
+
+## Mark files as reviewed
+
+To work through a repository file by file, tick each file off once you have read it:
+
+- On a file's or folder's row in the file tree, or on its box on the map, click the mark at the right: `○` not reviewed, `✓` reviewed. Or select it (or anything inside it) and press Alt+R. A folder shows how many of its files are reviewed, e.g. `7/12`, and its mark marks or unmarks every file under it, asking first above 10 files.
+- A reviewed file is greyed in the tree and dimmed on the map, and so is a folder once every file in it is reviewed.
+- A mark records the file's content when you made it. When the file changes afterwards it is not reviewed any more: it shows a `✓` in a dashed outline, "changed since you reviewed it", and a `Δ` beside it that opens the diff since the version you reviewed. Mark it again once you have read the change.
+- Above the tree: the count of reviewed files, **Next ▸** (Alt+N) to go to the next file in the tree's order that isn't reviewed, and **Hide reviewed** to leave reviewed files and folders out of the tree and the map.
+- From a terminal: `visvet reviewed src/server.rs src/types/`, `visvet reviewed --undo src/types/`, `visvet reviewed --list`. An open page follows along.
+
+Every file the map shows counts; files git ignores are not on the map, so they don't.
+
+The marks are in `.visvet/reviewed`, one line per file, sorted by path: the content's git blob id, then the path. Commit it with the code. A file that moves with the same content keeps its mark; a deleted file's mark is dropped the next time marks are written. `.visvet/.gitattributes` has git merge the file by keeping both sides' lines, so two people's marks never conflict (a file marked on either side with the content it has now is reviewed; a mark removed on one side next to a line the other side changed can come back).
 
 ## Lisp-family files
 

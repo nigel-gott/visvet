@@ -2,7 +2,7 @@
 
 import { createContext } from 'react'
 import type { Index, Review, Thread } from './model'
-import type { CodeNote } from './contract'
+import type { CodeNote, ReviewedState } from './contract'
 import type { Guide, Route, TourPlace } from './Tours'
 import type { DocToShow } from './DocPreview'
 
@@ -11,6 +11,11 @@ export type Ctx = {
   model: Review; ix: Index; sel: string | null
   /** The comment threads between the user and the AI. */
   threads: Thread[]
+  /** The files the user marked as reviewed, by id: still as reviewed, or changed since. A file with no mark isn't in it. */
+  reviewed: Map<string, ReviewedState>
+  /** Whether reviewed files are left out of the tree and the map (kept in this browser). */
+  hideReviewed: boolean
+  setHideReviewed: (hide: boolean) => void
   /** Boxes and arrows highlighted by `visvet show`; cleared by the next selection or Back. */
   hl: Set<string>
   /** Opens a symbol; `focus` also centres the map on it. `replace` keeps Back pointing at the overview. */
@@ -59,7 +64,7 @@ export type Ctx = {
   /** Opens all these boxes, or closes them all when they are all open already. */
   expandAll: (ids: string[]) => void
   back: () => void
-  /** The debuff whose details show beside the selected box, if one was clicked; `showDetail` sets or clears it. */
+  /** The debuff (or `SINCE_REVIEWED`) whose details show beside the selected box, if one was clicked; `showDetail` sets or clears it. */
   detail: { id: string; kind: string } | null
   showDetail: (id: string, kind: string | null) => void
   /** A comment being typed on the selected box: typing with a box selected starts one. */

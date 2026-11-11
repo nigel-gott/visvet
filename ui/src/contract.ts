@@ -244,7 +244,7 @@ export type RepoPath = string;
 /**
  * One review, as the UI shows it. GET /api/review returns it.
  * It has two halves: `boxes`, `dependencies` and `hover` describe the code and are rebuilt from git on every
- * request; `annotations` holds the comment threads, kept in `.visvet/threads/`.
+ * request; `annotations` holds the comment threads and the reviewed marks, kept in `.visvet/`.
  */
 export type Review = { 
 /**
@@ -261,9 +261,24 @@ tours: Array<Tour>,
 hover: Hover, annotations: ReviewAnnotations, };
 
 /**
- * The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`.
+ * The review work that can't be rebuilt from code: the comment threads, kept in `.visvet/threads/`, and the files
+ * marked as reviewed, kept in `.visvet/reviewed`.
  */
-export type ReviewAnnotations = { threads: Array<Thread>, };
+export type ReviewAnnotations = { threads: Array<Thread>, 
+/**
+ * Filled by the server (see `state::reviewed`); the thread store leaves it empty.
+ */
+reviewed: Array<ReviewedFile>, };
+
+/**
+ * A file the user marked as reviewed, and whether it changed since. A file with no mark is not listed.
+ */
+export type ReviewedFile = { file: RepoPath, state: ReviewedState, };
+
+/**
+ * Where a file the user marked as reviewed stands now.
+ */
+export type ReviewedState = "reviewed" | "changed";
 
 /**
  * The AI asks the UI to open `target` and highlight these boxes and arrows (`visvet show`).

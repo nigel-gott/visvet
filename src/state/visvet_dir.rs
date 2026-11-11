@@ -1,11 +1,13 @@
 //! `.visvet/`: visvet's own folder in a repository, and the one place that knows what is in it. The comment threads
-//! are shared through git; everything else in it is local to this machine.
+//! and the reviewed marks are shared through git; everything else in it is local to this machine.
 use std::{fs, io, path::{Path, PathBuf}};
 
 /// The folder's name, in the repository's top folder.
 pub const NAME: &str = ".visvet";
-/// Its `.gitignore`: everything is local except the threads.
-const IGNORE: &str = "*\n!.gitignore\n!threads/\n!threads/**\n";
+/// Its `.gitignore`: everything is local except the threads and the reviewed marks.
+const IGNORE: &str = "*\n!.gitignore\n!.gitattributes\n!reviewed\n!threads/\n!threads/**\n";
+/// Its `.gitattributes`: when two people mark files as reviewed, git merges their marks by keeping both sides' lines.
+const ATTRIBUTES: &str = "reviewed merge=union\n";
 
 /// A small JSON file passed between the UI and the AI, local to this machine.
 #[derive(Clone, Copy)]
@@ -25,11 +27,13 @@ impl VisvetDir {
         Self(repo_root.join(NAME))
     }
 
-    /// Creates the folder, with its `.gitignore`, if needed.
+    /// Creates the folder, with its `.gitignore` and `.gitattributes`, if needed.
     pub fn create(&self) -> io::Result<&Path> {
         fs::create_dir_all(self.threads())?;
-        if fs::read_to_string(self.0.join(".gitignore")).ok().as_deref() != Some(IGNORE) {
-            fs::write(self.0.join(".gitignore"), IGNORE)?;
+        for (name, text) in [(".gitignore", IGNORE), (".gitattributes", ATTRIBUTES)] {
+            if fs::read_to_string(self.0.join(name)).ok().as_deref() != Some(text) {
+                fs::write(self.0.join(name), text)?;
+            }
         }
         Ok(&self.0)
     }
@@ -37,6 +41,11 @@ impl VisvetDir {
     /// The comment threads, one folder each.
     pub fn threads(&self) -> PathBuf {
         self.0.join("threads")
+    }
+
+    /// The files the user marked as reviewed, one line each.
+    pub fn reviewed(&self) -> PathBuf {
+        self.0.join("reviewed")
     }
 
     /// The file for hand-off `h`.
@@ -55,14 +64,13 @@ pub fn holds(rel: &Path) -> bool {
     rel.starts_with(NAME)
 }
 
-/// Whether a change to `rel`, a path inside `.visvet/`, changes the review: the threads and test coverage do; the
-/// hand-offs don't.
+/// Whether a change to `rel`, a path inside `.visvet/`, changes the review: the threads, the reviewed marks and test
+/// coverage do; the hand-offs don't.
 pub fn affects_review(rel: &Path) -> bool {
-    let own = rel.strip_prefix(NAME).unwrap_or(rel);
-    own.starts_with("threads") || own == Path::new("coverage.lcov")
+    is_annotation(rel) || rel == Path::new(NAME).join("coverage.lcov")
 }
 
-/// Whether `rel`, a path from the repository's top folder, is part of a comment thread.
-pub fn is_thread(rel: &Path) -> bool {
-    rel.starts_with(Path::new(NAME).join("threads"))
+/// Whether `rel`, a path from the repository's top folder, is part of a comment thread, or the reviewed marks.
+pub fn is_annotation(rel: &Path) -> bool {
+    rel.starts_with(Path::new(NAME).join("threads")) || rel == Path::new(NAME).join("reviewed")
 }

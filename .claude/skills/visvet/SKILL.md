@@ -63,7 +63,14 @@ Reduce them, or explain the trade-off with `visvet explain` on the box or arrow.
 The UI's data types in `ui/src/contract.ts` are generated from `src/types.rs` by ts-rs. After changing `src/types.rs`, run `cargo test` to regenerate them; never edit `contract.ts` by hand.
 
 ## Keep changes reviewable
-The user reviews at the folder, file and type level, then reads code only where needed. Prefer small, well-named code units and members with clear signatures. Never edit `.visvet/` files by hand; use `visvet reply` and `visvet explain`. The one exception: you may delete a thread folder holding only your own note once it is stale, since `visvet explain` can't remove a note. Never touch the user's messages. Commit the thread files in `.visvet/threads/` along with your code.
+The user reviews at the folder, file and type level, then reads code only where needed. Prefer small, well-named code units and members with clear signatures. Never edit `.visvet/` files by hand; use `visvet reply` and `visvet explain` (the reviewed marks are the user's alone, see below). The one exception: you may delete a thread folder holding only your own note once it is stale, since `visvet explain` can't remove a note. Never touch the user's messages. Commit the thread files in `.visvet/threads/` along with your code.
+
+## Reviewed marks are the user's
+The user works through the repository by marking each file as reviewed in the UI. The marks are in `.visvet/reviewed` (one line per file: the git blob id of the content they reviewed, then the path).
+- Never edit `.visvet/reviewed` by hand, and never mark or unmark anything yourself (`visvet reviewed <path>` is the user's command): a mark means the user read that file.
+- Commit `.visvet/reviewed` and `.visvet/.gitattributes` along with your code when they have changed, like the thread files.
+- To read progress: `visvet view` ends with it (e.g. "7/12 files reviewed, 1 changed since"), and `visvet reviewed --list` prints every file: `✓` reviewed, `~` changed since the user reviewed it, blank not yet.
+- When you change a file the user has reviewed, its mark turns to "changed since reviewed" by itself, and the UI shows them the diff since the version they reviewed. That is intended: leave it for them to mark again.
 
 ## Follow and steer what the user sees
 The user keeps visvet open beside this session.

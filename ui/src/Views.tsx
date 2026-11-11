@@ -3,7 +3,8 @@
 import { Debuffs } from './Debuffs'
 import { X, type Ctx } from './context'
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
+import { getSinceReviewed, within, type DiffCount, type DiffLine, type Item, type ChangeStatus } from './model'
+import { hidesReviewed, looksReviewed, ReviewedMark, ReviewProgress } from './Reviewed'
 import { colourLines, languageOf, useHighlighter, type ColouredPiece } from './highlight'
 import type { CodeNote, Language } from './contract'
 import { CodeBubble } from './Tours'
@@ -50,7 +51,7 @@ export function Notes({ it }: { it: Item }) {
 
 /**
  * A file tree row: its change mark, kind, name, the playing tour's step numbers on it, its threads and debuffs, then
- * in columns lines added and removed. It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
+ * in columns lines added and removed, and for a file or folder its reviewed mark; a reviewed one is greyed. It is marked when it is the tour step's box, or with "you drive" the next box to go to, and scrolled into
  * view when it becomes the selection. A click shows its box on the map; a double click zooms into it.
  */
 function Row({ it, children }: { it: Item; children?: ReactNode }) {
@@ -65,7 +66,7 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
   /** One click shows the row's box on the map; the second of a double click zooms the map into it, as on the map. */
   const click = (clicks: number) => (clicks === 2 && zoomable ? x.zoom(it.id) : x.goTo(it.id))
   return (
-    <div ref={ref} className={`orow ${sel ? 'sel' : ''} ${tourMark}`} title={it.doc ?? it.m?.signature} onClick={e => click(e.detail)}>
+    <div ref={ref} className={`orow ${sel ? 'sel' : ''} ${tourMark} ${looksReviewed(x, it) ? 'reviewed' : ''}`} title={it.doc ?? it.m?.signature} onClick={e => click(e.detail)}>
       {children}
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
       <span className={'badge k-' + kind} title={kind} />
@@ -78,6 +79,7 @@ function Row({ it, children }: { it: Item; children?: ReactNode }) {
       {/* Columns, so every row's line counts line up: lines added, then lines removed. */}
       <span className="tree-added">{it.diffCount.added > 0 && `+${it.diffCount.added}`}</span>
       <span className="tree-removed">{it.diffCount.removed > 0 && `−${it.diffCount.removed}`}</span>
+      <ReviewedMark it={it} />
     </div>
   )
 }
@@ -95,7 +97,7 @@ const FILTERS: [string, (it: Item, x: Ctx) => boolean][] = [
   ['Has threads', (it, x) => x.threads.some(t => t.target === it.id)],
 ]
 
-/** The file tree: search, filters and the folder → file → box → member tree, opened to where the map is zoomed. */
+/** The file tree: search, filters, the review's progress and the folder → file → box → member tree, opened to where the map is zoomed. */
 export function Outline() {
   const x = useContext(X)
   const [q, setQ] = useState('')
@@ -116,7 +118,8 @@ export function Outline() {
   const open = (it: Item) => toggled.get(it.id) ?? within(scope, it.id)
   /** Opens or closes a row. */
   const toggle = (it: Item) => setToggled(t => new Map(t).set(it.id, !open(it)))
-  const tree = (items: Item[]): ReactNode => items.filter(match).map(it => (
+  const hidden = hidesReviewed(x)
+  const tree = (items: Item[]): ReactNode => items.filter(it => match(it) && !hidden(it)).map(it => (
     <Fragment key={it.id}>
       <Row it={it}>
         {it.kids.length ? <button className="tog" onClick={e => { e.stopPropagation(); toggle(it) }}>{open(it) ? '▾' : '▸'}</button> : <span className="tog" />}
@@ -130,6 +133,7 @@ export function Outline() {
       <div className="chips">
         {FILTERS.map(([label], i) => <button key={label} className={i === f ? 'on' : ''} onClick={() => setF(i)}>{label}</button>)}
       </div>
+      <ReviewProgress />
       {tree(x.ix.roots)}
     </div>
   )
@@ -408,6 +412,25 @@ function useScrollToFirstNote(view: RefObject<HTMLDivElement | null>, notes: Cod
 /** A line's text, in its syntax colours once they are known. */
 function colouredText(line: DiffLine, pieces?: ColouredPiece[]) {
   return pieces ? pieces.map((piece, index) => <span key={index} className="tok" style={piece.style}>{piece.text}</span>) : line.text
+}
+
+/**
+ * In the drawer: what changed in file `id` since the user marked it as reviewed, as a diff. Fetched again when the
+ * file or its mark changes; nothing once it is marked again.
+ */
+export function SinceReviewed({ id }: { id: string }) {
+  const x = useContext(X)
+  const [diff, setDiff] = useState<DiffLine[] | null>()
+  const it = x.ix.items.get(id)
+  const changed = x.reviewed.get(id) === 'changed'
+  useEffect(() => { if (changed) getSinceReviewed(id).then(setDiff, () => setDiff(null)) }, [id, changed, x.model])
+  if (!it || !changed || diff === undefined) return null
+  return (
+    <div className="detail-card">
+      <div className="head">Δ Changed since you reviewed it</div>
+      {diff ? <DiffView diff={diff} language={languageOf(it)} /> : <p>git no longer has the version you reviewed, so there is no diff to show.</p>}
+    </div>
+  )
 }
 
 /** Back, the item or edge name, and the item's status and size. */

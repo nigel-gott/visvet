@@ -1,10 +1,10 @@
 //! `visvet view`: what the user is looking at in the UI, for the AI (a hook adds it to each message the user sends).
-use crate::state::store;
+use crate::state::{reviewed, store};
 use crate::state::visvet_dir::{HandOff, VisvetDir};
 use crate::types::View;
 use std::path::Path;
 
-/// Prints what the user is looking at, and how long ago it last changed.
+/// Prints what the user is looking at, how long ago it last changed, and how far they are through marking files as reviewed.
 pub fn print(repo_root: &Path) -> anyhow::Result<()> {
     let Some(v) = store::get::<View>(repo_root, HandOff::View)? else {
         println!("visvet view: unknown, the UI has not been opened");
@@ -17,6 +17,7 @@ pub fn print(repo_root: &Path) -> anyhow::Result<()> {
     for (label, ids) in lines.into_iter().filter(|(_, ids)| !ids.is_empty()) {
         println!("  {label}: {}", ids.iter().map(|i| i.as_str()).collect::<Vec<_>>().join(", "));
     }
+    println!("  {}", reviewed::progress(repo_root)?);
     Ok(())
 }
 

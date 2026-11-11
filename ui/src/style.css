@@ -67,7 +67,7 @@ main { grid-area: 2 / 2; min-height: 0 }
 .tree-toggle { position: sticky; top: 0; float: right; z-index: 2; padding: 2px 7px; border: 0; background: none; color: var(--muted); cursor: pointer }
 .tree .body { padding: 8px }
 .tree input[type=search] { width: calc(100% - 28px) }
-.tree .orow { display: grid; grid-template-columns: 16px 10px 18px minmax(0, 1fr) auto auto; align-items: center; column-gap: 4px;
+.tree .orow { display: grid; grid-template-columns: 16px 10px 18px minmax(0, 1fr) auto auto auto; align-items: center; column-gap: 4px;
   padding: 2px 4px; border: 0; border-radius: 4px; white-space: nowrap }
 .tree-name { display: flex; align-items: center; gap: 5px; min-width: 0 }
 .tree-added, .tree-removed { font: 600 11px var(--mono); text-align: right; font-variant-numeric: tabular-nums }
@@ -84,6 +84,20 @@ main { grid-area: 2 / 2; min-height: 0 }
 .tree .tog { width: 16px; flex: none }
 .tree .sub { margin-left: 10px }
 .tree-step { flex: none; padding: 0 5px; border-radius: 8px; background: var(--tour-bg); color: var(--ai); font: 600 10px/16px system-ui, sans-serif }
+/* Reviewed marks: a quiet toggle on a file's or folder's tree row and map box, told apart by its sign, not only its colour. */
+.reviewed-marks { display: inline-flex; flex: none; justify-content: flex-end; gap: 2px; min-width: 24px }
+.reviewed-mark { padding: 0 4px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--muted); font: 600 12px/16px system-ui, sans-serif; font-variant-numeric: tabular-nums; cursor: pointer }
+.reviewed-mark:hover { border-color: currentColor }
+.reviewed-mark.reviewed { color: var(--add) }
+.reviewed-mark.changed, .reviewed-mark.since { color: var(--chg) }
+.reviewed-mark.changed { border: 1px dashed currentColor }
+/* What is all reviewed steps back, so the eye goes to what is left: greyed in the tree, dimmed on the map. */
+.tree .orow.reviewed:not(.sel) { background: color-mix(in srgb, var(--muted) 14%, transparent) }
+.tree .orow.reviewed .name { color: var(--muted) }
+.card.reviewed:not(.picked) { opacity: .6 }
+.review-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 8px; color: var(--muted); font-size: 12px }
+.review-progress button { padding: 1px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); cursor: pointer }
+.review-progress button:disabled { opacity: .4; cursor: default }
 /* The side drawer: the selected box's comment threads and debuff details, over the map's right edge. */
 .drawer { grid-area: 2 / 2; justify-self: end; z-index: 5; width: min(460px, 42vw); min-height: 0; padding: 16px 18px; overflow: auto; border-left: 1px solid var(--line); background: var(--bg); box-shadow: -6px 0 20px rgb(0 0 0 / .25) }
 .err { color: var(--del); overflow-wrap: anywhere }
