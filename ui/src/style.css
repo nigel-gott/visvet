@@ -429,6 +429,9 @@ main { grid-area: 2 / 2; min-height: 0 }
 .step-bubble .step-text { flex: 1; min-height: 0; overflow: auto }
 .step-bubble.floating { width: 560px; position: relative; bottom: auto; grid-area: 2 / 2; align-self: start; justify-self: center; margin-top: 24px; z-index: 6 }
 .step-bubble.floating::after { display: none }
+/* In Read mode a tour's bubbles are part of the page, above the step's box's text. */
+.dimension-view .step-bubble, .dimension-view .box-bubble { position: relative; bottom: auto; left: auto; width: auto; height: auto; max-width: 1400px; margin: 12px auto }
+.dimension-view .step-bubble::after, .dimension-view .box-bubble::after { display: none }
 .bubble-kicker { color: var(--ai); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em }
 .bubble h3 { margin: 2px 0 8px; font-size: 17px }
 .bubble-nav { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line) }

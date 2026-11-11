@@ -329,11 +329,11 @@ function App() {
   const [notesPlace, setNotesPlace] = useSetting('visvet:notes-place', 'beside')
   // The map, or Read mode: a phone starts in Read mode, where the file tree is a drawer that starts closed.
   const [mode, setMode] = useSetting('visvet:mode', isPhone() ? 'read' : 'map')
-  const reads = mode === 'read'
+  const reading = mode === 'read'
   const [hideReviewed, setHideReviewed] = useSetting('visvet:hide-reviewed', 'no')
   const reviewedById = useMemo(() => new Map(reviewed?.map(marked => [marked.file, marked.state])), [reviewed])
   const seenLinesById = useMemo(() => new Map(explored?.map(file => [file.file, file.seen_lines])), [explored])
-  const [treeShown, showTree] = useState(!(reads && isPhone()))
+  const [treeShown, showTree] = useState(!(reading && isPhone()))
   const [docShown, showDoc] = useState<DocToShow | null>(null)
   const [dimension, setDimension] = useState<string | null>(null)
   /** Which move between tour steps is the latest, so a quick Next stops an older one between zoom levels. */
@@ -391,6 +391,11 @@ function App() {
     const trip = ++journey.current
     const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
     if (!step) { setTour(place); setHeading(null); return setRoute(null) }
+    if (reading) {
+      // Read mode has no map to move over: the step's box opens as the page, with the step's text and notes on it.
+      setTour(place)
+      return read(step.target)
+    }
     const to = zoomedFor(step.target, step.view), hops = hopsBetween(scope, to)
     if (moves.byHand && jump) {
       // Skipping through the tour: straight to the step's view, opened and framed, with no journey.
@@ -447,8 +452,6 @@ function App() {
     : { next: way[0], move: way[0] === null || ancestorsOf(ix, scope ?? '').includes(way[0]) ? 'up' : 'into' }
   const guide: Guide | null = headingStep && !reached ? { stops: [scope, ...way], ...nextMove(), title: headingStep.title, note: headingStep.route } : null
   const playingStep = tour ? stepTarget(model.tours.find(t => t.file === tour.file), tour.step) : undefined
-  /** Read mode's page is on screen unless a tour is playing or moving, which needs the map. */
-  const reading = reads && !tour && !heading && !route
   /** In Read mode the page is the selection (an arrow's is the box it starts from), so the dimension shown is the selection's. */
   const readingId = sel?.split(' -> ')[0] ?? null
   const dimensionShown = !reading ? dimension : readingId && isDimensionPage(ix, readingId) ? readingId : null
@@ -461,9 +464,20 @@ function App() {
   const readCode = (chosen: string | null) => {
     if (chosen === null && dimensionShown) read((ix.items.get('README.md') ?? ix.roots[0]).id)
   }
-  /** Chooses Read mode or the map; the map then shows the dimension being read, and a phone's file tree starts closed. */
+  /**
+   * Chooses Read mode or the map; the map then shows the dimension being read, and a phone's file tree starts closed.
+   * A playing tour goes along: its step opens as the page, or on the map; a move between steps under way is dropped.
+   */
   const setReads = (chosen: boolean) => {
     setMode(chosen ? 'read' : 'map')
+    journey.current++
+    setRoute(null)
+    setHeading(null)
+    const place = heading?.place ?? tour
+    const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
+    setTour(place)
+    if (step && chosen) read(step.target)
+    else if (step) showBox(step.target, step.view)
     if (!chosen) setDimension(dimensionShown)
     if (chosen && isPhone()) showTree(false)
   }

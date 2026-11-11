@@ -50,7 +50,7 @@ export type Ctx = {
   setDimension: (dimension: string | null) => void
   /** Opens a repo file: a dimension's page in its dimension's view, anything else as its box on the code map. In Read mode, opens its text. */
   openFile: (id: string) => void
-  /** Whether Read mode's page is on screen (see Reading.tsx): chosen in this browser, and no tour is playing, which needs the map. */
+  /** Whether Read mode's page is on screen (see Reading.tsx): chosen in this browser. A tour plays there too, each step's box as the page. */
   reading: boolean
   /** Chooses Read mode, or the map. */
   setReads: (reads: boolean) => void

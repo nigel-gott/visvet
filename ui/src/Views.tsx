@@ -405,11 +405,11 @@ function NotesBeside({ notes, code, hotNote, setHotNote, room, setRoom }: {
 const isNoted = (line: DiffLine, notes: CodeNote[]) =>
   line.kind !== 'del' && notes.some(note => line.line >= note.span!.start.line && line.line <= note.span!.end.line)
 
-/** Scrolls the code so its first noted line sits near the top, when the notes change. */
+/** Scrolls a map box's code so its first noted line sits near the top, when the notes change. Read mode's page stays at its top, where the step's text is. */
 function useScrollToFirstNote(view: RefObject<HTMLDivElement | null>, notes: CodeNote[]) {
   useEffect(() => {
     const scroller = view.current?.parentElement, first = view.current?.querySelector('.noted')
-    if (scroller && first) scroller.scrollTop += first.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24
+    if (scroller?.matches('.code') && first) scroller.scrollTop += first.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24
   }, [notes.map(note => note.code).join()])
 }
 

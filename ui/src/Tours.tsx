@@ -1,5 +1,6 @@
 // The tour player, drawn on the map itself: each step's text in a bubble laid out beside its box, notes on code under
 // the noted lines, and notes on other boxes in bubbles above them. Back and Next (or the arrow keys) step through it.
+// In Read mode the same bubbles sit on the page instead, above the step's box's text (see Reading.tsx).
 
 import { useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import { X, type Ctx } from './context'
