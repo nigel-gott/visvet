@@ -5,7 +5,7 @@
 // made for reading: the word and what kind of thing it is, what it means, how it is written, an example, and
 // last where that comes from. Its ×, Escape, or a click anywhere else closes it.
 
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from './context'
 import type { CodeMention, DiffLine, DocEntry, DocField, Hover, Language } from './contract'
@@ -318,17 +318,21 @@ function Definition({ it, named }: { it: Item; named: boolean }) {
 
 /** The card's title line: the word, which of the two colours it has in the code and why, and what kind of thing it is. */
 function Title({ card, close }: { card: WordCard; close: () => void }) {
+  const x = useContext(X)
   const defined = card.definitions[0]
   // A form's box is named by its first two words: the first says what kind of thing the second is.
   const kind = defined ? [...new Set(card.definitions.map(it => it.name.split(' ')[0]))].join(', ') : kindOf(card.documented[0][0])
-  const where = defined && [...new Set(card.definitions.map(it => it.o?.file))].join(', ')
+  // Each file that defines the word, as a link to its definition there.
+  const where = card.definitions.filter((it, at, all) => all.findIndex(other => other.o?.file === it.o?.file) === at)
+    .map((it, at) => <Fragment key={it.id}>{at > 0 && ', '}<a title="Go to the definition" onClick={() => x.goTo(it.id)}>{it.o?.file}</a></Fragment>)
+  const documentedIn = card.documented[0]?.[0]
   return (
     <header>
       <div>
         <b className={defined ? 'word-name defined' : 'word-name documented'}>{card.written}</b>
         {card.keywordOf && <span className="word-kind">argument of <code>{card.word}</code></span>}
       </div>
-      <div className="word-kind">{defined ? <>defined in {where}{kind && <> · <b>{kind}</b></>}</> : <>documented{kind && <> · <Rich text={kind} /></>}</>}</div>
+      <div className="word-kind">{defined ? <>defined in {where}{kind && <> · <b>{kind}</b></>}</> : <><a title="Go to where it is documented" onClick={() => documentedIn && x.openFile(documentedIn.file)}>documented</a>{kind && <> · <Rich text={kind} /></>}</>}</div>
       <button className="word-close" title="Close (Esc)" aria-label="Close" onClick={close}>×</button>
     </header>
   )

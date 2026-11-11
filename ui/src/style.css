@@ -639,6 +639,8 @@ main { position: relative }
 .word-name { margin-right: 8px; font-size: 17px }
 .word-kind { color: var(--muted); font-size: 12px }
 .word-kind p { display: inline; margin: 0 }
+.word-kind a { color: var(--sel); cursor: pointer }
+.word-kind a:hover { text-decoration: underline }
 .word-close { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer }
 .word-close:hover { background: var(--line); color: var(--fg) }
 .word-card section { padding: 10px 14px 0 }
