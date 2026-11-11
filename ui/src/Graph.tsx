@@ -3,12 +3,12 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type XYPosition } from '@xyflow/react'
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
-import { reportView, type DependencyKind, type Index, type Item } from './model'
+import { reportView, type Dependency, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
 import { STEP_BUBBLE, StepBubble, stepBubbleBox, type StepBubbleBox } from './Tours'
 import { anchor, Card, lastDrag, MAP_ZOOM, placeOf, type CardData } from './Card'
 import { allLines, height, showsCode, width } from './size'
-import { COMMON, mapView, type View } from './view'
+import { COMMON, kindCounts, mapView, useSite, weight, type View } from './view'
 import { easeInOut, glideCamera, moves, nextOutwardGlide, showsIn, useNestedZoom } from './nestedZoom'
 
 const elk = new ELK()
@@ -40,14 +40,42 @@ const GLIDE = { duration: 900, interpolate: 'linear' as const, ease: easeInOut }
 const nodeTypes = { card: Card, stepBubble: () => <StepBubble /> }
 
 /** Follows ELK's route, which bends around boxes, while both ends are where ELK put them; a curve once one was dragged. */
-function Routed({ id, data, label, markerEnd, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<Edge<{ points?: XYPosition[] }>>) {
+function Routed({ id, data, label, style, markerEnd, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<Edge<{ points?: XYPosition[]; uses?: string }>>) {
   const pts = data?.points
   const [a, b] = pts ? [pts[(pts.length - 1) >> 1], pts[pts.length >> 1]] : []
   const [path, lx, ly] = pts && a && b
     ? [`M${pts.map(p => `${p.x},${p.y}`).join('L')}`, (a.x + b.x) / 2, (a.y + b.y) / 2]
     // No ELK route (an end was dragged): right angles too, like ELK's, never a curve.
     : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 0 })
-  return <BaseEdge id={id} path={path} markerEnd={markerEnd} label={label} labelX={lx} labelY={ly} />
+  // Hovering the arrow lists the uses beneath it (see `usesBeneath`).
+  return <g><title>{data?.uses}</title><BaseEdge id={id} path={path} style={style} markerEnd={markerEnd} label={label} labelX={lx} labelY={ly} /></g>
+}
+
+/** The most uses an arrow's tooltip lists; a click on the arrow lists them all in the drawer. */
+const USES_LISTED = 12
+/** The widest an arrow is drawn, in pixels, however many uses it stands for; and how big its head is, in pixels. */
+const WIDEST_ARROW = 5, ARROW_HEAD = 14
+
+/**
+ * What hovering an arrow says: how many links it stands for, of which kinds, and the first of them, each as
+ * "from → to  file:line".
+ */
+function usesBeneath(ix: Index, es: Dependency[]) {
+  const name = (id: string) => { const it = ix.items.get(id); return it?.m && it.parent && it.parent.kind !== 'file' ? `${it.parent.name}::${it.name}` : it?.name ?? id }
+  const kinds = kindCounts(es).map(([kind, count]) => `${count} ${kind}`).join(', ')
+  const listed = es.slice(0, USES_LISTED).map(e => `${e.kind}: ${name(e.from)} → ${name(e.to)}${e.label ? ` (${e.label})` : ''}  ${useSite(ix, e)}`)
+  const more = es.length > USES_LISTED ? [`… ${es.length - USES_LISTED} more: click the arrow to list them all`] : []
+  return [kinds, ...listed, ...more].join('\n')
+}
+
+/** How wide an arrow standing for `uses` links is drawn: a pixel, plus one each time the uses double, up to `WIDEST_ARROW`. */
+const arrowWidth = (uses: number) => Math.min(WIDEST_ARROW, 1 + Math.log2(uses))
+
+/** An arrow's kind for its colour and dashes: the one kind of its links (a manifest's "depends" aside), else "mix". */
+function drawnKind(es: Dependency[]) {
+  const kinds = new Set(es.map(e => e.kind))
+  if (kinds.size > 1) kinds.delete('depends')
+  return kinds.size === 1 ? [...kinds][0] : 'mix'
 }
 const edgeTypes = { routed: Routed }
 
@@ -387,7 +415,7 @@ function useMoved(view: string, sig: string) {
  * xyflow edges for the links with both ends laid out; one follows ELK's route unless an end was dragged. A selected
  * top box shows its children's arrows (see `detail`), a selected inner box its exact ones, instead of the merged arrows.
  */
-function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl: Set<string>, sel: string | null) {
+function flowEdges(ix: Index, v: View, graph: Layout, dragged: (id: string) => boolean, hl: Set<string>, sel: string | null) {
   const placed = new Set(graph.laid.map(n => n.id))
   const touches = (id: string) => !!sel && (id === sel || id.startsWith(sel.endsWith('/') ? sel : sel + '::'))
   // A selected box with boxes inside it shows its children's arrows; one without (a leaf here) shows its exact arrows.
@@ -397,12 +425,15 @@ function flowEdges(v: View, graph: Layout, dragged: (id: string) => boolean, hl:
   return [...[...v.edges].filter(([id]) => !replaced.has(id)).map(e => [e, false] as const), ...own.map(([id, d]) => [[id, d.es] as const, true] as const)]
     .filter(([[, [e]]]) => placed.has(e.a) && placed.has(e.b)).map(([[id, es], exact]) => ({
       id, source: es[0].a, target: es[0].b, type: 'routed',
-      data: { points: dragged(es[0].a) || dragged(es[0].b) ? undefined : graph.routes[id] },
+      data: { points: dragged(es[0].a) || dragged(es[0].b) ? undefined : graph.routes[id], uses: usesBeneath(ix, es) },
+      // Thicker the more uses it stands for.
+      style: weight(es) > 1 ? { strokeWidth: arrowWidth(weight(es)) } : undefined,
       // With a box selected, its own arrows stay bright and the rest fade, so selecting never moves anything.
-      className: (es.every(e => e.kind === es[0].kind) ? es[0].kind : 'mix') + (hl.has(id) ? ' hl' : '') + (exact ? ' exact' : '') + (sel && !es.some(e => touches(e.a) || touches(e.b)) ? ' faded' : ''),
-      markerEnd: es.some(e => e.kind !== 'has') ? { type: MarkerType.ArrowClosed } : undefined,
-      // A count of the links merged into the arrow, or one link's own words, e.g. "owns".
-      label: es.length > 1 ? es.length : es[0].label ?? undefined,
+      className: drawnKind(es) + (hl.has(id) ? ' hl' : '') + (exact ? ' exact' : '') + (sel && !es.some(e => touches(e.a) || touches(e.b)) ? ' faded' : ''),
+      // The head keeps its size however thick the arrow: a marker is measured in line widths.
+      markerEnd: es.some(e => e.kind !== 'has') ? { type: MarkerType.ArrowClosed, width: ARROW_HEAD / arrowWidth(weight(es)), height: ARROW_HEAD / arrowWidth(weight(es)) } : undefined,
+      // A count of the uses merged into the arrow, or one link's own words, e.g. "owns".
+      label: weight(es) > 1 ? weight(es) : es[0].label ?? undefined,
     }))
 }
 
@@ -445,6 +476,8 @@ const KINDS: Record<DependencyKind, string> = {
 }
 /** How the legend explains what the map's arrows stand for. */
 const ARROWS_HELP = `Each view draws the arrows between its own boxes: one arrow per pair, standing for every link beneath them. A link inside one box isn't drawn until you zoom into it.
+An arrow's number and thickness say how many uses it stands for. It has its kind's colour, or grey when it mixes kinds.
+Hover an arrow to see the uses beneath it; click it to list them all, each with its file and line.
 Struck-through kinds are hidden in this view; click one to show it.`
 /** How the legend explains the "common" chip. */
 const COMMON_HELP = `A box is common when at least ${COMMON.least} of the boxes beside it, and at least ${COMMON.share * 100}% of them, point at it (an errors or ids file, say). Arrows to it are hidden, and it shows ◎ with how many use it. Click to show them.`
@@ -532,7 +565,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
   if (bubbleLaid) nodes.push({ ...bubbleLaid, type: 'stepBubble', draggable: false, data: {} as CardData })
   // Until a new view is laid out, the last frame of the old one stays up, so the map never blanks or flashes.
   const frame = useRef({ nodes, edges: [] as Edge[] })
-  if (ready) frame.current = { nodes, edges: flowEdges(v, graph, dragged, x.hl, x.sel) }
+  if (ready) frame.current = { nodes, edges: flowEdges(x.ix, v, graph, dragged, x.hl, x.sel) }
   const shown = frame.current
   return (
     <ReactFlow

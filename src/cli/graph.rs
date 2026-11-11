@@ -21,7 +21,7 @@ const PACKAGE_MANIFESTS: [&str; 2] = ["Cargo.toml", "package.json"];
 /// When a box is "common" in a zoom view, as the map decides it (`COMMON` in ui/src/view.ts): at least this many
 /// of its siblings point at it, and at least this share of them all. The map hides arrows to it by default.
 const COMMON_LEAST: usize = 5;
-const COMMON_SHARE: f64 = 0.4;
+const COMMON_SHARE: f64 = 0.5;
 /// The most rows a section prints.
 const ROWS: usize = 10;
 

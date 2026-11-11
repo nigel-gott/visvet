@@ -113,6 +113,8 @@ main { grid-area: 2 / 2; min-height: 0 }
 .legend .imports { opacity: .5; border-top-width: 1px }
 .legend .depends { border-top-style: dashed }
 .legend-help { cursor: help }
+/* Where a use listed under an arrow is: its file and line. */
+.use-site { color: var(--muted); font-size: 11px }
 /* On a box most of its siblings point at: how many do. */
 .common-mark { flex: none; padding: 0 5px; border-radius: 8px; font: 600 10px/16px var(--mono); color: var(--muted); border: 1px solid var(--muted); cursor: help }
 .card.ext { opacity: .6; border-style: dashed }

@@ -12,6 +12,7 @@ import { Rich } from './Rich'
 import { MarkdownPage } from './Markdown'
 import { currentText } from './pages'
 import { MARGIN_NOTE_WIDTH } from './size'
+import { useSite } from './view'
 
 const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: '-', same: '' }
 
@@ -419,14 +420,16 @@ function DetailBar({ id, it }: { id: string; it?: Item }) {
   )
 }
 
-/** An item's reviewable children, or the edges under an edge "<from> -> <to>". */
+/** An item's reviewable children, or the links under an arrow "<from> -> <to>": each with its kind, its two ends and the file and line of the use. */
 function Related({ id, it }: { id: string; it?: Item }) {
   const x = useContext(X)
   if (it) return it.kids.filter(k => !k.ctx).map(k => <Row key={k.id} it={k} />)
   // A map arrow to a file's "N internal" pile lists the links to that whole file.
   const [a, b] = id.replaceAll('#internal', '').split(' -> ')
   return x.model.dependencies.filter(e => within(x.ix.items.get(e.from), a) && within(x.ix.items.get(e.to), b)).map((e, j) => (
-    <div key={j} className="orow" onClick={() => x.focus(`${e.from} -> ${e.to}`)}>{e.kind}: {nameOf(x, e.from)} → {nameOf(x, e.to)}</div>
+    <div key={j} className="orow" title={`${e.from} → ${e.to}`} onClick={() => x.focus(`${e.from} -> ${e.to}`)}>
+      {e.kind}: {nameOf(x, e.from)} → {nameOf(x, e.to)}{e.label && ` (${e.label})`} <span className="use-site">{useSite(x.ix, e)}</span>
+    </div>
   ))
 }
 

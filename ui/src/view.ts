@@ -17,7 +17,7 @@ const BUNDLE = 4
  * all. Such a box (an errors or ids file, say) is used by nearly everything, so its arrows say little and bury the
  * rest: they are hidden until the legend's "common" is switched on, and the box shows how many use it.
  */
-export const COMMON = { least: 5, share: 0.4 }
+export const COMMON = { least: 5, share: 0.5 }
 
 /** The common boxes among the arrows `owned` between the view's `siblings` boxes: each with how many siblings point at it. */
 function commonBoxes(owned: Placed[], isSibling: (id: string) => boolean, siblings: number) {
