@@ -96,12 +96,8 @@ main { grid-area: 2 / 2; min-height: 0 }
 .tree .orow.reviewed .name { color: var(--muted) }
 .tree .orow.changed-since .name { text-decoration: underline dashed var(--chg); text-underline-offset: 3px }
 .card.reviewed:not(.picked) { opacity: .6 }
-/* Read mode: the button that marks the file on the page as reviewed, over and under its text. */
-.reviewed-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; max-width: 1400px; margin: 8px auto; padding: 0 32px; color: var(--chg); font-size: 13px }
-.reviewed-bar button { padding: 5px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); font: inherit; cursor: pointer }
-.reviewed-bar .reviewed-toggle { font-weight: 600 }
-.reviewed-bar.reviewed .reviewed-toggle { border-color: var(--add); color: var(--add) }
-.reviewed-bar.unreviewed .reviewed-toggle, .reviewed-bar.changed .reviewed-toggle { border-color: var(--sel); background: var(--sel); color: #fff }
+/* Read mode: the reviewed mark sits before the page's path, at its left edge. */
+.dimension-crumbs .reviewed-marks { justify-content: flex-start; min-width: 0 }
 .review-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 8px; color: var(--muted); font-size: 12px }
 .review-progress button { padding: 1px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); cursor: pointer }
 .review-progress button:disabled { opacity: .4; cursor: default }

@@ -98,26 +98,11 @@ export function ReviewedMark({ it }: { it: Item }) {
   )
 }
 
-/**
- * In Read mode, over and under a file's text: one wide button that marks the file as reviewed, or unmarks it, and says
- * which it is in words. A file that changed since it was reviewed says so, with a button to see what changed.
- */
-export function ReviewedBar({ it }: { it: Item }) {
-  const x = useContext(X)
-  let file: Item | undefined = it
-  while (file && file.kind !== 'file') file = file.parent
-  if (!file || !isFile(file)) return null
-  const at = file, state = x.reviewed.get(at.id) ?? 'unreviewed'
-  const showChanges = () => { x.select(at.id, true); x.showDetail(at.id, SINCE_REVIEWED) }
-  return (
-    <div className={`reviewed-bar ${state}`}>
-      {state === 'changed' && <><span>Changed since you reviewed it</span><button onClick={showChanges}>Show what changed</button></>}
-      <button className="reviewed-toggle" aria-pressed={state === 'reviewed'} title="Alt+R" onClick={() => setReviewed(at, state !== 'reviewed')}>
-        {state === 'reviewed' ? '✓ Reviewed' : state === 'changed' ? 'Mark as reviewed again' : 'Mark as reviewed'}
-      </button>
-      {state !== 'reviewed' ? null : <button title="Go to the next file that isn't reviewed (Alt+N)" onClick={() => nextUnreviewed(x)}>Next unreviewed ▸</button>}
-    </div>
-  )
+/** In Read mode, before the page's path: the reviewed mark of the file the page is, or is in, or of the folder it is. */
+export function ReviewedCrumb({ page }: { page: Item }) {
+  let it: Item | undefined = page
+  while (it && it.kind !== 'file' && it.kind !== 'folder') it = it.parent
+  return it && coveredBy(it).length > 0 ? <ReviewedMark it={it} /> : null
 }
 
 /** Above the file tree: how many files are reviewed, a button to the next one that isn't, and whether reviewed ones are hidden. */

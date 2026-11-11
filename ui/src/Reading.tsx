@@ -6,7 +6,6 @@ import { X } from './context'
 import { languageOf } from './highlight'
 import type { Item } from './model'
 import { allLines } from './size'
-import { ReviewedBar } from './Reviewed'
 import { ThreadChip } from './Threads'
 import { FileText, Head, NavBar, Notes } from './Views'
 
@@ -47,9 +46,7 @@ export function ReadingText({ it }: { it?: Item }) {
   const lines = allLines(read)
   return (
     <>
-      <ReviewedBar it={read} />
       {lines.length > 0 ? <FileText key={read.id} it={read} diff={lines} language={languageOf(read)} /> : <p className="read-list">No text to show.</p>}
-      <ReviewedBar it={read} />
       <NavBar it={read} />
     </>
   )

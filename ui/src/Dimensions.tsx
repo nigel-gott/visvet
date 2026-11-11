@@ -9,6 +9,7 @@ import { X } from './context'
 import { MarkdownPage } from './Markdown'
 import { ancestorsOf, within, type Index, type Item } from './model'
 import { ReadingText } from './Reading'
+import { ReviewedCrumb } from './Reviewed'
 import { alsoOf, currentText, dimensionOfPage, dimensionsOf, frontPageOf, nameOfPage, titleOf, titleOfPage } from './pages'
 
 /** The pages from a dimension's front page down to `page`: the README of each folder on the way, then the page. */
@@ -136,8 +137,9 @@ export function DimensionView({ id, reading = false }: { id: string | null; read
   }
   return (
     <div className="dimension-view" ref={view} onMouseUp={() => setHighlight(currentHighlight(view.current))}>
-      {(crumbs.length > 1 || also.length > 0) && (
+      {(crumbs.length > 1 || also.length > 0 || (reading && !dimension && page)) && (
         <nav className="dimension-crumbs">
+          {reading && !dimension && page && <ReviewedCrumb page={page} />}
           {crumbs.length > 1 && crumbs.map((crumb, index) => (
             <Fragment key={crumb.id}>
               {index > 0 && <span>›</span>}
