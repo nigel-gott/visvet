@@ -61,14 +61,19 @@ export function LeftToRead({ it }: { it: Item }) {
   return <meter className="left-to-read" max={100} low={SOME_LEFT} high={MUCH_LEFT} optimum={0} value={left} title={`Left to read: ${Math.round(left)} of 100. ${ofFile}`} />
 }
 
-/** In place of the file tree: the files with the most left to read, first, each with its path, meter and the AI's reason. A click opens it. */
+/**
+ * In place of the file tree: the files with the most left to read, first, each with its path, meter and the AI's
+ * reason. A click opens it. The order is as it was when the list was opened: reading a file empties its meter but
+ * doesn't move its row, so the list holds still under the pointer. Opening the list again sorts it anew.
+ */
 export function ToRead() {
   const x = useContext(X)
-  const files = x.ix.all.filter(it => it.kind === 'file').map(file => ({ file, left: leftToRead(x, file) ?? 0 })).filter(rated => rated.left > 0)
-  const mostLeft = files.sort((one, other) => other.left - one.left).slice(0, LONGEST_LIST)
+  const [files] = useState(() => x.ix.all.filter(it => it.kind === 'file').map(file => ({ file, left: leftToRead(x, file) ?? 0 })).filter(rated => rated.left > 0).sort((one, other) => other.left - one.left))
+  // A file as it is now, which a change to the code may have replaced or removed since the list was opened.
+  const mostLeft = files.slice(0, LONGEST_LIST).flatMap(listed => x.ix.items.get(listed.file.id) ?? [])
   return (
     <div className="to-read">
-      {mostLeft.map(({ file }) => (
+      {mostLeft.map(file => (
         <div key={file.id} className={x.sel === file.id ? 'orow sel' : 'orow'} title={file.id} onClick={() => x.goTo(file.id)}>
           <span className="name">{file.id}</span>
           <LeftToRead it={file} />
