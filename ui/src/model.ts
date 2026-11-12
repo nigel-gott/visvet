@@ -1,6 +1,6 @@
 // The API calls and the item tree every view renders. The data types are generated from src/types.rs
 // by ts-rs into contract.ts (run `cargo test` after changing them); nothing here mirrors them by hand.
-import type { ChangeStatus, Coverage, DiffLine, DocLabels, MapBox, Member, Review, ReviewAnnotations, View } from './contract'
+import type { NameMeaning, ChangeStatus, Coverage, DiffLine, DocLabels, MapBox, Member, Review, ReviewAnnotations, View } from './contract'
 export type * from './contract'
 
 /** fetch that throws on a non-2xx status, with the response body as the message. */
@@ -18,6 +18,11 @@ export const getThreads = (): Promise<ReviewAnnotations> => req('/api/threads').
 
 /** Fetches what changed in `file` since it was marked as reviewed, as a diff; null when git no longer has what was reviewed. */
 export const getSinceReviewed = (file: string): Promise<DiffLine[] | null> => req('/api/reviewed/diff?file=' + encodeURIComponent(file)).then(r => r.json())
+
+/** A name in the code of `file` as it is now: its line (the first is 1) and the column it starts at (the first is 0). */
+export type NameInCode = { file: string; line: number; column: number }
+/** Asks the language server what a name in code is: where it is defined, or its library docs; neither when it can't say, or the file isn't Rust. */
+export const getDefinition = (name: NameInCode): Promise<NameMeaning> => req('/api/definition?' + new URLSearchParams({ file: name.file, line: `${name.line}`, column: `${name.column}` })).then(r => r.json())
 
 /** POSTs JSON to the API. */
 export const post = (path: string, body: object) =>

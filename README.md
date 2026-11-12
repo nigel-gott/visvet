@@ -99,6 +99,8 @@ A form with a name is a definition, and a file is a namespace named after the fi
 
 In Rust, TypeScript or other code, **Ctrl+click** a name (⌘+click on a Mac) to see its definition in a card: what its doc comment says, the first lines of its source, the file it is in, and "Open definition". It works wherever code is shown: Read mode, a box opened on the map, and a tour's step.
 
+In Rust code the answer comes from `rust-analyzer`, the language server editors use (install it with `rustup component add rust-analyzer`), so a method called on a value like `form.tail()` and a local variable open their definition too, and a name from the standard library or a dependency shows its signature and docs. visvet starts it at the first Ctrl+click and it then reads the project for some seconds; until it is ready, without it, and in other languages, the card shows what the map's arrows say, which covers names the file imports or defines.
+
 - The definition is found through the map's own arrows: the function, type or method of that name that this file calls, uses, creates or imports, or the type around a method it calls. Failing that, something of that name in the same file.
 - A name the arrows can't trace has no card: a method called on a value (`path.join(..)`), anything from the standard library or a dependency, a local variable.
 - It goes by name over the whole file, so when a file uses two things of one name (two types' `new`), the card shows both.

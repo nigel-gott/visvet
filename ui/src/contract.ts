@@ -262,6 +262,18 @@ export type MemberKind = "field" | "method" | "variant" | "fn";
 export type MessageKind = "reply" | "note";
 
 /**
+ * What the language server says a name in code is: the places in this repository that define it, or for a name
+ * from outside it (the standard library, a dependency), `library_docs`: its signature and doc comment, as Markdown.
+ * Neither when the server can't say.
+ */
+export type NameMeaning = { places: Array<PlaceInCode>, library_docs: string | null, };
+
+/**
+ * A line of a file in the repository, e.g. where a name is defined; the first line is 1.
+ */
+export type PlaceInCode = { file: RepoPath, line: number, };
+
+/**
  * Lines of a file the user saw for the first time in the last half hour: how many, and when the first of them
  * (`at`, in milliseconds since 1970). From these the UI works out the user's reading pace.
  */

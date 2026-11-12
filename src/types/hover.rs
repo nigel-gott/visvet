@@ -68,3 +68,15 @@ pub struct DocField { pub label: String, pub text: String }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
 pub struct CodeMention { pub inside: MapId, pub file: RepoPath, pub line: u32 }
+
+/// A line of a file in the repository, e.g. where a name is defined; the first line is 1.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct PlaceInCode { pub file: RepoPath, pub line: u32 }
+
+/// What the language server says a name in code is: the places in this repository that define it, or for a name
+/// from outside it (the standard library, a dependency), `library_docs`: its signature and doc comment, as Markdown.
+/// Neither when the server can't say.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../ui/src/contract.ts")]
+pub struct NameMeaning { pub places: Vec<PlaceInCode>, pub library_docs: Option<String> }

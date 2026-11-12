@@ -15,4 +15,6 @@ What to do:
 - Keep tree-sitter for what it's good at (finding boxes, fast, works on the old version at the base commit, which a language server can't see); use the server only for arrows in the current version.
 - Fall back to today's tracing of names and imports for languages without a server.
 
+Done so far: `src/server/language_server.rs::LanguageServer` starts rust-analyzer at the first Ctrl+click on a name in Rust code and asks it for that name's definition, or its library docs. Still open: TypeScript's server, and using references for the map's arrows.
+
 Costs: servers are slow to start and heavy (rust-analyzer indexes the whole crate), and each language needs its own. Related idea: `ideas/extending/languages-from-tag-queries.md`.

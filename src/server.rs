@@ -1,10 +1,12 @@
 //! HTTP API, change and show events and the embedded UI, answering only to known host names.
+mod language_server;
 mod watch;
+use language_server::{LanguageServer, NameInCode};
 use crate::state::visvet_dir::HandOff;
 use watch::RepoEvent;
 use crate::review::{build_review, compare, coverage};
 use crate::state::{explored, importance, reviewed, store};
-use crate::{types::{Author, DiffLine, MapId, RepoPath, Review, ReviewAnnotations, ThreadId, ThreadState, View}};
+use crate::{types::{Author, DiffLine, MapId, RepoPath, Review, NameMeaning, ReviewAnnotations, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
     extract::{Path as UrlPath, Query, Request, State},
@@ -16,6 +18,7 @@ use axum::{
 use serde::Deserialize;
 use std::{convert::Infallible, fmt::Display};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 use tower_http::compression::CompressionLayer;
 use tokio_stream::{Stream, StreamExt, wrappers::BroadcastStream};
@@ -40,9 +43,10 @@ pub struct Addr {
     pub url: Option<String>,
 }
 
-/// Shared server state: the repo, the diff base, events for the UI and the host names it answers to.
+/// Shared server state: the repo, the diff base, events for the UI, the host names it answers to, and the language
+/// server that says where names are defined.
 #[derive(Clone)]
-struct App { repo_root: PathBuf, base: String, tx: broadcast::Sender<RepoEvent>, hosts: Vec<String> }
+struct App { repo_root: PathBuf, base: String, tx: broadcast::Sender<RepoEvent>, hosts: Vec<String>, language_server: Arc<LanguageServer> }
 
 /// A handler result whose error is a 500 with a message.
 type Res<T> = Result<T, (StatusCode, String)>;
@@ -61,7 +65,8 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
     let (tx, _) = broadcast::channel(16);
     let to_ui = tx.clone();
     let _watcher = watch::watch(repo_root.clone(), move |e| _ = to_ui.send(e))?;
-    let app = App { repo_root, base, tx, hosts };
+    let language_server = Arc::new(LanguageServer::of(&repo_root));
+    let app = App { repo_root, base, tx, hosts, language_server };
     let router = Router::new()
         .route("/api/review", get(review))
         .route("/api/events", get(events))
@@ -71,6 +76,7 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
         .route("/api/reviewed", post(set_reviewed))
         .route("/api/reviewed/diff", get(since_reviewed))
         .route("/api/explored", post(add_explored))
+        .route("/api/definition", get(definition))
         .fallback(static_file)
         // The review of a big repository is megabytes of JSON; compressed, it loads fast on a phone too.
         .layer(CompressionLayer::new())
@@ -133,6 +139,16 @@ async fn set_reviewed(State(app): State<App>, Json(marked): Json<SetReviewed>) -
 /// Counts the lines the user has on screen, sent by the UI while they are active, as seen.
 async fn add_explored(State(app): State<App>, Json(on_screen): Json<Vec<explored::LinesOnScreen>>) -> Res<()> {
     explored::add(&app.repo_root, on_screen).map_err(err)
+}
+
+/// What the name the user Ctrl+clicked in code is, as the language server says: nothing when it can't say (see
+/// `LanguageServer::meaning_of`), or isn't installed.
+async fn definition(State(app): State<App>, Query(name): Query<NameInCode>) -> Res<Json<NameMeaning>> {
+    let asked = tokio::task::spawn_blocking(move || app.language_server.meaning_of(&name)).await.map_err(err)?;
+    Ok(Json(asked.unwrap_or_else(|problem| {
+        eprintln!("visvet: no definition from the language server: {problem:#}");
+        NameMeaning::default()
+    })))
 }
 
 /// The query of GET /api/reviewed/diff: which file.

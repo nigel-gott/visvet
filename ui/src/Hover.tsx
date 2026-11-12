@@ -10,9 +10,9 @@
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { X, type Ctx } from './context'
-import type { CodeMention, DiffLine, DocEntry, DocField, EntryKind, Hover, Language } from './contract'
+import type { CodeMention, DiffLine, DocEntry, DocField, EntryKind, Hover, Language, PlaceInCode } from './contract'
 import { colourLines, languageOf, useHighlighter } from './highlight'
-import { ancestorsOf, type Item } from './model'
+import { ancestorsOf, getDefinition, type Item, type NameInCode } from './model'
 import { Rich } from './Rich'
 
 /** The file an item's code is in: its own box's, or for a member, the box it sits in. */
@@ -66,10 +66,11 @@ function nameAt(text: string, column: number) {
 }
 
 /**
- * The definitions `name` may mean in the code of `file`, a language that isn't Lisp-family: the boxes of that name
- * that an arrow leads to from this file, or to something inside them (a call, a use, an import: traced, never
- * guessed), and else the boxes of
- * that name in this file. Several when the file uses two things of one name, like two types' `new`.
+ * The definitions `name` may mean in the code of `file`, a language that isn't Lisp-family, as far as the map's
+ * arrows say; shown when the language server has no answer (see `definedAt`). The boxes of that name that an arrow
+ * leads to from this file, or to something inside them (a call, a use, an import: traced, never guessed), and else
+ * the boxes of that name in this file. Several when the file uses two things of one name, like two types' `new`;
+ * none for what no arrow reaches, like a method called on a value.
  */
 // ponytail: by name over the whole file, not by where the click is, so `A::new` and `B::new` both show for either
 // `new`. Give each arrow the column of its name, not only its line, if that is ever too vague.
@@ -80,7 +81,19 @@ function definedInCode(x: Ctx, file: string, name: string) {
   const reached = x.model.dependencies.filter(arrow => isHere(arrow.from)).flatMap(arrow => ancestorsOf(x.ix, arrow.to))
   const ledTo = [...new Set(reached)].flatMap(id => named(x.ix.items.get(id)))
   const definitions = ledTo.length ? ledTo : x.ix.all.filter(it => fileOf(it) === file).flatMap(named)
-  return definitions.length ? { keywordOf: undefined, declaredAt: undefined, word: name, site: [], definitions, documented: [], mentioned: [] } : undefined
+  return { keywordOf: undefined, declaredAt: undefined, word: name, site: [], definitions, documented: [], mentioned: [] }
+}
+
+/**
+ * What is defined at `place`, where the language server says `name` is: the innermost box or member around that
+ * line. When that isn't `name` itself but something around it (a function around its local variable, a file around
+ * a constant), the card shows its code from that line on, and nothing that is said of the whole of it.
+ */
+function definedAt(x: Ctx, name: string, place: PlaceInCode): Item[] {
+  const isAround = (it: Item) => { const lines = (it.m ?? it.o)?.lines; return fileOf(it) === place.file && it.kind !== 'folder' && !!lines && lines.first <= place.line && place.line <= lines.last }
+  const [innermost] = x.ix.all.filter(isAround).sort((one, other) => other.depth - one.depth)
+  if (!innermost || innermost.name === name) return innermost ? [innermost] : []
+  return [{ ...innermost, kind: '', doc: '', diff: innermost.diff.filter(line => line.kind !== 'del' && (line.line ?? 0) >= place.line) }]
 }
 
 /** A form around a word: its first word, the word after that when there is one (a definition's name), and the line it starts on. */
@@ -210,6 +223,10 @@ type WordCard = {
   /** For a word written in a {hole} that its top-level form declares: the declaring list, the line it is on, and a jump there. */
   declared?: { text: string; line: number; show: () => void }
   word: string
+  /** For a name in code that isn't Lisp-family: where it is, to ask the language server what it means there. */
+  name?: NameInCode
+  /** For a name from outside the repository: its signature and doc comment as the language server gives them, in Markdown. */
+  libraryDocs?: string
   /** The words of the form in the code that the word heads or, for a `:keyword`, is an argument of; else none. */
   site: string[]
   /** Where the Markdown documents the word, the use in hand first; rows of one table that document it are together. */
@@ -398,7 +415,8 @@ function Definition({ it, named }: { it: Item; named: boolean }) {
   // The description above already says what the leading comment lines say.
   const isComment = (line: DiffLine) => line.text.trim().startsWith(';') || line.text.trim().startsWith('//')
   const code = source.slice(Math.max(0, source.findIndex(line => !isComment(line))))
-  const usedBy = new Set(x.model.dependencies.filter(arrow => arrow.to === it.id && ['uses', 'calls', 'creates'].includes(arrow.kind)).map(arrow => arrow.from)).size
+  // Nothing is counted for a piece of a box (see `definedAt`), which has no kind.
+  const usedBy = !it.kind ? 0 : new Set(x.model.dependencies.filter(arrow => arrow.to === it.id && ['uses', 'calls', 'creates'].includes(arrow.kind)).map(arrow => arrow.from)).size
   return (
     <section>
       {named && <div className="word-form">{it.name}</div>}
@@ -418,7 +436,7 @@ function Title({ card, close }: { card: WordCard; close: () => void }) {
   const x = useContext(X)
   const defined = card.definitions[0]
   // A Lisp-family form's box is named by its first two words: the first says what kind of thing the second is.
-  const kind = defined ? [...new Set(card.definitions.map(it => (it.name.includes(' ') ? it.name.split(' ')[0] : it.kind)))].join(', ') : kindOf(card.documented[0][0])
+  const kind = defined ? [...new Set(card.definitions.map(it => (it.name.includes(' ') ? it.name.split(' ')[0] : it.kind)))].join(', ') : card.libraryDocs ? '' : kindOf(card.documented[0][0])
   // Each file that defines the word, as a link to its definition there.
   const where = card.definitions.filter((it, at, all) => all.findIndex(other => fileOf(other) === fileOf(it)) === at)
     .map((it, at) => <Fragment key={it.id}>{at > 0 && ', '}<a title="Go to the definition" onClick={() => x.goTo(it.id)}>{fileOf(it)}</a></Fragment>)
@@ -429,7 +447,7 @@ function Title({ card, close }: { card: WordCard; close: () => void }) {
         <b className={defined ? 'word-name defined' : 'word-name documented'}>{card.written}</b>
         {card.keywordOf && <span className="word-kind">argument of <code>{card.word}</code></span>}
       </div>
-      <div className="word-kind">{defined ? <>defined in {where}{kind && <> · <b>{kind}</b></>}</> : <><a title="Go to where it is documented" onClick={() => documentedIn && x.openFile(documentedIn.file)}>documented</a>{kind && <> · <Rich text={kind} /></>}</>}</div>
+      <div className="word-kind">{card.libraryDocs ? 'from outside this repository: a library' : defined ? <>defined in {where}{kind && <> · <b>{kind}</b></>}</> : <><a title="Go to where it is documented" onClick={() => documentedIn && x.openFile(documentedIn.file)}>documented</a>{kind && <> · <Rich text={kind} /></>}</>}</div>
       {card.declared && <>
         <div className="word-kind">written as a hole: filled in when this definition is used</div>
         <div className="word-kind">declared here: <a title="Go to where it is declared" onClick={card.declared.show}><code>{card.declared.text}</code> line {card.declared.line} →</a></div>
@@ -456,6 +474,7 @@ function Card({ card, close }: { card: WordCard; close: () => void }) {
       onMouseMove={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
       <Title card={card} close={close} />
       {card.definitions.map(it => <Definition key={it.id} it={it} named={card.definitions.length > 1} />)}
+      {card.libraryDocs && <section><Long><div className="word-meaning"><Rich text={card.libraryDocs} /></div></Long></section>}
       {card.documented.slice(0, 1).map(entries => <Documented key={entries[0].file + entries[0].line} entries={entries} word={card.word} clicked={card.written} keyword={keyword} site={card.site} />)}
       {card.documented.length > 1 && <div className="word-others">
         <div className="word-label">Also documented as</div>
@@ -616,6 +635,8 @@ export function useWordHover(file: string | undefined, diff: DiffLine[], languag
   const asksForCard = (event: MouseEvent) => isLisp || event.ctrlKey || event.metaKey
   const [card, setCard] = useState<WordCard | null>(null)
   const [pointsAtWord, setPointsAtWord] = useState(false)
+  /** The name last asked about, so a slow answer about an earlier one opens no card. */
+  const lastAsked = useRef('')
   useEffect(() => {
     if (!card) return
     // ponytail: a browser without the highlight API doesn't mark the open word; its card still opens.
@@ -656,7 +677,9 @@ export function useWordHover(file: string | undefined, diff: DiffLine[], languag
     const { declaredAt } = meaning
     const code = line.parentElement
     const declared = declaredAt && { text: declaredAt.text, line: diff[declaredAt.row].line ?? declaredAt.row + 1, show: () => { setCard(null); showLine(code?.querySelector<HTMLElement>(`.ln[data-row="${declaredAt.row}"]`)) } }
-    return inCode && { at: `${row}:${found.start}`, place: placeBy(inCode.getBoundingClientRect()), inCode, written: found.word, declared, ...meaning }
+    const { kind, line: lineNumber } = diff[row]
+    const name = !isLisp && kind !== 'del' && lineNumber ? { file, line: lineNumber, column: found.start } : undefined
+    return inCode && { at: `${row}:${found.start}`, place: placeBy(inCode.getBoundingClientRect()), inCode, written: found.word, declared, name, ...meaning }
   }
   const handlers = {
     // Over a word with a card, the pointer says it can be clicked.
@@ -666,7 +689,17 @@ export function useWordHover(file: string | undefined, diff: DiffLine[], languag
     onClick: (event: MouseEvent) => {
       if (getSelection()?.toString()) return
       const next = asksForCard(event) ? cardAt(event) : undefined
-      setCard(next && next.at !== card?.at ? next : null)
+      const { name } = next ?? {}
+      if (!next || next.at === card?.at || !name) return setCard(next && next.at !== card?.at ? next : null)
+      // The language server knows what a name means where it stands, a method on a value too. When it has no answer
+      // (not installed, still reading the project, not its language), the card shows what the map's arrows say.
+      const byArrows = next.definitions.length ? next : null
+      lastAsked.current = next.at
+      getDefinition(name).catch(() => ({ places: [], library_docs: null })).then(meaning => {
+        const definitions = meaning.places.flatMap(place => definedAt(x, next.written, place))
+        const byServer = definitions.length ? { ...next, definitions } : meaning.library_docs ? { ...next, definitions: [], libraryDocs: meaning.library_docs } : byArrows
+        if (lastAsked.current === next.at) setCard(byServer)
+      })
     },
   }
   const shown = card && createPortal(<Card card={card} close={() => setCard(null)} />, document.body)

@@ -21,6 +21,7 @@
 {"path":"src/review/resolve.rs","score":80,"reason":"Decides which arrows the map draws; a mistake here draws wrong dependencies."}
 {"path":"src/review.rs","score":85,"reason":"How a review is built, end to end: the order everything else in src/review/ runs in."}
 {"path":"src/server/","score":50,"reason":"Watching the repository for changes."}
+{"path":"src/server/language_server.rs","score":45,"reason":"Talks to rust-analyzer for Ctrl+click definitions and library docs: plumbing for one feature, with a fallback when it has no answer"}
 {"path":"src/server.rs","score":80,"reason":"Every way the UI talks to the server, and the host check that keeps other web pages out."}
 {"path":"src/state/","score":75,"reason":"What visvet saves in .visvet/: threads, reviewed marks, explored lines, ratings. A bug here loses review work."}
 {"path":"src/types/","score":90,"reason":"The data model the server and the UI share; every feature starts from these types."}
