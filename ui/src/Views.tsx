@@ -197,6 +197,7 @@ export function FileText({ it, diff, language, notes = [], beside = false }: { i
  * The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. A tour's notes on
  * code outline the exact code they are about, and sit under it, or with `beside`, next to it, on alternate sides.
  * In a Lisp-family `file`, a word the review knows is coloured (the repository's own names one colour, documented words another) and a click on it shows what it is (see Hover.tsx).
+ * In any other language's `file`, Ctrl+click on a name shows its definition the same way.
  */
 export function DiffView({ diff, language, notes = [], beside = false, file }: { diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean; file?: string }) {
   const [unfolded, setUnfolded] = useState(new Set<number>())
@@ -209,7 +210,7 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   const view = useRef<HTMLDivElement>(null)
   useScrollToFirstNote(view, notes)
   useShownText(view, file, diff)
-  const wordHover = useWordHover(language === 'lisp' ? file : undefined, diff)
+  const wordHover = useWordHover(file, diff, language)
   const highlighter = useHighlighter()
   const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])
   // Long unchanged runs fold only around a change; unchanged code shows whole.

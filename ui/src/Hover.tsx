@@ -4,13 +4,15 @@
 // definition shows that definition; any other word, where the repository's Markdown documents it. The card is
 // made for reading: the word and what kind of thing it is, what it means, how it is written, an example, and
 // last where that comes from. Its ×, Escape, or a click anywhere else closes it.
+// In any other language's code, Ctrl+click (⌘+click on a Mac) on a name opens the same card with its definition:
+// the box of that name that the code's own arrows lead to from this file, or that this file holds.
 
 import { Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from './context'
+import { X, type Ctx } from './context'
 import type { CodeMention, DiffLine, DocEntry, DocField, EntryKind, Hover, Language } from './contract'
 import { colourLines, languageOf, useHighlighter } from './highlight'
-import type { Item } from './model'
+import { ancestorsOf, type Item } from './model'
 import { Rich } from './Rich'
 
 /** The file an item's code is in: its own box's, or for a member, the box it sits in. */
@@ -50,6 +52,35 @@ function wordAt(text: string, column: number) {
   const inString = (before.match(/(?<!\\)"/g)?.length ?? 0) % 2 === 1
   const inComment = before.replace(/"(?:[^"\\]|\\.)*"/g, '').includes(';')
   return start === end || inString || inComment ? undefined : { word: text.slice(start, end), start }
+}
+
+/** A character of a name in code that isn't Lisp-family: a letter, a digit, `_` or `$`. */
+const IN_A_NAME = /[\p{L}\p{N}_$]/u
+
+/** The name at `column` of a line of code and the column it starts at, e.g. `content_id`; nothing between names. */
+function nameAt(text: string, column: number) {
+  let start = column, end = column
+  while (start > 0 && IN_A_NAME.test(text[start - 1])) start--
+  while (end < text.length && IN_A_NAME.test(text[end])) end++
+  return start === end ? undefined : { word: text.slice(start, end), start }
+}
+
+/**
+ * The definitions `name` may mean in the code of `file`, a language that isn't Lisp-family: the boxes of that name
+ * that an arrow leads to from this file, or to something inside them (a call, a use, an import: traced, never
+ * guessed), and else the boxes of
+ * that name in this file. Several when the file uses two things of one name, like two types' `new`.
+ */
+// ponytail: by name over the whole file, not by where the click is, so `A::new` and `B::new` both show for either
+// `new`. Give each arrow the column of its name, not only its line, if that is ever too vague.
+function definedInCode(x: Ctx, file: string, name: string) {
+  const named = (it: Item | undefined) => (it && it.name === name && it.kind !== 'file' && it.kind !== 'folder' ? [it] : [])
+  const isHere = (id: string) => { const it = x.ix.items.get(id); return !!it && fileOf(it) === file }
+  // An arrow to a type's method, like `GitRepo::open`, also says which `GitRepo` this file means: the box around it.
+  const reached = x.model.dependencies.filter(arrow => isHere(arrow.from)).flatMap(arrow => ancestorsOf(x.ix, arrow.to))
+  const ledTo = [...new Set(reached)].flatMap(id => named(x.ix.items.get(id)))
+  const definitions = ledTo.length ? ledTo : x.ix.all.filter(it => fileOf(it) === file).flatMap(named)
+  return definitions.length ? { keywordOf: undefined, declaredAt: undefined, word: name, site: [], definitions, documented: [], mentioned: [] } : undefined
 }
 
 /** A form around a word: its first word, the word after that when there is one (a definition's name), and the line it starts on. */
@@ -360,13 +391,14 @@ function Documented({ entries, word, clicked, keyword, site }: { entries: DocEnt
   )
 }
 
-/** A definition on the card: what its comment says, the first lines of its source, and last where it is and how many forms use it. */
+/** A definition on the card: what its comment says, the first lines of its source, and last where it is and how many places use it. */
 function Definition({ it, named }: { it: Item; named: boolean }) {
   const x = useContext(X)
   const source = it.diff.filter(line => line.kind !== 'del')
   // The description above already says what the leading comment lines say.
-  const code = source.slice(source.findIndex(line => !line.text.trim().startsWith(';')))
-  const usedBy = new Set(x.model.dependencies.filter(arrow => arrow.to === it.id && arrow.kind === 'uses').map(arrow => arrow.from)).size
+  const isComment = (line: DiffLine) => line.text.trim().startsWith(';') || line.text.trim().startsWith('//')
+  const code = source.slice(Math.max(0, source.findIndex(line => !isComment(line))))
+  const usedBy = new Set(x.model.dependencies.filter(arrow => arrow.to === it.id && ['uses', 'calls', 'creates'].includes(arrow.kind)).map(arrow => arrow.from)).size
   return (
     <section>
       {named && <div className="word-form">{it.name}</div>}
@@ -374,7 +406,7 @@ function Definition({ it, named }: { it: Item; named: boolean }) {
       <Code lines={code.slice(0, SOURCE_LINES)} language={languageOf(it)} />
       {code.length > SOURCE_LINES && <div className="word-label">… {code.length - SOURCE_LINES} more lines</div>}
       <footer>
-        {usedBy > 0 && <span>used by <b>{usedBy}</b> {usedBy > 1 ? 'forms' : 'form'}</span>}
+        {usedBy > 0 && <span>used in <b>{usedBy}</b> {usedBy > 1 ? 'places' : 'place'}</span>}
         <a onClick={() => x.goTo(it.id)} title={`${it.o?.file}:${it.o?.lines.first}`}>Open definition →</a>
       </footer>
     </section>
@@ -385,11 +417,11 @@ function Definition({ it, named }: { it: Item; named: boolean }) {
 function Title({ card, close }: { card: WordCard; close: () => void }) {
   const x = useContext(X)
   const defined = card.definitions[0]
-  // A form's box is named by its first two words: the first says what kind of thing the second is.
-  const kind = defined ? [...new Set(card.definitions.map(it => it.name.split(' ')[0]))].join(', ') : kindOf(card.documented[0][0])
+  // A Lisp-family form's box is named by its first two words: the first says what kind of thing the second is.
+  const kind = defined ? [...new Set(card.definitions.map(it => (it.name.includes(' ') ? it.name.split(' ')[0] : it.kind)))].join(', ') : kindOf(card.documented[0][0])
   // Each file that defines the word, as a link to its definition there.
-  const where = card.definitions.filter((it, at, all) => all.findIndex(other => other.o?.file === it.o?.file) === at)
-    .map((it, at) => <Fragment key={it.id}>{at > 0 && ', '}<a title="Go to the definition" onClick={() => x.goTo(it.id)}>{it.o?.file}</a></Fragment>)
+  const where = card.definitions.filter((it, at, all) => all.findIndex(other => fileOf(other) === fileOf(it)) === at)
+    .map((it, at) => <Fragment key={it.id}>{at > 0 && ', '}<a title="Go to the definition" onClick={() => x.goTo(it.id)}>{fileOf(it)}</a></Fragment>)
   const documentedIn = card.documented[0]?.[0]
   return (
     <header>
@@ -572,11 +604,16 @@ export function useColouredWords(view: RefObject<HTMLElement | null>, file: stri
 }
 
 /**
- * Cards for the code of Lisp-family file `file`, shown as the diff lines `diff`; with no `file`, nothing.
+ * Cards for the code of `file`, shown as the diff lines `diff`; with no `file`, nothing. In a Lisp-family file a
+ * click on a word the review knows opens its card; in any other `language`, Ctrl+click (⌘+click on a Mac) on a
+ * name opens its definition's.
  * Returns the handlers for the element holding the code's lines (each a `.ln` with its row in `data-row`), and the card.
  */
-export function useWordHover(file: string | undefined, diff: DiffLine[]) {
+export function useWordHover(file: string | undefined, diff: DiffLine[], language: Language) {
   const x = useContext(X)
+  const isLisp = language === 'lisp'
+  /** Whether a mouse event asks for a card: in other languages only with Ctrl or ⌘ held, so a plain click still selects. */
+  const asksForCard = (event: MouseEvent) => isLisp || event.ctrlKey || event.metaKey
   const [card, setCard] = useState<WordCard | null>(null)
   const [pointsAtWord, setPointsAtWord] = useState(false)
   useEffect(() => {
@@ -611,8 +648,9 @@ export function useWordHover(file: string | undefined, diff: DiffLine[]) {
     upToCaret.setStartAfter(line.querySelector('.no')!)
     upToCaret.setEnd(caret.node, caret.offset)
     const row = Number(line.dataset.row)
-    const found = wordAt(diff[row].text, upToCaret.toString().length)
-    const meaning = found && meaningOf(x.model.hover, x.ix.items, file, diff, row, found)
+    const column = upToCaret.toString().length
+    const found = isLisp ? wordAt(diff[row].text, column) : nameAt(diff[row].text, column)
+    const meaning = found && (isLisp ? meaningOf(x.model.hover, x.ix.items, file, diff, row, found) : definedInCode(x, file, found.word))
     if (!found || !meaning) return
     const inCode = rangeIn(textOf(line), found.start, found.start + found.word.length)
     const { declaredAt } = meaning
@@ -622,12 +660,12 @@ export function useWordHover(file: string | undefined, diff: DiffLine[]) {
   }
   const handlers = {
     // Over a word with a card, the pointer says it can be clicked.
-    onMouseMove: (event: MouseEvent) => { const at = !!cardAt(event); if (at !== pointsAtWord) setPointsAtWord(at) },
+    onMouseMove: (event: MouseEvent) => { const at = asksForCard(event) && !!cardAt(event); if (at !== pointsAtWord) setPointsAtWord(at) },
     onMouseLeave: () => setPointsAtWord(false),
     // A click on a coloured word opens its card, a second closes it, and one anywhere else in the code closes it; not while selecting text.
     onClick: (event: MouseEvent) => {
       if (getSelection()?.toString()) return
-      const next = cardAt(event)
+      const next = asksForCard(event) ? cardAt(event) : undefined
       setCard(next && next.at !== card?.at ? next : null)
     },
   }
