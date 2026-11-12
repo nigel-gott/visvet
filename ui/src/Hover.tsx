@@ -20,6 +20,20 @@ export function fileOf(it: Item): string | undefined {
   for (let up: Item | undefined = it; up; up = up.parent) if (up.o) return up.o.file
 }
 
+/**
+ * What makes a card's link lead to the file, box or member `id`: a click goes there in this tab (`go` says how,
+ * e.g. a documentation file opens as a page), and since the link has that place's address, a middle click or Ctrl+click opens it in a new tab.
+ */
+const linkTo = (x: Ctx, id: string, go = x.goTo) => ({
+  href: '#' + encodeURIComponent(id),
+  onClick: (event: MouseEvent) => {
+    const wantsNewTab = event.metaKey || event.ctrlKey || event.shiftKey
+    if (wantsNewTab) return
+    event.preventDefault()
+    go(id)
+  },
+})
+
 /** A character that is not part of a word in Lisp-family code: space, brackets, quoting marks and `;`. */
 const BETWEEN_WORDS = /[\s()[\]{}"'`,;]/
 /** The words of a form as written, e.g. ["simmer", "40m", ":lid", "on"] for `(simmer 40m :lid on)`. */
@@ -314,7 +328,7 @@ function Rest({ entry }: { entry: DocEntry }) {
     ))}
     <footer>
       {facts.map((field, index) => <span key={index}>{field.label && field.label + ': '}<b>{field.text}</b></span>)}
-      <a onClick={() => x.openFile(entry.file)} title="Open the page that documents it">{entry.file}:{entry.line} →</a>
+      <a {...linkTo(x, entry.file, x.openFile)} title="Open the page that documents it">{entry.file}:{entry.line} →</a>
     </footer>
   </>
 }
@@ -360,7 +374,7 @@ function Named({ entry, written }: { entry: DocEntry; written: string }) {
         <div key={index} className="word-line">{field.label && <span className="word-label">{field.label}: </span>}<Rich text={field.text} /></div>
       ))}
       {otherSpellings.length > 0 && <div className="word-line word-label">also written {otherSpellings.map((spelling, index) => <Fragment key={spelling}>{index > 0 && ', '}<code>{spelling}</code></Fragment>)}</div>}
-      <footer><a onClick={() => x.openFile(entry.file)} title="Open the page that documents it">{entry.file}:{entry.line} →</a></footer>
+      <footer><a {...linkTo(x, entry.file, x.openFile)} title="Open the page that documents it">{entry.file}:{entry.line} →</a></footer>
     </section>
   )
 }
@@ -425,7 +439,7 @@ function Definition({ it, named }: { it: Item; named: boolean }) {
       {code.length > SOURCE_LINES && <div className="word-label">… {code.length - SOURCE_LINES} more lines</div>}
       <footer>
         {usedBy > 0 && <span>used in <b>{usedBy}</b> {usedBy > 1 ? 'places' : 'place'}</span>}
-        <a onClick={() => x.goTo(it.id)} title={`${it.o?.file}:${it.o?.lines.first}`}>Open definition →</a>
+        <a {...linkTo(x, it.id)} title={`${it.o?.file}:${it.o?.lines.first}`}>Open definition →</a>
       </footer>
     </section>
   )
@@ -439,7 +453,7 @@ function Title({ card, close }: { card: WordCard; close: () => void }) {
   const kind = defined ? [...new Set(card.definitions.map(it => (it.name.includes(' ') ? it.name.split(' ')[0] : it.kind)))].join(', ') : card.libraryDocs ? '' : kindOf(card.documented[0][0])
   // Each file that defines the word, as a link to its definition there.
   const where = card.definitions.filter((it, at, all) => all.findIndex(other => fileOf(other) === fileOf(it)) === at)
-    .map((it, at) => <Fragment key={it.id}>{at > 0 && ', '}<a title="Go to the definition" onClick={() => x.goTo(it.id)}>{fileOf(it)}</a></Fragment>)
+    .map((it, at) => <Fragment key={it.id}>{at > 0 && ', '}<a {...linkTo(x, it.id)} title="Go to the definition">{fileOf(it)}</a></Fragment>)
   const documentedIn = card.documented[0]?.[0]
   return (
     <header>
@@ -447,7 +461,7 @@ function Title({ card, close }: { card: WordCard; close: () => void }) {
         <b className={defined ? 'word-name defined' : 'word-name documented'}>{card.written}</b>
         {card.keywordOf && <span className="word-kind">argument of <code>{card.word}</code></span>}
       </div>
-      <div className="word-kind">{card.libraryDocs ? 'from outside this repository: a library' : defined ? <>defined in {where}{kind && <> · <b>{kind}</b></>}</> : <><a title="Go to where it is documented" onClick={() => documentedIn && x.openFile(documentedIn.file)}>documented</a>{kind && <> · <Rich text={kind} /></>}</>}</div>
+      <div className="word-kind">{card.libraryDocs ? 'from outside this repository: a library' : defined ? <>defined in {where}{kind && <> · <b>{kind}</b></>}</> : <><a title="Go to where it is documented" {...(documentedIn && linkTo(x, documentedIn.file, x.openFile))}>documented</a>{kind && <> · <Rich text={kind} /></>}</>}</div>
       {card.declared && <>
         <div className="word-kind">written as a hole: filled in when this definition is used</div>
         <div className="word-kind">declared here: <a title="Go to where it is declared" onClick={card.declared.show}><code>{card.declared.text}</code> line {card.declared.line} →</a></div>
@@ -487,7 +501,7 @@ function Card({ card, close }: { card: WordCard; close: () => void }) {
       </div>}
       {card.mentioned.length > 0 && <div className="word-mentioned">
         <span className="word-label">Where the code handles "{card.word}"</span>
-        {card.mentioned.map((place, index) => <a key={index} onClick={() => x.goTo(place.inside)}>{place.file}:{place.line} →</a>)}
+        {card.mentioned.map((place, index) => <a key={index} {...linkTo(x, place.inside)}>{place.file}:{place.line} →</a>)}
       </div>}
     </div>
   )
