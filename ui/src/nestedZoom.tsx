@@ -132,7 +132,7 @@ export const nextOutwardGlide: { motion: ZoomMotion | null } = { motion: null }
  */
 export const showsIn = (kinds: Record<string, boolean>, top: Item | undefined) => {
   const holdsCode = !!top && subtree(top).some(it => it.o?.content.type === 'code')
-  const byDefault: Record<string, boolean> = { links: !holdsCode, common: false }
+  const byDefault: Record<string, boolean> = { links: !holdsCode, common: false, tests: false }
   return (kind: string) => kinds[kind] ?? byDefault[kind] ?? true
 }
 

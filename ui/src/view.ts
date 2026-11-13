@@ -16,6 +16,12 @@ function face(t: Item) {
  */
 export const COMMON = { least: 5, share: 0.5 }
 
+/** The name of a folder whose code is tests. */
+const TESTS_FOLDER = 'tests/'
+
+/** Whether `it` is test code: inside a folder named `tests/`, at any depth. */
+const isTestCode = (it: Item | undefined): boolean => !!it && ((it.kind === 'folder' && it.name === TESTS_FOLDER) || isTestCode(it.parent))
+
 /** The common boxes among the arrows `owned` between the view's `siblings` boxes: each with how many siblings point at it. */
 function commonBoxes(owned: Placed[], isSibling: (id: string) => boolean, siblings: number) {
   const usersOf = Map.groupBy(owned.filter(e => isSibling(e.a) && isSibling(e.b)), e => e.b)
@@ -136,6 +142,7 @@ function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, ow
  * arrows of its own level: each stands for all the links beneath its two boxes, and a link inside one box isn't drawn.
  * An arrow between a box inside the zoomed box and one outside keeps both ends; the layout runs it through a port.
  * Arrows to a common box (see `COMMON`) are left out unless `shows('common')`; `common` says which boxes those are.
+ * Arrows to or from test code are left out unless `shows('tests')` or the view is inside it; `testsHidden` counts them.
  * A box that `hides` says to leave out (a reviewed one, with "Hide reviewed" on) isn't shown, nor are its arrows.
  */
 export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
@@ -143,6 +150,11 @@ export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
   const leftOut = new Set(viewBoxes(ix, top).filter(it => it !== top && hides(it)).map(it => it.id))
   const inner = viewBoxes(ix, top).filter(it => !leftOut.has(it.id))
   links = links.filter(e => !lift(ix, leftOut, e.from) && !lift(ix, leftOut, e.to))
+  // Arrows to and from tests say little about how the code is built, so they are hidden unless the legend's "tests"
+  // is on, or the view is inside tests itself.
+  const touchesTests = (e: Dependency) => isTestCode(ix.items.get(e.from)) || isTestCode(ix.items.get(e.to))
+  const testsHidden = shows('tests') || isTestCode(top) ? 0 : links.filter(touchesTests).length
+  if (testsHidden > 0) links = links.filter(e => !touchesTests(e))
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
   const ids = new Set(inner.map(it => it.id))
@@ -177,7 +189,7 @@ export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
   const expands = (it: Item) => !ext.has(it.id) && (it.kids.some(k => !ids.has(k.id)) || it.diff.length > 0)
   /** The zoomed box's children that have More, which its Open all button opens together. */
   const openable = top ? top.kids.filter(k => ids.has(k.id) && expands(k)).map(k => k.id) : []
-  return { top, boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up, common, commonHidden }
+  return { top, boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up, common, commonHidden, testsHidden }
 }
 /** One map view, as `mapView` builds it. */
 export type View = ReturnType<typeof mapView>

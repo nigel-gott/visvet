@@ -524,6 +524,8 @@ Zoomed into a box, each box inside it with links outside sends one line to its o
 An arrow has the colour of the box it leaves, and a big head where it ends. Its thickness says how many uses it stands for, and its dashes its kind.
 Hover an arrow to see the uses beneath it; click it to list them all, each with its file and line.
 Struck-through kinds are hidden in this view; click one to show it.`
+/** How the legend explains the "tests" chip. */
+const TESTS_HELP = 'Arrows to and from code in a tests/ folder are hidden, except inside one. Click to show them.'
 /** How the legend explains the "common" chip. */
 const COMMON_HELP = `A box is common when at least ${COMMON.least} of the boxes beside it, and at least ${COMMON.share * 100}% of them, point at it (an errors or ids file, say). Arrows to it are hidden, and it shows ◎ with how many use it. Click to show them.`
 
@@ -531,11 +533,12 @@ const COMMON_HELP = `A box is common when at least ${COMMON.least} of the boxes 
  * The legend, whose chips show or hide each kind of arrow, and the arrows to common boxes (`commonHidden` of them are
  * hidden now, to `commonBoxes` boxes). Each chip's tooltip says what it means and when it is hidden.
  */
-function Kinds({ shows, flip, commonBoxes, commonHidden }: { shows: (kind: string) => boolean; flip: (kind: string) => void; commonBoxes: number; commonHidden: number }) {
+function Kinds({ shows, flip, commonBoxes, commonHidden, testsHidden }: { shows: (kind: string) => boolean; flip: (kind: string) => void; commonBoxes: number; commonHidden: number; testsHidden: number }) {
   return (
     <Panel position="bottom-left" className="legend">
       <span className="legend-help" title={ARROWS_HELP}>arrows ⓘ</span>
       {Object.entries(KINDS).map(([k, help]) => <button key={k} title={help} className={shows(k) ? '' : 'off'} onClick={() => flip(k)}><i className={k} /> {k}</button>)}
+      {(testsHidden > 0 || shows('tests')) && <button title={TESTS_HELP} className={shows('tests') ? '' : 'off'} onClick={() => flip('tests')}>tests{testsHidden > 0 && ` (${testsHidden} hidden)`}</button>}
       {commonBoxes > 0 && <button title={COMMON_HELP} className={shows('common') ? '' : 'off'} onClick={() => flip('common')}>◎ common{commonHidden > 0 && ` (${commonHidden} hidden)`}</button>}
     </Panel>
   )
@@ -638,7 +641,7 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     >
       <MapPanel moved={Object.keys(pos.moved).length > 0} reset={pos.reset} />
       <ZoomOut />
-      <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} commonBoxes={v.common.size} commonHidden={v.commonHidden} />
+      <Kinds shows={shows} flip={k => setKinds(m => ({ ...m, [k]: !shows(k) }))} commonBoxes={v.common.size} commonHidden={v.commonHidden} testsHidden={v.testsHidden} />
     </ReactFlow>
   )
 }
