@@ -236,7 +236,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
           <Head it={it} label={ext ? it.id : undefined} />
           <ThreadChip it={it} />
           <ReviewedMark it={it} />
-          {data.commonUsers && <span className="common-mark" title={`Common: ${data.commonUsers.length} boxes here point at this one, so those arrows are hidden unless the legend's "common" is on.`}>used by {data.commonUsers.length}</span>}
+          {data.commonUsers && <span className="common-mark" title={`Common: ${data.commonUsers.length} boxes here point at this one, so those arrows are hidden unless the legend's "common" is on.`}>◎ {data.commonUsers.length}</span>}
           {data.openAll.length > 0 && <button className="grow" onClick={e => { e.stopPropagation(); x.expandAll(data.openAll) }}>
             {data.openAll.every(id => x.expanded.has(id)) ? 'Close all' : 'Open all'}</button>}
           {data.expands && <button className="grow" onClick={e => { e.stopPropagation(); x.expand(it.id) }}>{x.expanded.has(it.id) ? 'Less' : 'More'}</button>}
