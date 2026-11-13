@@ -75,6 +75,9 @@ function usesBeneath(ix: Index, es: Dependency[]) {
   return [kinds, ...listed, ...more].join('\n')
 }
 
+/** The colour of the arrows box `boxId` sends in view `v`: one of `SOURCE_COLOURS`, by the box's place in the view. */
+const colourOfBox = (v: View, boxId: string) => SOURCE_COLOURS[Math.max(0, v.boxes.findIndex(box => box.id === boxId)) % SOURCE_COLOURS.length]
+
 /** How wide an arrow standing for `uses` links is drawn: a pixel, plus one each time the uses double, up to `WIDEST_ARROW`. */
 const arrowWidth = (uses: number) => Math.min(WIDEST_ARROW, 1 + Math.log2(uses))
 
@@ -462,8 +465,7 @@ function flowEdges(ix: Index, v: View, graph: Layout, dragged: (id: string) => b
   const holds = !!sel && v.owner(sel) === sel && v.boxes.some(b => b.parent?.id === sel)
   const own = [...v.detail].filter(([, d]) => holds ? d.tops.has(sel!) : d.exact && (touches(d.es[0].a) || touches(d.es[0].b)))
   const replaced = new Set(own.map(([, d]) => d.replaces))
-  const placeOf = new Map(v.boxes.map((box, place) => [box.id, place]))
-  const colourOf = (boxId: string) => SOURCE_COLOURS[(placeOf.get(boxId) ?? 0) % SOURCE_COLOURS.length]
+  const colourOf = (boxId: string) => colourOfBox(v, boxId)
   return [...[...v.edges].filter(([id]) => !replaced.has(id)).map(e => [e, false] as const), ...own.map(([id, d]) => [[id, d.es] as const, true] as const)]
     .filter(([[, [e]]]) => placed.has(e.a) && placed.has(e.b)).map(([[id, es], exact]) => ({
       id, source: es[0].a, target: es[0].b, type: 'routed',
@@ -527,7 +529,7 @@ Struck-through kinds are hidden in this view; click one to show it.`
 /** How the legend explains the "tests" chip. */
 const TESTS_HELP = 'Arrows to and from code in a tests/ or fuzz/ folder are hidden, except inside one. Click to show them.'
 /** How the legend explains the "common" chip. */
-const COMMON_HELP = `A box is common when at least ${COMMON.least} of the boxes beside it, and at least ${COMMON.share * 100}% of them, point at it (an errors or ids file, say). Arrows to it are hidden, and it shows ◎ with how many use it. Click to show them.`
+const COMMON_HELP = `A box is common when at least ${COMMON.least} of the boxes beside it, and at least ${COMMON.share * 100}% of them, point at it (an errors or ids file, say). Arrows to it are hidden: instead a fan beside it has a short line in each user's colour, meeting in one arrowhead. Click to show them.`
 
 /**
  * The legend, whose chips show or hide each kind of arrow, and the arrows to common boxes (`commonHidden` of them are
@@ -597,7 +599,8 @@ export default function Graph({ visible, pop }: { visible: boolean; pop: number 
     if (old?.key === key) return old.node
     const data: CardData = {
       it, rows, ext: v.ext.has(n.id),
-      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere, zoomPreview: drawsInside, commonUsers: v.common.get(n.id),
+      expands: v.expands(it), openAll: n.id === x.scope ? v.openable : [], boxNotes: notesHere, zoomPreview: drawsInside, commonUsers: v.common.get(n.id)?.map(id => ({ name: x.ix.items.get(id)?.name ?? id, colour: colourOfBox(v, id) })),
+      showCommonArrows: () => setKinds(shown => ({ ...shown, common: true })),
     }
     // Kept inside its parent box, except while a zoom grows it to draw the view inside it: React Flow would push it up.
     const extent = n.parentId && !drawsInside ? 'parent' as const : undefined

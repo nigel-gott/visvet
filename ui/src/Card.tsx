@@ -92,8 +92,36 @@ export type CardData = {
   boxNotes: CodeNote[]
   /** While a zoom passes through this box: the view inside it, drawn into it (see nestedZoom.tsx). */
   zoomPreview?: ZoomPreview
-  /** When the box is common in this view (see `COMMON` in view.ts): how many of the boxes beside it point at it. */
-  commonUsers?: number
+  /** When the box is common in this view (see `COMMON` in view.ts): the boxes beside it that point at it. */
+  commonUsers?: BoxThatUsesThis[]
+  /** Shows the arrows to common boxes, which the fan beside a common box stands in for. */
+  showCommonArrows?: () => void
+}
+
+/** A box that points at a common box: its name, and the colour of the arrows it sends. */
+export type BoxThatUsesThis = { name: string; colour: string }
+
+/** The most lines a fan draws; with more users, the count in the box's header says how many. */
+const FAN_LINES = 9
+/** A fan's size in pixels, and how far its lines start from its arrowhead's tip. */
+const FAN = { width: 54, height: 44, headLength: 12 }
+
+/**
+ * The mark of a common box, beside its left edge, where arrows come in: a short line from each box that uses it, in
+ * that box's arrow colour, all meeting in one arrowhead. It says "many things point here" without drawing every
+ * arrow across the map; hovering names them, and a click draws their arrows.
+ */
+function FanIn({ users, showArrows }: { users: BoxThatUsesThis[]; showArrows?: () => void }) {
+  const lines = users.slice(0, FAN_LINES)
+  const meet = { x: FAN.width - FAN.headLength, y: FAN.height / 2 }
+  const startY = (place: number) => lines.length === 1 ? meet.y : 2 + place * (FAN.height - 4) / (lines.length - 1)
+  return (
+    <svg className="fan-in" width={FAN.width} height={FAN.height} onClick={e => { e.stopPropagation(); showArrows?.() }}>
+      <title>{`Used by ${users.length} boxes here: ${users.map(user => user.name).join(', ')}. Their arrows are hidden; click to draw them.`}</title>
+      {lines.map((user, place) => <line key={place} x1={0} y1={startY(place)} x2={meet.x} y2={meet.y} stroke={user.colour} strokeWidth={2} strokeLinecap="round" />)}
+      <path d={`M${meet.x - 2},${meet.y - 7} L${FAN.width},${meet.y} L${meet.x - 2},${meet.y + 7} z`} className="fan-in-head" />
+    </svg>
+  )
 }
 
 /** The last click on a box, so a second click on it within 300ms counts as a double click. */
@@ -200,13 +228,14 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
       {data.boxNotes.map((note, index) => <BoxBubble key={index} note={note} />)}
       {cue && <span className="cue-label">{cue === 'into' ? 'Double-click to go in' : 'Click to view'}</span>}
       <Handle type="target" position={Position.Left} />
+      {data.commonUsers && <FanIn users={data.commonUsers} showArrows={data.showCommonArrows} />}
       <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${stepHere ? 'tour-step' : ''} ${cue ? 'tour-cue' : ''} ${looksReviewed(x, it) ? 'reviewed' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
           <Head it={it} label={ext ? it.id : undefined} />
           <ThreadChip it={it} />
           <ReviewedMark it={it} />
-          {data.commonUsers && <span className="common-mark" title={`Common: ${data.commonUsers} boxes here point at this one, so those arrows are hidden unless the legend's "common" is on.`}>◎ {data.commonUsers}</span>}
+          {data.commonUsers && <span className="common-mark" title={`Common: ${data.commonUsers.length} boxes here point at this one, so those arrows are hidden unless the legend's "common" is on.`}>used by {data.commonUsers.length}</span>}
           {data.openAll.length > 0 && <button className="grow" onClick={e => { e.stopPropagation(); x.expandAll(data.openAll) }}>
             {data.openAll.every(id => x.expanded.has(id)) ? 'Close all' : 'Open all'}</button>}
           {data.expands && <button className="grow" onClick={e => { e.stopPropagation(); x.expand(it.id) }}>{x.expanded.has(it.id) ? 'Less' : 'More'}</button>}

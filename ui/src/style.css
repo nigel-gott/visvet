@@ -150,6 +150,9 @@ main { grid-area: 2 / 2; min-height: 0 }
 /* Where a use listed under an arrow is: its file and line. */
 .use-site { color: var(--muted); font-size: 11px }
 /* On a box most of its siblings point at: how many do. */
+/* A common box's fan, outside its left edge where arrows come in. */
+.fan-in { position: absolute; left: -58px; top: 6px; overflow: visible; cursor: pointer }
+.fan-in-head { fill: var(--fg) }
 .common-mark { flex: none; padding: 0 5px; border-radius: 8px; font: 600 10px/16px var(--mono); color: var(--muted); border: 1px solid var(--muted); cursor: help }
 .card.ext { opacity: .6; border-style: dashed }
 .legend button { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer }

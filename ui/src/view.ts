@@ -22,11 +22,11 @@ const TEST_FOLDERS = new Set(['tests/', 'fuzz/'])
 /** Whether `it` is test code: inside a folder named in `TEST_FOLDERS`, at any depth. */
 const isTestCode = (it: Item | undefined): boolean => !!it && ((it.kind === 'folder' && TEST_FOLDERS.has(it.name)) || isTestCode(it.parent))
 
-/** The common boxes among the arrows `owned` between the view's `siblings` boxes: each with how many siblings point at it. */
+/** The common boxes among the arrows `owned` between the view's `siblings` boxes: each with the siblings that point at it. */
 function commonBoxes(owned: Placed[], isSibling: (id: string) => boolean, siblings: number) {
   const usersOf = Map.groupBy(owned.filter(e => isSibling(e.a) && isSibling(e.b)), e => e.b)
-  const users = [...usersOf].map(([box, arrows]) => [box, new Set(arrows.map(e => e.a)).size] as const)
-  return new Map(users.filter(([, count]) => count >= COMMON.least && count >= COMMON.share * (siblings - 1)))
+  const users = [...usersOf].map(([box, arrows]) => [box, [...new Set(arrows.map(e => e.a))]] as const)
+  return new Map(users.filter(([, from]) => from.length >= COMMON.least && from.length >= COMMON.share * (siblings - 1)))
 }
 
 /** The file an arrow starts in and the line that mentions its target, e.g. "src/a.rs:12", for listing concrete uses. */
