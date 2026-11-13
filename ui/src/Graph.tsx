@@ -522,7 +522,7 @@ const KINDS: Record<DependencyKind, string> = {
 }
 /** How the legend explains what the map's arrows stand for. */
 const ARROWS_HELP = `Each view draws the arrows between its own boxes: one arrow per pair, standing for every link beneath them. A link inside one box isn't drawn until you zoom into it.
-Zoomed into a box, each box inside it with links outside sends one line to its own port on the zoomed box's border (one for arrows out, one for arrows in); from the port, one arrow goes to each outside box.
+Zoomed into a box, arrows to boxes outside it show only for the box you select: it sends one line to its own port on the zoomed box's border (one for arrows out, one for arrows in); from the port, one arrow goes to each outside box.
 An arrow has the colour of the box it leaves, and a big head where it ends. Its thickness says how many uses it stands for, and its dashes its kind.
 Hover an arrow to see the uses beneath it; click it to list them all, each with its file and line.
 Struck-through kinds are hidden in this view; click one to show it.`

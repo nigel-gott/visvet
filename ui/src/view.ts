@@ -143,6 +143,7 @@ function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, ow
  * An arrow between a box inside the zoomed box and one outside keeps both ends; the layout runs it through a port.
  * Arrows to a common box (see `COMMON`) are left out unless `shows('common')`; `common` says which boxes those are.
  * Arrows to or from test code are left out unless `shows('tests')` or the view is inside it; `testsHidden` counts them.
+ * Zoomed in, arrows to boxes outside the zoomed one are drawn only for the selected box.
  * A box that `hides` says to leave out (a reviewed one, with "Hide reviewed" on) isn't shown, nor are its arrows.
  */
 export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
@@ -155,6 +156,11 @@ export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
   const touchesTests = (e: Dependency) => isTestCode(ix.items.get(e.from)) || isTestCode(ix.items.get(e.to))
   const testsHidden = shows('tests') || isTestCode(top) ? 0 : links.filter(touchesTests).length
   if (testsHidden > 0) links = links.filter(e => !touchesTests(e))
+  // Zoomed in, the links leaving the zoomed box would bury its own arrows: one shows only while a box inside that it
+  // starts or ends in is selected.
+  const insideTheZoomedBox = (id: string) => !top || within(ix.items.get(id), top.id)
+  const ofTheSelectedBox = (e: Dependency) => !!sel && sel !== top?.id && [e.from, e.to].some(id => within(ix.items.get(id), sel))
+  links = links.filter(e => (insideTheZoomedBox(e.from) && insideTheZoomedBox(e.to)) || ofTheSelectedBox(e))
   /** A box's parent in this view. */
   const up = (it: Item) => it.parent
   const ids = new Set(inner.map(it => it.id))
