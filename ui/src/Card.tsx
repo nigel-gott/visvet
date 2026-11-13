@@ -143,14 +143,15 @@ const diveTo = (it: Item, t: Item, zoomable: boolean) =>
 
 /**
  * Handles a click on box `it`, or on one of its rows, pills or field rows (`t`): selects it; a double click zooms the
- * map into it, or for a member, into the box it lives in, and selects it. A box in view that can't be zoomed into (a
- * function) opens instead, as More does; a double click never closes it (its first click may already have opened it,
+ * map into it, or for a member, into the box it lives in, and selects it. A file, or a box in view that can't be
+ * zoomed into (a function), opens instead, showing its code where it stands, as More does; a double click never closes it (its first click may already have opened it,
  * e.g. by reaching a tour step).
  */
 function useClick(it: Item, ext: boolean) {
   const x = useContext(X)
   const { getViewport, getInternalNode } = useReactFlow()
-  const zoomable = it.id !== x.scope && !it.m && it.kids.length > 0
+  // A file opens where it stands, to be read in place, rather than zooming into its types.
+  const zoomable = it.id !== x.scope && !it.m && it.kind !== 'file' && it.kids.length > 0
   const dive = (t: Item) => {
     if (t === it && !zoomable && !ext) return x.expanded.has(it.id) ? undefined : x.expand(it.id)
     const to = diveTo(it, t, zoomable)

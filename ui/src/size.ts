@@ -32,11 +32,11 @@ function block(text: string, w: number) {
   return 16 * n + 2
 }
 /**
- * Whether a box shows its code: when expanded and it holds nothing else (a function or method), or it is the zoomed
+ * Whether a box shows its code: when expanded and it is a file, read where it stands, or holds nothing else (a function or method), or it is the zoomed
  * box, whose insides are already boxes, or the box a tour step shows, whose notes are on its code. Otherwise More
  * lists what is inside it.
  */
-export const showsCode = (it: Item, x: Ctx) => x.expanded.has(it.id) && it.diff.length > 0 && (!it.kids.length || it.id === x.scope || it.id === x.stepBox)
+export const showsCode = (it: Item, x: Ctx) => x.expanded.has(it.id) && it.diff.length > 0 && (it.kind === 'file' || !it.kids.length || it.id === x.scope || it.id === x.stepBox)
 const CODE_FONT = '12px ui-monospace, SFMono-Regular, Menlo, monospace'
 /** Whether the screen is as narrow as a phone's: the width style.css's phone rules start at. */
 export function isPhone() {
