@@ -187,7 +187,7 @@ impl<'a> Tally<'a> {
 
     /// Records a link in the zoom views it shows in: as an arrow between two children of the innermost box holding
     /// both ends, and as an outside peer of each box that holds only one end, where the other end is drawn as its
-    /// box at the same depth. Views of a type's members aren't reported, and "links" only where the map shows them.
+    /// outermost box not around that one too (as the map draws it: all of another crate as one box). Views of a type's members aren't reported, and "links" only where the map shows them.
     fn add_to_zoom_views(&mut self, dep: &'a Dependency, from: &'a Place, to: &'a Place, holds_code: &HashSet<&str>) {
         let shown_in = |view: &str| dep.kind != DependencyKind::Links || !holds_code.contains(view);
         let shared = from.nesting.iter().zip(&to.nesting).take_while(|(from_box, to_box)| from_box == to_box).count();
@@ -203,7 +203,7 @@ impl<'a> Tally<'a> {
         for (inside, outside) in [(from, to), (to, from)] {
             // Each box around this end, down to its file, that the other end is outside of.
             for depth in shared..inside.file_depth.min(inside.nesting.len()) {
-                let (zoomed, peer) = (inside.nesting[depth].as_str(), &outside.nesting[depth.min(outside.nesting.len() - 1)]);
+                let (zoomed, peer) = (inside.nesting[depth].as_str(), &outside.nesting[shared]);
                 if shown_in(zoomed) {
                     self.zoom_views.entry(zoomed).or_default().outside_peers.insert(peer);
                 }

@@ -9,9 +9,6 @@ function face(t: Item) {
   return pub.length ? pub : t.kids
 }
 
-/** The most boxes inside a zoomed view with their own arrows to the same outside box; beyond this, one arrow. */
-const BUNDLE = 4
-
 /**
  * When a box is "common" in a view: at least `least` of the boxes beside it point at it, and at least `share` of them
  * all. Such a box (an errors or ids file, say) is used by nearly everything, so its arrows say little and bury the
@@ -55,12 +52,14 @@ function lift(ix: Index, ids: Set<string>, id: string) {
 }
 
 /**
- * Where a link's end outside the zoomed box is drawn: at the box around it at the zoomed box's own level (zoomed into
- * a file, another file), or, for a link of the selected box (`exact`), at its exact box, drawn inside that one.
+ * Where a link's end outside the zoomed box is drawn: at the outermost box around it that is not around the zoomed box
+ * too, so the nearer a box is, the finer it shows (zoomed into crates/a/src/, a file beside it shows as itself and all
+ * of crates/b as one box), or, for a link of the selected box (`exact`), at its exact box, drawn inside that one.
  */
 function outsideEnd(ix: Index, top: Item | undefined, exact: boolean, id: string) {
   let it = ix.items.get(id)
-  while (!exact && top && it && it.depth > top.depth) it = it.parent
+  const aroundTheZoomedBoxToo = (box: Item) => within(top, box.id)
+  while (!exact && top && it?.parent && !aroundTheZoomedBoxToo(it.parent)) it = it.parent
   return it
 }
 
@@ -94,14 +93,14 @@ function linkEnds(ix: Index, shown: Dependency[], top: Item | undefined, ids: Se
 const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
 
 /**
- * The arrows between owner boxes, merged by their two ends. When more than `BUNDLE` boxes inside the zoomed box have
- * arrows to (or from) one outside box, those become one arrow from the zoomed box itself, with a count: e.g. every
- * type in code.rs "generates" its copy in contract.ts. Selecting a box inside still shows its own exact arrows.
+ * The arrows between owner boxes, merged by their two ends. The arrows between the boxes inside the zoomed box and one
+ * outside box become one arrow from the zoomed box itself, with a count: e.g. every type in code.rs "generates" its
+ * copy in contract.ts. Selecting a box inside still shows its own exact arrows.
  */
 function bundle(owned: Placed[], top: Item | undefined, ext: Map<string, Item>) {
   const inside = (id: string) => !!top && id !== top.id && !ext.has(id)
   const fans = Map.groupBy(owned.filter(e => inside(e.a) !== inside(e.b)), e => (inside(e.a) ? '-> ' + e.b : '<- ' + e.a))
-  const bundled = new Set([...fans.values()].filter(es => new Set(es.map(e => (inside(e.a) ? e.a : e.b))).size > BUNDLE).flat())
+  const bundled = new Set([...fans.values()].flat())
   return Map.groupBy(owned.map(e => (!bundled.has(e) ? e : inside(e.a) ? { ...e, a: top!.id } : { ...e, b: top!.id })), key)
 }
 

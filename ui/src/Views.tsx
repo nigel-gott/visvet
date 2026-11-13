@@ -24,14 +24,15 @@ const MARK: Record<ChangeStatus, string> = { added: '+', changed: '~', removed: 
  * An item's status mark, kind badge (a coloured symbol, plus the kind's name for anything but a member), name, and
  * for a labelled Markdown file, its status. A Markdown file's labelled kind (issue, milestone, idea or hub) replaces "file".
  */
-export function Head({ it }: { it: Item }) {
+/** A box's header; `label` stands in for its name, e.g. an outside box's whole path, since many folders are called src/. */
+export function Head({ it, label }: { it: Item; label?: string }) {
   const x = useContext(X)
   const kind = it.labels?.kind ?? it.kind
   return (
     <>
       <span className={'mk ' + it.status}>{MARK[it.status]}</span>
       <span className={'badge k-' + kind} title={kind}>{!it.m && kind}</span>
-      <span className={'name ' + it.status}>{it.m?.signature ?? it.name}</span>
+      <span className={'name ' + it.status}>{label ?? it.m?.signature ?? it.name}</span>
       <LineCounts count={it.diffCount} />
       {it.labels?.status && <span className={'tag ' + it.labels.status} title="status">{it.labels.status}</span>}
       <Debuffs it={it} />

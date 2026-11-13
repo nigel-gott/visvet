@@ -203,7 +203,7 @@ export function Card({ data }: NodeProps<Node<CardData>>) {
       <div className={`card ${it.status} ${ext ? 'ext' : ''} ${x.sel === it.id ? 'picked' : ''} ${stepHere ? 'tour-step' : ''} ${cue ? 'tour-cue' : ''} ${looksReviewed(x, it) ? 'reviewed' : ''} ${!data.zoomPreview ? '' : data.zoomPreview.landed ? 'zoom-landed' : data.zoomPreview.inward ? 'zooming-in' : 'zooming-out'}`}
         onClick={() => click(it)}>
         <div className={`hdr ${it.status} ${x.sel === it.id ? 'sel' : ''}`}>
-          <Head it={it} />
+          <Head it={it} label={ext ? it.id : undefined} />
           <ThreadChip it={it} />
           <ReviewedMark it={it} />
           {data.commonUsers && <span className="common-mark" title={`Common: ${data.commonUsers} boxes here point at this one, so those arrows are hidden unless the legend's "common" is on.`}>◎ {data.commonUsers}</span>}
