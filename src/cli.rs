@@ -144,6 +144,9 @@ pub async fn run() -> anyhow::Result<()> {
         Cmd::Threads { stop_hook: true, .. } => threads::stop_hook(&repo_root),
         Cmd::Threads { all, .. } => threads::print(&repo_root, all),
         Cmd::Reply { id, text, resolve, ask } => {
+            if resolve || ask {
+                threads::refuse_closing_over_unseen(&repo_root, &id)?;
+            }
             let state = if resolve { ThreadState::Resolved } else if ask { ThreadState::Question } else { ThreadState::Working };
             store::reply(&repo_root, id, Author::Ai, text.join(" "), state)
         }

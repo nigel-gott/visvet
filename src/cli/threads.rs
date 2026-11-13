@@ -1,8 +1,10 @@
 //! Comment threads for the AI: listing what waits for it, the stop hook that keeps it working, and waiting while idle.
 use crate::review::build_review;
+use crate::state::visvet_dir::HandOff;
 use crate::state::{store, visvet_dir};
-use crate::types::{Author, ChangeStatus, Thread, ThreadState};
-use std::collections::HashSet;
+use crate::types::{Author, ChangeStatus, Thread, ThreadId, ThreadState};
+use anyhow::bail;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::time::Duration;
 
@@ -42,11 +44,46 @@ fn describe(threads: &[Thread]) -> String {
     out + "Answer each: visvet reply <id> \"<what you did>\" --resolve, or --ask to ask the user something; without a flag it marks the thread working."
 }
 
+/// The time (`at`) of the newest message of each thread the AI has been shown, by thread id.
+type NewestShown = BTreeMap<String, u64>;
+
+/// What the AI has been shown so far; nothing before it was first shown a thread.
+fn newest_shown(repo_root: &Path) -> anyhow::Result<NewestShown> {
+    Ok(store::get(repo_root, HandOff::ThreadsShownToTheAi)?.unwrap_or_default())
+}
+
+/// Notes that the AI has now been shown every message of `threads`.
+fn note_shown(repo_root: &Path, threads: &[Thread]) -> anyhow::Result<()> {
+    let newest = threads.iter().filter_map(|thread| Some((thread.id.0.clone(), thread.messages.last()?.at)));
+    let shown: NewestShown = newest_shown(repo_root)?.into_iter().chain(newest).collect();
+    store::put(repo_root, HandOff::ThreadsShownToTheAi, &shown)
+}
+
+/// Prints `threads` for the AI and notes it has seen them.
+fn show_to_the_ai(repo_root: &Path, threads: &[Thread]) -> anyhow::Result<String> {
+    note_shown(repo_root, threads)?;
+    Ok(describe(threads))
+}
+
+/// Before the AI resolves thread `id` or asks in it: refuses if the user wrote there after what the AI was last
+/// shown (a second question typed while the AI worked on the first), showing those messages so it answers them too.
+pub fn refuse_closing_over_unseen(repo_root: &Path, id: &ThreadId) -> anyhow::Result<()> {
+    let Some(thread) = store::load(repo_root)?.threads.into_iter().find(|thread| &thread.id == id) else { return Ok(()) };
+    let seen_up_to = newest_shown(repo_root)?.get(&id.0).copied().unwrap_or(0);
+    let unseen: Vec<String> = thread.messages.iter().filter(|m| m.author == Author::User && m.at > seen_up_to)
+        .map(|m| format!("   {}: {}", m.name, m.text.replace('\n', "\n      "))).collect();
+    if unseen.is_empty() {
+        return Ok(());
+    }
+    note_shown(repo_root, std::slice::from_ref(&thread))?;
+    bail!("The user wrote in {id} since you last read it, so it was not replied to:\n{}\nAnswer that too, then reply again.", unseen.join("\n"))
+}
+
 /// Prints the threads waiting for the AI (`visvet threads`), or with `all` every unresolved one.
 pub fn print(repo_root: &Path, all: bool) -> anyhow::Result<()> {
     let ts = waiting(repo_root, all)?;
     if !ts.is_empty() {
-        println!("{}", describe(&ts));
+        println!("{}", show_to_the_ai(repo_root, &ts)?);
     }
     Ok(())
 }
@@ -58,7 +95,7 @@ pub fn stop_hook(repo_root: &Path) -> anyhow::Result<()> {
     let mut reasons = vec![];
     let ts = waiting(repo_root, false)?;
     if !ts.is_empty() {
-        reasons.push(format!("The user left {} new comment thread(s) in visvet while you worked:\n{}", ts.len(), describe(&ts)));
+        reasons.push(format!("The user left {} new comment thread(s) in visvet while you worked:\n{}", ts.len(), show_to_the_ai(repo_root, &ts)?));
     }
     let lost = stranded(repo_root)?;
     if !lost.is_empty() {
@@ -79,7 +116,7 @@ pub fn wait(repo_root: &Path) -> anyhow::Result<()> {
     loop {
         let ts = waiting(repo_root, false)?;
         if !ts.is_empty() {
-            println!("{}", describe(&ts));
+            println!("{}", show_to_the_ai(repo_root, &ts)?);
             return Ok(());
         }
         std::thread::sleep(Duration::from_secs(2));
@@ -99,6 +136,24 @@ mod tests {
         let text = describe(&[t]);
         assert!(text.contains("(2 earlier messages in .visvet/threads/k3f9a2/)") && text.contains("Ann: ok, rename it"));
         assert!(!text.contains("because"));
+    }
+
+    #[test]
+    fn a_thread_is_not_closed_over_a_message_the_ai_has_not_seen() {
+        let r = std::env::temp_dir().join(format!("visvet-unseen-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&r);
+        std::fs::create_dir_all(&r).unwrap();
+        store::new_thread(&r, MapId("src/a.rs".into()), "rename this?".into()).unwrap();
+        let thread = || store::load(&r).unwrap().threads.remove(0);
+        print(&r, false).unwrap();
+        // Typed while the AI worked on the first question: it was never shown.
+        std::thread::sleep(Duration::from_millis(5));
+        store::reply(&r, thread().id, Author::User, "and line 9?".into(), ThreadState::Open).unwrap();
+        let refused = refuse_closing_over_unseen(&r, &thread().id).unwrap_err().to_string();
+        assert!(refused.contains("and line 9?"));
+        // The refusal showed it, so once answered the thread can close.
+        assert!(refuse_closing_over_unseen(&r, &thread().id).is_ok());
+        std::fs::remove_dir_all(r).unwrap();
     }
 
     #[test]

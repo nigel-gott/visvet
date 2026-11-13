@@ -16,6 +16,9 @@ pub enum HandOff {
     View,
     /// Where `visvet show` asks the UI to go.
     Show,
+    /// The newest message of each thread the AI has been shown, so `visvet reply` never closes a thread over one it
+    /// hasn't read.
+    ThreadsShownToTheAi,
 }
 
 /// `.visvet/` in one repository.
@@ -65,7 +68,7 @@ impl VisvetDir {
 
     /// The file for hand-off `h`.
     pub fn hand_off(&self, h: HandOff) -> PathBuf {
-        self.0.join(match h { HandOff::View => "view.json", HandOff::Show => "show.json" })
+        self.0.join(match h { HandOff::View => "view.json", HandOff::Show => "show.json", HandOff::ThreadsShownToTheAi => "threads-shown.json" })
     }
 
     /// The test coverage from the last `visvet coverage`, as LCOV.
