@@ -525,7 +525,7 @@ An arrow has the colour of the box it leaves, and a big head where it ends. Its 
 Hover an arrow to see the uses beneath it; click it to list them all, each with its file and line.
 Struck-through kinds are hidden in this view; click one to show it.`
 /** How the legend explains the "tests" chip. */
-const TESTS_HELP = 'Arrows to and from code in a tests/ folder are hidden, except inside one. Click to show them.'
+const TESTS_HELP = 'Arrows to and from code in a tests/ or fuzz/ folder are hidden, except inside one. Click to show them.'
 /** How the legend explains the "common" chip. */
 const COMMON_HELP = `A box is common when at least ${COMMON.least} of the boxes beside it, and at least ${COMMON.share * 100}% of them, point at it (an errors or ids file, say). Arrows to it are hidden, and it shows ◎ with how many use it. Click to show them.`
 

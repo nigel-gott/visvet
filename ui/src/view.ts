@@ -16,11 +16,11 @@ function face(t: Item) {
  */
 export const COMMON = { least: 5, share: 0.5 }
 
-/** The name of a folder whose code is tests. */
-const TESTS_FOLDER = 'tests/'
+/** The names of folders whose code is tests: tests, and fuzzing targets. */
+const TEST_FOLDERS = new Set(['tests/', 'fuzz/'])
 
-/** Whether `it` is test code: inside a folder named `tests/`, at any depth. */
-const isTestCode = (it: Item | undefined): boolean => !!it && ((it.kind === 'folder' && it.name === TESTS_FOLDER) || isTestCode(it.parent))
+/** Whether `it` is test code: inside a folder named in `TEST_FOLDERS`, at any depth. */
+const isTestCode = (it: Item | undefined): boolean => !!it && ((it.kind === 'folder' && TEST_FOLDERS.has(it.name)) || isTestCode(it.parent))
 
 /** The common boxes among the arrows `owned` between the view's `siblings` boxes: each with how many siblings point at it. */
 function commonBoxes(owned: Placed[], isSibling: (id: string) => boolean, siblings: number) {
