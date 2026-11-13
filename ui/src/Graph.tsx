@@ -41,21 +41,27 @@ const GLIDE = { duration: 900, interpolate: 'linear' as const, ease: easeInOut }
 const nodeTypes = { card: Card, stepBubble: () => <StepBubble /> }
 
 /** Follows ELK's route, which bends around boxes, while both ends are where ELK put them; a curve once one was dragged. */
-function Routed({ id, data, label, style, markerEnd, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<Edge<{ points?: XYPosition[]; uses?: string }>>) {
+function Routed({ id, data, label, style, markerEnd, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition }: EdgeProps<Edge<{ points?: XYPosition[]; uses?: string; colour?: string }>>) {
   const pts = data?.points
   const [a, b] = pts ? [pts[(pts.length - 1) >> 1], pts[pts.length >> 1]] : []
   const [path, lx, ly] = pts && a && b
     ? [`M${pts.map(p => `${p.x},${p.y}`).join('L')}`, (a.x + b.x) / 2, (a.y + b.y) / 2]
     // No ELK route (an end was dragged): right angles too, like ELK's, never a curve.
     : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 0 })
+  const stroke = data?.colour ? { ...style, stroke: data.colour } : style
   // Hovering the arrow lists the uses beneath it (see `usesBeneath`).
-  return <g><title>{data?.uses}</title><BaseEdge id={id} path={path} style={style} markerEnd={markerEnd} label={label} labelX={lx} labelY={ly} /></g>
+  return <g><title>{data?.uses}</title><BaseEdge id={id} path={path} style={stroke} markerEnd={markerEnd} label={label} labelX={lx} labelY={ly} /></g>
 }
 
 /** The most uses an arrow's tooltip lists; a click on the arrow lists them all in the drawer. */
 const USES_LISTED = 12
 /** The widest an arrow is drawn, in pixels, however many uses it stands for; and how big its head is, in pixels. */
-const WIDEST_ARROW = 5, ARROW_HEAD = 14
+const WIDEST_ARROW = 5, ARROW_HEAD = 24
+/**
+ * The colours arrows take from the box they leave, told apart in light and dark themes alike. Boxes take them in the
+ * view's order, so neighbours differ; with more boxes than colours, they repeat.
+ */
+const SOURCE_COLOURS = ['#2f7ed8', '#e5762f', '#2ca58d', '#d9488f', '#8b5cf6', '#c9a227', '#e04848', '#4caf50']
 
 /**
  * What hovering an arrow says: how many links it stands for, of which kinds, and the first of them, each as
@@ -72,7 +78,7 @@ function usesBeneath(ix: Index, es: Dependency[]) {
 /** How wide an arrow standing for `uses` links is drawn: a pixel, plus one each time the uses double, up to `WIDEST_ARROW`. */
 const arrowWidth = (uses: number) => Math.min(WIDEST_ARROW, 1 + Math.log2(uses))
 
-/** An arrow's kind for its colour and dashes: the one kind of its links (a manifest's "depends" aside), else "mix". */
+/** An arrow's kind for its dashes: the one kind of its links (a manifest's "depends" aside), else "mix". */
 function drawnKind(es: Dependency[]) {
   const kinds = new Set(es.map(e => e.kind))
   if (kinds.size > 1) kinds.delete('depends')
@@ -423,18 +429,22 @@ function flowEdges(ix: Index, v: View, graph: Layout, dragged: (id: string) => b
   const holds = !!sel && v.owner(sel) === sel && v.boxes.some(b => b.parent?.id === sel)
   const own = [...v.detail].filter(([, d]) => holds ? d.tops.has(sel!) : d.exact && (touches(d.es[0].a) || touches(d.es[0].b)))
   const replaced = new Set(own.map(([, d]) => d.replaces))
+  const placeOf = new Map(v.boxes.map((box, place) => [box.id, place]))
+  const colourOf = (boxId: string) => SOURCE_COLOURS[(placeOf.get(boxId) ?? 0) % SOURCE_COLOURS.length]
   return [...[...v.edges].filter(([id]) => !replaced.has(id)).map(e => [e, false] as const), ...own.map(([id, d]) => [[id, d.es] as const, true] as const)]
     .filter(([[, [e]]]) => placed.has(e.a) && placed.has(e.b)).map(([[id, es], exact]) => ({
       id, source: es[0].a, target: es[0].b, type: 'routed',
-      data: { points: dragged(es[0].a) || dragged(es[0].b) ? undefined : graph.routes[id], uses: usesBeneath(ix, es) },
+      // A highlighted arrow keeps the highlight's own colour.
+      data: { points: dragged(es[0].a) || dragged(es[0].b) ? undefined : graph.routes[id], uses: usesBeneath(ix, es),
+        colour: hl.has(id) ? undefined : colourOf(es[0].a)},
       // Thicker the more uses it stands for.
       style: weight(es) > 1 ? { strokeWidth: arrowWidth(weight(es)) } : undefined,
       // With a box selected, its own arrows stay bright and the rest fade, so selecting never moves anything.
       className: drawnKind(es) + (hl.has(id) ? ' hl' : '') + (exact ? ' exact' : '') + (sel && !es.some(e => touches(e.a) || touches(e.b)) ? ' faded' : ''),
       // The head keeps its size however thick the arrow: a marker is measured in line widths.
-      markerEnd: es.some(e => e.kind !== 'has') ? { type: MarkerType.ArrowClosed, width: ARROW_HEAD / arrowWidth(weight(es)), height: ARROW_HEAD / arrowWidth(weight(es)) } : undefined,
-      // A count of the uses merged into the arrow, or one link's own words, e.g. "owns".
-      label: weight(es) > 1 ? weight(es) : es[0].label ?? undefined,
+      markerEnd: es.some(e => e.kind !== 'has') ? { type: MarkerType.ArrowClosed, color: hl.has(id) ? undefined : colourOf(es[0].a), width: ARROW_HEAD / arrowWidth(weight(es)), height: ARROW_HEAD / arrowWidth(weight(es)) } : undefined,
+      // One link's own words, e.g. "owns"; an arrow standing for many says how many only when hovered.
+      label: weight(es) === 1 ? es[0].label ?? undefined : undefined,
     }))
 }
 
@@ -477,7 +487,7 @@ const KINDS: Record<DependencyKind, string> = {
 }
 /** How the legend explains what the map's arrows stand for. */
 const ARROWS_HELP = `Each view draws the arrows between its own boxes: one arrow per pair, standing for every link beneath them. A link inside one box isn't drawn until you zoom into it.
-An arrow's number and thickness say how many uses it stands for. It has its kind's colour, or grey when it mixes kinds.
+An arrow has the colour of the box it leaves, and a big head where it ends. Its thickness says how many uses it stands for, and its dashes its kind.
 Hover an arrow to see the uses beneath it; click it to list them all, each with its file and line.
 Struck-through kinds are hidden in this view; click one to show it.`
 /** How the legend explains the "common" chip. */
