@@ -189,7 +189,7 @@ export type Importance = number;
 /**
  * The languages visvet tells apart.
  */
-export type Language = "rust" | "typescript" | "tsx" | "javascript" | "css" | "json" | "toml" | "markdown" | "lisp" | "other";
+export type Language = "rust" | "typescript" | "tsx" | "javascript" | "css" | "json" | "toml" | "markdown" | "lisp" | "gdscript" | "gdshader" | "gdresource" | "other";
 
 /**
  * The first and last line of something in its file, 1-based, including its doc comment.

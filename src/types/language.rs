@@ -21,6 +21,12 @@ pub enum Language {
     Markdown,
     /// A Lisp-family file of s-expressions: `.lisp`, `.sexp`, `.scm`, `.clj` or `.el`. Its top-level forms are boxes.
     Lisp,
+    /// Godot's GDScript, in a .gd file.
+    GdScript,
+    /// A Godot shader, in a .gdshader file.
+    GdShader,
+    /// A Godot scene or resource: `.tscn`, `.tres` or `project.godot`.
+    GdResource,
     /// Anything else, e.g. YAML or a licence.
     #[default]
     Other,
@@ -39,6 +45,9 @@ impl Language {
             "toml" => Self::Toml,
             "md" => Self::Markdown,
             "lisp" | "sexp" | "scm" | "clj" | "el" => Self::Lisp,
+            "gd" => Self::GdScript,
+            "gdshader" => Self::GdShader,
+            "tscn" | "tres" | "godot" => Self::GdResource,
             _ => Self::Other,
         }
     }
@@ -52,9 +61,9 @@ impl Language {
     pub fn file_comment(self) -> &'static str {
         match self {
             Self::Rust => "//!",
-            Self::TypeScript | Self::Tsx | Self::JavaScript | Self::Css => "//",
-            Self::Lisp => ";",
-            Self::Json | Self::Toml | Self::Markdown | Self::Other => "#",
+            Self::TypeScript | Self::Tsx | Self::JavaScript | Self::Css | Self::GdShader => "//",
+            Self::Lisp | Self::GdResource => ";",
+            Self::Json | Self::Toml | Self::Markdown | Self::GdScript | Self::Other => "#",
         }
     }
 
