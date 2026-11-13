@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { ReactFlow, BaseEdge, Panel, Position, MarkerType, getSmoothStepPath, useReactFlow, type Edge, type EdgeProps, type Node, type NodeChange, type XYPosition } from '@xyflow/react'
-import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
+import ELK, { type ElkExtendedEdge, type ElkNode, type ElkPort } from 'elkjs/lib/elk.bundled.js'
 import { reportView, type Dependency, type DependencyKind, type Index, type Item } from './model'
 import { X } from './context'
 import { hidesReviewed } from './Reviewed'
@@ -97,16 +97,26 @@ export type Laid = Pick<Node, 'id' | 'parentId' | 'position' | 'width' | 'height
  */
 const flipped = (v: View) => new Set([...v.edges, ...v.detail].filter(([, d]) => v.ext.has(('es' in d ? d.es[0] : d[0]).a)).map(([id]) => id))
 
+/**
+ * The port on the zoomed box's border that box `inner`, inside it, sends its arrows to outside boxes through (`out`),
+ * or takes arrows from outside boxes through.
+ */
+const borderPort = (inner: string, out: boolean) => `${inner}#${out ? 'to' : 'from'}-outside`
+/** The ELK edge id of the one line inside the zoomed box from a box to its border port, which its arrows through it share. */
+const insideLine = (port: string) => `${port}#inside`
+
 /** The space between a tour step's bubble and its box, and how far in from the box's corner its arrows attach, in pixels. */
 const BUBBLE_GAP = 24, PORT_INSET = 24
 
 /**
- * ELK's input: a node per box, nested in its parent's node, and an edge per lifted link; while a tour step shows a box
+ * ELK's input: a node per box, nested in its parent's node, and an edge per lifted link; zoomed in, an arrow between a
+ * box inside and one outside goes through that inner box's port on the zoomed box's border (`throughPort`, by arrow
+ * id): one line from the box to its port, then from the port one edge per outside box; while a tour step shows a box
  * in this view, its bubble too. `folded` says where the bubble went: into the box's own node, which grows by the
  * bubble's width to its left, so ELK keeps the two together (see `unfold`); or, for a box drawing boxes inside it, as
  * a node of its own beside the box (an edge to the box puts it just left of it).
  */
-function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): { graph: ElkNode; folded: boolean } {
+function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => number, bubble?: StepBubbleBox): { graph: ElkNode; folded: boolean; throughPort: Map<string, string> } {
   // Each box starts at its place in source order, far enough apart that box heights can't change it; the interactive
   // crossing step keeps that order down each column.
   const nodes = new Map<string, ElkNode>(v.boxes.map((it, i) => [it.id, {
@@ -117,18 +127,32 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
       'elk.nodeSize.constraints': 'MINIMUM_SIZE', 'elk.nodeSize.minimum': `(${wide(it)}, ${size(it)})`,
     },
   }]))
+  const throughPort = new Map<string, string>(), insideLines = new Map<string, ElkExtendedEdge>()
   const root: ElkNode = {
     id: 'root',
     children: [],
     // Both the merged top-level arrows and the exact arrows they stand for get routes, so either set can be drawn.
     edges: [...v.edges, ...v.detail].map(([id, d]) => {
       const e = 'es' in d ? d.es[0] : d[0]
-      return v.ext.has(e.a) ? { id, sources: [e.b], targets: [e.a] } : { id, sources: [e.a], targets: [e.b] }
+      const fromOutside = v.ext.has(e.a), [inner, outer] = fromOutside ? [e.b, e.a] : [e.a, e.b]
+      const crossesTheBorder = !!v.top && inner !== v.top.id && v.ext.has(outer)
+      if (!crossesTheBorder) return { id, sources: [inner], targets: [outer] }
+      const port = borderPort(inner, !fromOutside)
+      throughPort.set(id, port)
+      insideLines.set(port, { id: insideLine(port), sources: [inner], targets: [port] })
+      return { id, sources: [port], targets: [outer] }
     }),
     // Nodes sharing a layer line up across the flow, so flowing RIGHT stacks unlinked boxes in a column, not a wide row.
     layoutOptions: { ...LAYOUT, 'elk.direction': 'RIGHT' },
   }
   for (const it of v.boxes) (nodes.get(v.up(it)?.id ?? '') || root).children!.push(nodes.get(it.id)!)
+  // Arrows from outside boxes are given to ELK the other way round (see `flipped`), so every port faces right.
+  const zoomedNode = v.top && nodes.get(v.top.id)
+  if (zoomedNode && insideLines.size) {
+    zoomedNode.ports = [...insideLines.keys()].map((id): ElkPort => ({ id, width: 1, height: 1, layoutOptions: { 'elk.port.side': 'EAST' } }))
+    zoomedNode.layoutOptions = { ...zoomedNode.layoutOptions, 'elk.portConstraints': 'FIXED_SIDE' }
+    root.edges!.push(...insideLines.values())
+  }
   // Only beside the step's real box: not beside it drawn as an outside box of another view.
   const target = bubble && !v.ext.has(bubble.target) ? v.boxes.find(it => it.id === bubble.target) : undefined
   const targetNode = target && nodes.get(target.id)!
@@ -147,7 +171,7 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
       edge.sources = edge.sources.map(id => (id === targetNode.id ? arrowsOut : id))
       edge.targets = edge.targets.map(id => (id === targetNode.id ? arrowsIn : id))
     }
-    return { graph: root, folded: true }
+    return { graph: root, folded: true, throughPort }
   }
   if (bubble && target) {
     // Starting at its box's place in the order puts it level with its box, not at the top of its column.
@@ -158,7 +182,7 @@ function elkGraph(v: View, size: (it: Item) => number, wide: (it: Item) => numbe
     // column's left edge instead, next to its bubble.
     targetNode!.layoutOptions = { ...targetNode!.layoutOptions, 'elk.alignment': 'LEFT' }
   }
-  return { graph: root, folded: false }
+  return { graph: root, folded: false, throughPort }
 }
 
 /** Moves a step's bubble that ELK laid out as a node of its own (see `elkGraph`) level with the top of its box. */
@@ -203,11 +227,20 @@ export async function layOut(view: string, v: View, size: (it: Item) => number, 
     return known
   }
   const turned = flipped(v)
-  const { graph, folded } = elkGraph(v, size, wide, bubble)
+  const { graph, folded, throughPort } = elkGraph(v, size, wide, bubble)
   const g = await elk.layout(graph)
-  const routes = Object.fromEntries((g.edges ?? []).flatMap(e => {
-    const s = e.sections?.[0], pts = s ? [s.startPoint, ...(s.bendPoints ?? []), s.endPoint] : []
-    return s ? [[e.id, turned.has(e.id) ? pts.reverse() : pts]] : []
+  const elkRoutes = new Map((g.edges ?? []).flatMap((e): [string, XYPosition[]][] => {
+    const s = e.sections?.[0]
+    return s ? [[e.id, [s.startPoint, ...(s.bendPoints ?? []), s.endPoint]]] : []
+  }))
+  /** An arrow's route as ELK gave it; through a border port, the line inside to the port, then on from the port. */
+  const routeOf = (id: string) => {
+    const port = throughPort.get(id), inside = port && elkRoutes.get(insideLine(port)), outside = elkRoutes.get(id)
+    return !port ? outside : inside && outside ? [...inside, ...outside] : undefined
+  }
+  const routes = Object.fromEntries([...v.edges.keys(), ...v.detail.keys()].flatMap(id => {
+    const pts = routeOf(id)
+    return pts ? [[id, turned.has(id) ? [...pts].reverse() : pts]] : []
   }))
   // Kept for the views of recent zooms; the oldest go once there are many.
   if (laidOut.size > 100) laidOut.delete(laidOut.keys().next().value!)
@@ -487,6 +520,7 @@ const KINDS: Record<DependencyKind, string> = {
 }
 /** How the legend explains what the map's arrows stand for. */
 const ARROWS_HELP = `Each view draws the arrows between its own boxes: one arrow per pair, standing for every link beneath them. A link inside one box isn't drawn until you zoom into it.
+Zoomed into a box, each box inside it with links outside sends one line to its own port on the zoomed box's border (one for arrows out, one for arrows in); from the port, one arrow goes to each outside box.
 An arrow has the colour of the box it leaves, and a big head where it ends. Its thickness says how many uses it stands for, and its dashes its kind.
 Hover an arrow to see the uses beneath it; click it to list them all, each with its file and line.
 Struck-through kinds are hidden in this view; click one to show it.`

@@ -92,18 +92,6 @@ function linkEnds(ix: Index, shown: Dependency[], top: Item | undefined, ids: Se
 
 const key = (e: { a: string; b: string }) => `${e.a} -> ${e.b}`
 
-/**
- * The arrows between owner boxes, merged by their two ends. The arrows between the boxes inside the zoomed box and one
- * outside box become one arrow from the zoomed box itself, with a count: e.g. every type in code.rs "generates" its
- * copy in contract.ts. Selecting a box inside still shows its own exact arrows.
- */
-function bundle(owned: Placed[], top: Item | undefined, ext: Map<string, Item>) {
-  const inside = (id: string) => !!top && id !== top.id && !ext.has(id)
-  const fans = Map.groupBy(owned.filter(e => inside(e.a) !== inside(e.b)), e => (inside(e.a) ? '-> ' + e.b : '<- ' + e.a))
-  const bundled = new Set([...fans.values()].flat())
-  return Map.groupBy(owned.map(e => (!bundled.has(e) ? e : inside(e.a) ? { ...e, a: top!.id } : { ...e, b: top!.id })), key)
-}
-
 /** The box inside top box `box` that holds `id` (or `box` itself). */
 function childOf(ix: Index, id: string, box: string) {
   let it = ix.items.get(id)!
@@ -146,6 +134,7 @@ function finerEdges(ix: Index, exact: Placed[], edges: Map<string, Placed[]>, ow
  * each drawn compact. A link leaving the zoomed box ends at the outside box at the zoomed box's level, e.g. another
  * file; only the selected box's (`sel`) links end at their exact boxes, drawn inside those. So every view draws the
  * arrows of its own level: each stands for all the links beneath its two boxes, and a link inside one box isn't drawn.
+ * An arrow between a box inside the zoomed box and one outside keeps both ends; the layout runs it through a port.
  * Arrows to a common box (see `COMMON`) are left out unless `shows('common')`; `common` says which boxes those are.
  * A box that `hides` says to leave out (a reviewed one, with "Hide reviewed" on) isn't shown, nor are its arrows.
  */
@@ -179,7 +168,8 @@ export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
   const owned = everyOwned.filter(e => !toCommon(e))
   /** How many arrows are hidden because they point at a common box. */
   const commonHidden = new Set(everyOwned.filter(toCommon).map(key)).size
-  const edges = bundle(owned, top, ext)
+  // Arrows leaving or entering the zoomed box keep their inner box: the layout runs them through its port on the border.
+  const edges = Map.groupBy(owned, key)
   const detail = finerEdges(ix, exact.filter(e => !toCommon(e)), edges, owner)
   /** A box's rows: everything directly inside it when expanded (More); else its members, only unzoomed. */
   const rowsOf = (it: Item) => expanded.has(it.id) ? it.kids.filter(k => !ids.has(k.id)) : top ? [] : it.kids.filter(k => k.m)
@@ -187,7 +177,7 @@ export function mapView(ix: Index, links: Dependency[], top: Item | undefined,
   const expands = (it: Item) => !ext.has(it.id) && (it.kids.some(k => !ids.has(k.id)) || it.diff.length > 0)
   /** The zoomed box's children that have More, which its Open all button opens together. */
   const openable = top ? top.kids.filter(k => ids.has(k.id) && expands(k)).map(k => k.id) : []
-  return { boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up, common, commonHidden }
+  return { top, boxes: [...inner, ...ext.values()], ext, edges, detail, owner, rowsOf, expands, openable, up, common, commonHidden }
 }
 /** One map view, as `mapView` builds it. */
 export type View = ReturnType<typeof mapView>
