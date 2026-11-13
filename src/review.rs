@@ -29,8 +29,9 @@ pub fn build_review(repo_root: &Path, base: &str) -> anyhow::Result<Review> {
     let old: HashSet<RepoPath> = repo.base_files(base)?.into_iter().collect();
     let diffs: Option<HashSet<RepoPath>> = repo.changed(base).map(HashSet::from_iter);
     let (mut all, mut manifests) = (vec![], vec![]);
+    // The map is the working tree as it is: a file deleted since `base` is not drawn.
     // visvet's own folder holds review state (threads in the drawer), not code for the map.
-    for f in cur.union(&old).filter(|f| !visvet_dir::holds(&f.0)).collect::<BTreeSet<_>>() {
+    for f in cur.iter().filter(|f| !visvet_dir::holds(&f.0)).collect::<BTreeSet<_>>() {
         let new = cur.contains(f).then(|| std::fs::read(repo_root.join(&f.0)).ok()).flatten();
         let same = diffs.as_ref().is_some_and(|d| !d.contains(f));
         let prev = if !old.contains(f) { None } else if same { new.clone() } else { repo.show(base, f) };
