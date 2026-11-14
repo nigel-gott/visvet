@@ -5,16 +5,18 @@ use std::collections::HashMap;
 use std::path::Path;
 
 /// The tours among `boxes`: every Markdown file labelled `kind: tour`, read from the working tree. The tours the
-/// change adds or edits come first and the old ones, which it leaves as they were, last.
+/// change adds come first, then the ones it edits, and the old ones, which it leaves as they were, last.
 pub fn read_tours(repo_root: &Path, boxes: &[MapBox]) -> Vec<Tour> {
+    /// The order tours are listed in, by what the change did to them. The sort is stable, so each keeps its order.
+    const NEWEST_FIRST: [ChangeStatus; 3] = [ChangeStatus::Added, ChangeStatus::Changed, ChangeStatus::Same];
     let code = CodeById::new(boxes);
     let is_tour = |map_box: &&MapBox| {
         let labelled_tour = matches!(&map_box.content, BoxContent::Doc { labels } if labels.kind == Some(DocKind::Tour));
         labelled_tour && map_box.status != ChangeStatus::Removed
     };
-    let touched_by_the_change = |tour_box: &&MapBox| tour_box.status != ChangeStatus::Same;
-    let (new_tours, old_tours): (Vec<&MapBox>, Vec<&MapBox>) = boxes.iter().filter(is_tour).partition(touched_by_the_change);
-    new_tours.into_iter().chain(old_tours).filter_map(|tour_box| {
+    let mut tour_boxes: Vec<&MapBox> = boxes.iter().filter(is_tour).collect();
+    tour_boxes.sort_by_key(|tour_box| NEWEST_FIRST.iter().position(|status| *status == tour_box.status));
+    tour_boxes.into_iter().filter_map(|tour_box| {
         let text = std::fs::read_to_string(repo_root.join(&tour_box.file.0)).ok()?;
         Some(parse_tour(&tour_box.file, &tour_box.doc, &text, &code))
     }).collect()
