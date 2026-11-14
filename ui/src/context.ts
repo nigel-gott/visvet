@@ -47,6 +47,24 @@ export type Ctx = {
   /** Whether the tour's notes on code sit in the margin beside the code, instead of in between its lines. */
   notesBeside: boolean
   setNotesBeside: (beside: boolean) => void
+  /** Whether a diff shows the code as it was and as it is side by side, instead of in one column (kept in this browser). */
+  sideBySide: boolean
+  setSideBySide: (sideBySide: boolean) => void
+  /** Whether the file tree shows the "To read" list in place of the tree. */
+  listsToRead: boolean
+  setListsToRead: (lists: boolean) => void
+  /**
+   * Whether a playing tour, or the "To read" list, reads as one scrolling column of every step or file in the map's
+   * place, instead of one at a time (kept in this browser; see Scrolling.tsx).
+   */
+  readsInOneScroll: boolean
+  setReadsInOneScroll: (reads: boolean) => void
+  /** Whether that column is on screen now: chosen, with a tour playing or the "To read" list open. */
+  scrollColumnShown: boolean
+  /** In that column: the step (`place`) or file whose text is in view, its box `id`, becomes the selection and the tour's step. */
+  scrolledTo: (id: string, place: TourPlace | null) => void
+  /** Leaves that column for the map or Read mode's page, showing box `id`, as the tour's step `place` if a tour is playing. */
+  leaveColumnAt: (id: string, place: TourPlace | null) => void
   /** Shows a tour's step, zooming into its box; null leaves the tour. With "you drive", `jump` goes straight there. */
   showStep: (place: TourPlace | null, jump?: boolean) => void
   /** The dimension shown in place of the map: its file's id, or null for the code map. */

@@ -105,8 +105,7 @@ export function Outline() {
   const x = useContext(X)
   const [q, setQ] = useState('')
   const [f, setF] = useState(0)
-  /** Whether the "To read" list shows in place of the tree. */
-  const [listsToRead, setListsToRead] = useState(false)
+  const { listsToRead, setListsToRead } = x
   // Rows the user toggled since the map last changed view; every other row mirrors what the map shows.
   const [toggled, setToggled] = useState(new Map<string, boolean>())
   const [view, setView] = useState(x.scope)
@@ -201,6 +200,7 @@ export function FileText({ it, diff, language, notes = [], beside = false }: { i
  * In any other language's `file`, Ctrl+click on a name shows its definition the same way.
  */
 export function DiffView({ diff, language, notes = [], beside = false, file }: { diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean; file?: string }) {
+  const x = useContext(X)
   const [unfolded, setUnfolded] = useState(new Set<number>())
   /** The note the pointer is over, or whose code it is over: both stand out. */
   const [hotNote, setHotNote] = useState<number | null>(null)
@@ -216,28 +216,93 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])
   // Long unchanged runs fold only around a change; unchanged code shows whole.
   // Folding never hides a tour's noted lines.
-  const changed = diff.some(l => l.kind !== 'ctx') && !notes.length
+  const hasChanges = diff.some(l => l.kind !== 'ctx')
+  const changed = hasChanges && !notes.length
   const wordKey = useColouredWords(view, language === 'lisp' ? file : undefined, diff, [coloured, unfolded])
   const runs: { start: number; lines: DiffLine[] }[] = []
   diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
-  const rows = runs.flatMap(({ start, lines }) => changed && lines.length > 8 && !unfolded.has(start)
-    ? <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
-    : lines.map((l, k) => (
-      <Fragment key={start + k}>
-        <div className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''}`} data-row={start + k} data-line={l.kind === 'del' ? undefined : l.line} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
-          <span className="no">{l.line}</span>
-          {markedText(l, coloured?.[start + k], notedColumns(l, notes), room.inLine, hotNote, setHotNote)}
-        </div>
-        {!beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)}
-      </Fragment>
-    )))
-  if (!besideNotes) return <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{wordKey}{rows}{wordHover.card}</div>
+  const fold = (start: number, lines: DiffLine[]) => <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
+  const folds = (start: number, lines: DiffLine[]) => changed && lines.length > 8 && !unfolded.has(start)
+  /** A line of the diff as a row, at `row` in it; the rows of the code as it is now carry their number (see Explored.tsx). */
+  const lineRow = (l: DiffLine, row: number, side = '') => (
+    <div key={'l' + row} className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''} ${side}`} data-row={row} data-line={l.kind === 'del' ? undefined : l.line} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
+      <span className="no">{l.line}</span>
+      {markedText(l, coloured?.[row], notedColumns(l, notes), room.inLine, hotNote, setHotNote)}
+    </div>
+  )
+  /** The notes whose code ends on line `l`, in bubbles under it. */
+  const bubblesUnder = (l: DiffLine) => !beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)
+  const sideBySide = x.sideBySide && hasChanges && !besideNotes
+  const rows = sideBySide ? sideBySideRows(diff, runs, folds, fold, lineRow, bubblesUnder, coloured) : runs.flatMap(({ start, lines }) => folds(start, lines)
+    ? fold(start, lines)
+    : lines.map((l, k) => <Fragment key={start + k}>{lineRow(l, start + k)}{bubblesUnder(l)}</Fragment>))
+  /** Beside a diff with changes: the switch between one column (unified) and the code as it was and as it is, side by side. */
+  const layoutSwitch = hasChanges && !besideNotes && (
+    <button className="md-toggle diff-layout" title={sideBySide ? 'Show the change in one column' : 'Show the code as it was on the left, as it is on the right'}
+      onClick={event => { event.stopPropagation(); x.setSideBySide(!sideBySide) }}>{sideBySide ? 'Unified' : 'Side by side'}</button>
+  )
+  const diffClass = `diff${wordHover.pointsAtWord ? ' at-word' : ''}${sideBySide ? ' side-by-side' : ''}`
+  if (!besideNotes) return <div className={diffClass} ref={view} {...wordHover.handlers}>{layoutSwitch}{wordKey}{rows}{wordHover.card}</div>
   return (
     <div className="beside-notes" style={{ paddingLeft: MARGIN_NOTE_WIDTH }}>
       <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{wordKey}{rows}{wordHover.card}</div>
       <NotesBeside notes={notes} code={view} hotNote={hotNote} setHotNote={setHotNote} room={room} setRoom={setRoom} />
     </div>
   )
+}
+
+/**
+ * The rows of a diff side by side, two cells each: the code as it was on the left, as it is on the right. An unchanged
+ * line is on both sides (a long run of them folds into one row, as in one column); in a stretch of changes, the lines
+ * removed sit level with the lines added, in order, and a side with fewer has empty cells. The right side and the
+ * removed lines are the diff's own rows (`lineRow`); the left copy of an unchanged line has no row number, so hovering
+ * and counting lines read only the right one.
+ */
+function sideBySideRows(diff: DiffLine[], runs: { start: number; lines: DiffLine[] }[], folds: (start: number, lines: DiffLine[]) => boolean,
+  fold: (start: number, lines: DiffLine[]) => ReactNode, lineRow: (line: DiffLine, row: number, side?: string) => ReactNode,
+  bubblesUnder: (line: DiffLine) => ReactNode, coloured: ColouredPiece[][] | null | undefined) {
+  const oldNumber = oldLineNumbers(diff)
+  const empty = (key: string, side = '') => <div key={key} className={`ln empty ${side}`} />
+  const rows: ReactNode[] = []
+  /** The removed and added lines of the stretch of changes not drawn yet, by their row in the diff. */
+  let removed: number[] = [], added: number[] = []
+  const drawChanges = () => {
+    for (let pair = 0; pair < Math.max(removed.length, added.length); pair++) {
+      const left = removed[pair], right = added[pair]
+      rows.push(left === undefined ? empty('e' + right, 'left') : lineRow(diff[left], left, 'left'), right === undefined ? empty('e' + left) : lineRow(diff[right], right))
+      if (right !== undefined) rows.push(<Fragment key={'b' + right}>{bubblesUnder(diff[right])}</Fragment>)
+    }
+    removed = []
+    added = []
+  }
+  for (const { start, lines } of runs) {
+    if (lines[0].kind !== 'ctx') {
+      (lines[0].kind === 'del' ? removed : added).push(start)
+      continue
+    }
+    drawChanges()
+    if (folds(start, lines)) { rows.push(fold(start, lines)); continue }
+    lines.forEach((l, k) => rows.push(
+      <div key={'o' + (start + k)} className="ln ctx left"><span className="no">{oldNumber[start + k]}</span>{colouredText(l, coloured?.[start + k])}</div>,
+      lineRow(l, start + k), <Fragment key={'b' + (start + k)}>{bubblesUnder(l)}</Fragment>))
+  }
+  drawChanges()
+  return rows
+}
+
+/**
+ * Each diff row's line number in the code as it was, by row (none for an added line). A removed line carries its
+ * own; the rest count on from there, as old lines are the unchanged and removed ones in order. With no removed line
+ * to go by, the first unchanged line is taken to have moved down by the lines added above it.
+ */
+function oldLineNumbers(diff: DiffLine[]) {
+  const oldSide = diff.flatMap((l, row) => (l.kind === 'add' ? [] : [row]))
+  const firstRemoved = oldSide.findIndex(row => diff[row].kind === 'del')
+  const addedAbove = (row: number) => diff.slice(0, row).filter(l => l.kind === 'add').length
+  const first = firstRemoved >= 0 ? diff[oldSide[firstRemoved]].line - firstRemoved : oldSide.length ? diff[oldSide[0]].line - addedAbove(oldSide[0]) : 0
+  const numbers: (number | undefined)[] = []
+  oldSide.forEach((row, at) => { numbers[row] = first + at })
+  return numbers
 }
 
 /** A stretch of a line that a note's code covers: from column `from` up to `to`, which note (its index), and whether its code ends here. */

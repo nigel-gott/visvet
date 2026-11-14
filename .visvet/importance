@@ -30,6 +30,7 @@
 {"path":"ui/package-lock.json","score":0,"reason":"Generated lock file."}
 {"path":"ui/src/","score":50,"reason":"The browser UI."}
 {"path":"ui/src/Graph.tsx","score":65,"reason":"The map itself: layout and drawing of boxes and arrows."}
+{"path":"ui/src/Scrolling.tsx","score":55,"reason":"One scroll: a playing tour or the To read list read straight down in one column; the selection and the tour's step follow what is in view."}
 {"path":"ui/src/context.ts","score":85,"reason":"Everything every view can read or do, as one type: the UI's map of itself."}
 {"path":"ui/src/contract.ts","score":5,"reason":"Generated from src/types/: read the Rust types instead."}
 {"path":"ui/src/main.tsx","score":85,"reason":"The app shell: all navigation state, and how tours, Read mode and the map hand over to each other."}

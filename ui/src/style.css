@@ -708,3 +708,23 @@ main { position: relative }
 .rich-heading { margin: 10px 0 4px; font-weight: 600 }
 .rich-heading.h1, .rich-heading.h2 { font-size: 1.1em }
 .rich-code { max-width: 100%; margin: 6px 0; padding: 6px 8px; overflow-x: auto; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font: 12px/1.45 var(--mono); white-space: pre }
+
+/* A diff side by side (Views.tsx, `sideBySideRows`): the code as it was on the left, as it is on the right, a row
+   each; folds, notes and the switch span both. */
+.diff.side-by-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) }
+.diff.side-by-side > :not(.ln) { grid-column: 1 / -1 }
+.diff.side-by-side > .md-toggle { justify-self: end }
+.diff.side-by-side > .ln.left { border-right: 1px solid var(--line) }
+.ln.empty { background: var(--panel) }
+.diff > .diff-layout { float: right }
+
+/* One scroll (Scrolling.tsx): every tour step, or every file of the "To read" list, one after another in the map's place. */
+.one-scroll.on { border-color: var(--sel); background: var(--sel-bg); color: var(--sel) }
+.to-read > .one-scroll { margin: 0 0 6px }
+.scroll-column { padding-bottom: 50vh }
+.scroll-column .scroll-section + .scroll-section { margin-top: 40px; padding-top: 8px; border-top: 3px solid var(--line) }
+.scroll-file-head { max-width: 1400px; margin: 12px auto 0; padding: 0 8px }
+.scroll-file-head h3 { margin: 0 0 4px; font: 600 14px var(--mono) }
+.scroll-file-head .reason { margin: 4px 0 0; color: var(--muted) }
+.scroll-column h3 a { cursor: pointer }
+.scroll-column h3 a:hover { text-decoration: underline }
