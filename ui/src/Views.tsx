@@ -116,8 +116,8 @@ export function Outline() {
   const filtering = q !== '' || f > 0
   const match = (it: Item): boolean =>
     ((FILTERS[f][1](it, x) && `${it.id} ${it.doc}`.toLowerCase().includes(q.toLowerCase())) || it.kids.some(match))
-  // In Read mode, where the map's zoom is out of sight, the tree opens to the item being read instead.
-  const scope = x.ix.items.get((x.reading ? x.sel : x.scope) ?? '')
+  // In Read mode or the one scrolling column, where the map's zoom is out of sight, the tree opens to the item being read instead.
+  const scope = x.ix.items.get((x.reading || x.scrollColumnShown ? x.sel : x.scope) ?? '')
   /** Whether a row shows its children: as on the map, the rows down to the zoomed box and the box itself are open. */
   const open = (it: Item) => toggled.get(it.id) ?? within(scope, it.id)
   /** Opens or closes a row. */
@@ -194,7 +194,8 @@ export function FileText({ it, diff, language, notes = [], beside = false }: { i
 }
 
 /**
- * The diff; around a change, runs of more than 8 unchanged lines fold into one row until clicked. A tour's notes on
+ * The diff; long runs of unchanged lines away from a change or a tour's noted code fold into one bar, which a click
+ * opens, and the bar left above them folds them again (see `foldableRows`). A tour's notes on
  * code outline the exact code they are about, and sit under it, or with `beside`, next to it, on alternate sides.
  * In a Lisp-family `file`, a word the review knows is coloured (the repository's own names one colour, documented words another) and a click on it shows what it is (see Hover.tsx).
  * In any other language's `file`, Ctrl+click on a name shows its definition the same way.
@@ -217,26 +218,36 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   const wordHover = useWordHover(file, diff, language)
   const highlighter = useHighlighter()
   const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])
-  // Long unchanged runs fold only around a change; unchanged code shows whole.
-  // Folding never hides a tour's noted lines.
-  const changed = hasChanges && !notes.length
+  // Long unchanged runs fold only around a change or a tour's notes; unchanged code with no notes shows whole.
+  const foldable = foldableRows(diff, notes)
+  const changedChars = useMemo(() => changedCharsOf(diff), [diff])
   const wordKey = useColouredWords(view, language === 'lisp' ? file : undefined, diff, [coloured, unfolded])
   const runs: { start: number; lines: DiffLine[] }[] = []
-  diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
-  const fold = (start: number, lines: DiffLine[]) => <button key={'f' + start} className="fold" onClick={() => setUnfolded(new Set(unfolded).add(start))}>{lines.length} unchanged lines</button>
-  const folds = (start: number, lines: DiffLine[]) => changed && lines.length > 8 && !unfolded.has(start)
+  // A run is one changed line, or unchanged lines that all fold or all stay.
+  diff.forEach((l, j) => (l.kind === 'ctx' && diff[j - 1]?.kind === 'ctx' && foldable[j] === foldable[j - 1] ? runs.at(-1)!.lines.push(l) : runs.push({ start: j, lines: [l] })))
+  /** Whether a run is long enough to fold, and folds (see `foldableRows`). */
+  const canFold = (start: number, lines: DiffLine[]) => foldable[start] && lines.length > LEAST_FOLDED
+  /** Whether a run is folded now: until a click on its bar opens it. */
+  const folds = (start: number, lines: DiffLine[]) => canFold(start, lines) && !unfolded.has(start)
+  /** A run's bar, if it can fold: folded, it stands for the lines, and a click opens them; open, it sits above them, and a click folds them again. */
+  const fold = (start: number, lines: DiffLine[]) => canFold(start, lines) && (
+    <button key={'f' + start} className={folds(start, lines) ? 'fold' : 'fold open'} onClick={() => setUnfolded(open => { const flipped = new Set(open); if (!flipped.delete(start)) flipped.add(start); return flipped })}>
+      {folds(start, lines) ? `▸ ${lines.length} unchanged lines` : `▾ Fold ${lines.length} unchanged lines`}
+    </button>
+  )
   /** A line of the diff as a row, at `row` in it; the rows of the code as it is now carry their number (see Explored.tsx). */
   const lineRow = (l: DiffLine, row: number, side = '') => (
     <div key={'l' + row} className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''} ${side}`} data-row={row} data-line={l.kind === 'del' ? undefined : l.line} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
       <span className="no">{l.line}</span>
-      {markedText(l, coloured?.[row], notedColumns(l, notes), besideNotes ? room.inLine : NO_GAPS, hotNote, setHotNote)}
+      {markedText(l, coloured?.[row], notedColumns(l, notes), besideNotes ? room.inLine : NO_GAPS, hotNote, setHotNote, changedChars.get(row))}
     </div>
   )
   /** The notes whose code ends on line `l`, in bubbles under it. */
   const bubblesUnder = (l: DiffLine) => !besideNotes && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)
-  const rows = sideBySide ? sideBySideRows(diff, runs, folds, fold, lineRow, bubblesUnder, coloured) : runs.flatMap(({ start, lines }) => folds(start, lines)
-    ? fold(start, lines)
-    : lines.map((l, k) => <Fragment key={start + k}>{lineRow(l, start + k)}{bubblesUnder(l)}</Fragment>))
+  const rows = sideBySide ? sideBySideRows(diff, runs, folds, fold, lineRow, bubblesUnder, coloured) : runs.flatMap(({ start, lines }) => [
+    fold(start, lines),
+    ...(folds(start, lines) ? [] : lines.map((l, k) => <Fragment key={start + k}>{lineRow(l, start + k)}{bubblesUnder(l)}</Fragment>)),
+  ])
   /** Beside a diff with changes: the switch between one column (unified) and the code as it was and as it is, side by side. */
   const layoutSwitch = hasChanges && (
     <button className="md-toggle diff-layout" title={sideBySide ? 'Show the change in one column' : 'Show the code as it was on the left, as it is on the right'}
@@ -282,7 +293,8 @@ function sideBySideRows(diff: DiffLine[], runs: { start: number; lines: DiffLine
       continue
     }
     drawChanges()
-    if (folds(start, lines)) { rows.push(fold(start, lines)); continue }
+    rows.push(fold(start, lines))
+    if (folds(start, lines)) continue
     lines.forEach((l, k) => rows.push(
       <div key={'o' + (start + k)} className="ln ctx left"><span className="no">{oldNumber[start + k]}</span>{colouredText(l, coloured?.[start + k])}</div>,
       lineRow(l, start + k), <Fragment key={'b' + (start + k)}>{bubblesUnder(l)}</Fragment>))
@@ -306,6 +318,19 @@ function oldLineNumbers(diff: DiffLine[]) {
   return numbers
 }
 
+/** Unchanged lines kept open on each side of a change or a noted line, and the fewest lines a fold hides. */
+const CONTEXT_LINES = 3, LEAST_FOLDED = 8
+
+/**
+ * Which rows of a diff may fold: unchanged lines more than `CONTEXT_LINES` away from any change or any line a tour's
+ * note is about. None when there is neither: unchanged code with no notes shows whole.
+ */
+function foldableRows(diff: DiffLine[], notes: CodeNote[]) {
+  const kept = diff.map(line => line.kind !== 'ctx' || isNoted(line, notes))
+  if (!kept.some(Boolean)) return diff.map(() => false)
+  return diff.map((_, row) => !kept.slice(Math.max(0, row - CONTEXT_LINES), row + CONTEXT_LINES + 1).some(Boolean))
+}
+
 /** No gaps in a line for notes: their place when they sit under their lines, not beside. */
 const NO_GAPS = new Map<number, number>()
 
@@ -324,17 +349,55 @@ function notedColumns(line: DiffLine, notes: CodeNote[]): NotedColumns[] {
   })
 }
 
-/** A piece of a line's text, in its syntax colour, and the note whose code it is part of, if any. */
-type MarkedPiece = ColouredPiece & { note?: number }
+/** The columns of a line, from `from` up to `to`. */
+type Columns = { from: number; to: number }
+
+/**
+ * Within each removed line paired with an added one (in order, in a stretch of changes, as side by side pairs them):
+ * the columns that differ, by row: all but what the two lines share at the start and at the end. None for a pair
+ * that shares nothing, as GitHub marks none.
+ */
+function changedCharsOf(diff: DiffLine[]) {
+  const changed = new Map<number, Columns>()
+  let removed: number[] = [], added: number[] = []
+  const pairUp = () => {
+    removed.forEach((removedRow, pair) => {
+      const addedRow = added[pair]
+      if (addedRow === undefined) return
+      const before = diff[removedRow].text, after = diff[addedRow].text
+      const shortest = Math.min(before.length, after.length)
+      let start = 0
+      while (start < shortest && before[start] === after[start]) start++
+      let end = 0
+      while (end < shortest - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end++
+      if (start === 0 && end === 0) return
+      changed.set(removedRow, { from: start, to: before.length - end })
+      changed.set(addedRow, { from: start, to: after.length - end })
+    })
+    removed = []
+    added = []
+  }
+  diff.forEach((line, row) => {
+    if (line.kind === 'ctx') pairUp()
+    else if (line.kind === 'del') { if (added.length) pairUp(); removed.push(row) }
+    else added.push(row)
+  })
+  pairUp()
+  return changed
+}
+
+/** A piece of a line's text, in its syntax colour, the note whose code it is part of, if any, and whether it is what changed in the line. */
+type MarkedPiece = ColouredPiece & { note?: number; changed?: boolean }
 
 /**
  * A line's text in its syntax colours, with each note's code in an outline (a `mark` tagged with the note's index).
  * Right after the end of a note's code is a gap (`inLine`, by note), which a note beside the code sits in, pushing
  * the rest of the line along. Pointing at the outline makes its note stand out.
  */
-function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: NotedColumns[], inLine: Map<number, number>, hotNote: number | null, setHotNote: (note: number | null) => void) {
-  if (!noted.length) return colouredText(line, pieces)
-  const cuts = [...new Set(noted.flatMap(stretch => [stretch.from, stretch.to]))].sort((left, right) => left - right)
+function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: NotedColumns[], inLine: Map<number, number>, hotNote: number | null, setHotNote: (note: number | null) => void, changed?: Columns) {
+  if (!noted.length && !changed) return colouredText(line, pieces)
+  const cuts = [...new Set([...noted, ...(changed ? [changed] : [])].flatMap(stretch => [stretch.from, stretch.to]))].sort((left, right) => left - right)
+  const isChanged = (column: number) => !!changed && column >= changed.from && column < changed.to
   const noteAt = (column: number) => noted.find(stretch => column >= stretch.from && column < stretch.to)?.note
   // Each piece is cut where a note's code starts or ends, so every bit lies wholly inside or outside it.
   let pieceStart = 0
@@ -344,7 +407,7 @@ function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: 
     const starts = [begin, ...cuts.filter(cut => cut > begin && cut < end)]
     return starts.map((from, index) => {
       const to = starts[index + 1] ?? end
-      return { text: piece.text.slice(from - begin, to - begin), style: piece.style, note: noteAt(from) }
+      return { text: piece.text.slice(from - begin, to - begin), style: piece.style, note: noteAt(from), changed: isChanged(from) }
     })
   })
   // Bits next to each other under the same note share one outline.
@@ -354,7 +417,7 @@ function markedText(line: DiffLine, pieces: ColouredPiece[] | undefined, noted: 
     if (last && last.note === bit.note) last.bits.push(bit)
     else runs.push({ note: bit.note, bits: [bit] })
   }
-  const draw = (run: { bits: MarkedPiece[] }) => run.bits.map((bit, index) => <span key={index} className="tok" style={bit.style}>{bit.text}</span>)
+  const draw = (run: { bits: MarkedPiece[] }) => run.bits.map((bit, index) => <span key={index} className={bit.changed ? 'tok changed-chars' : 'tok'} style={bit.style}>{bit.text}</span>)
   /** Whether run `index` is the last of its note's code, which ends on this line: the note's gap goes after it. */
   const endsCode = (index: number) => noted.some(stretch => stretch.note === runs[index].note && stretch.ends) && !runs.slice(index + 1).some(run => run.note === runs[index].note)
   return runs.map((run, index) => run.note === undefined ? <Fragment key={index}>{draw(run)}</Fragment> : (

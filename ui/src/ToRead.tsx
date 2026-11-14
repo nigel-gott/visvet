@@ -4,7 +4,7 @@
 // important file not read yet, falling to 0 as it is read. The file tree shows it as a meter, and "To read" lists
 // the files with the most left first.
 
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { X, type Ctx } from './context'
 import { exploredOf } from './Explored'
 import { subtree, type Item } from './model'
@@ -77,8 +77,11 @@ export function ToRead() {
   const x = useContext(X)
   const [files] = useState(() => filesByLeftToRead(x))
   const mostLeft = mostLeftToRead(x, files)
+  const list = useRef<HTMLDivElement>(null)
+  // The file being read (in the one scrolling column, the one in view) stays in sight in the list.
+  useEffect(() => { list.current?.querySelector('.orow.sel')?.scrollIntoView({ block: 'nearest' }) }, [x.sel])
   return (
-    <div className="to-read">
+    <div className="to-read" ref={list}>
       <OneScrollSwitch />
       {mostLeft.map(file => (
         // In the one scrolling column, a click scrolls it to the file (see Scrolling.tsx).

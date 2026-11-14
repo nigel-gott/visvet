@@ -722,9 +722,18 @@ main { position: relative }
 .one-scroll.on { border-color: var(--sel); background: var(--sel-bg); color: var(--sel) }
 .to-read > .one-scroll { margin: 0 0 6px }
 .scroll-column { padding-bottom: 50vh }
-.scroll-column .scroll-section + .scroll-section { margin-top: 40px; padding-top: 8px; border-top: 3px solid var(--line) }
+.scroll-column .scroll-section + .scroll-section { margin-top: 40px; border-top: 3px solid var(--line) }
 .scroll-file-head { max-width: 1400px; margin: 12px auto 0; padding: 0 8px }
-.scroll-file-head h3 { margin: 0 0 4px; font: 600 14px var(--mono) }
 .scroll-file-head .reason { margin: 4px 0 0; color: var(--muted) }
 .scroll-column h3 a { cursor: pointer }
 .scroll-column h3 a:hover { text-decoration: underline }
+.scroll-crumbs { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
+  padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 14px; color: var(--muted) }
+.scroll-crumbs a { cursor: pointer; color: var(--fg) }
+.scroll-crumbs a:hover { text-decoration: underline }
+.scroll-crumbs a.here { font-weight: 600 }
+.scroll-crumbs-lead { margin-right: 8px; color: var(--ai); font-weight: 600 }
+/* The characters that differ between a removed line and the line added in its place, darker than the line's tint. */
+.ln.del .changed-chars { background: color-mix(in srgb, var(--del) 30%, transparent) }
+.ln.add .changed-chars { background: color-mix(in srgb, var(--add) 30%, transparent) }
+.diff > .fold.open { opacity: .7 }

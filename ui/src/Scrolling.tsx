@@ -3,10 +3,10 @@
 // and the tour's step as it scrolls; Back, Next, the steps list and the list's rows scroll the column there; a
 // section's title leaves the column for that step or file on the map (or Read mode's page).
 
-import { useContext, useEffect, useRef, useState } from 'react'
+import { Fragment, useContext, useEffect, useRef, useState } from 'react'
 import { X, type Ctx } from './context'
 import { languageOf } from './highlight'
-import type { Item } from './model'
+import { ancestorsOf, type Item } from './model'
 import { Rich } from './Rich'
 import { allLines } from './size'
 import { filesByLeftToRead, LeftToRead, mostLeftToRead } from './ToRead'
@@ -59,6 +59,7 @@ export function ScrollColumn() {
     <div className="dimension-view scroll-column" ref={column} onScroll={report}>
       {tour ? tour.steps.map((step, number) => (
         <section key={number} className="scroll-section">
+          <Breadcrumbs id={step.target} place={{ file: tour.file, step: number }} lead={`Step ${number + 1} of ${tour.steps.length}`} />
           <div className="bubble step-bubble">
             <p className="bubble-kicker">Step {number + 1} of {tour.steps.length}</p>
             <h3><a title={whereTitleGoes(x)} onClick={() => x.leaveColumnAt(step.target, { file: tour.file, step: number })}>{step.title}</a></h3>
@@ -72,8 +73,8 @@ export function ScrollColumn() {
         </section>
       )) : files.map(file => (
         <section key={file.id} className="scroll-section">
+          <Breadcrumbs id={file.id} place={null} />
           <div className="scroll-file-head">
-            <h3><a title={whereTitleGoes(x)} onClick={() => x.leaveColumnAt(file.id, null)}>{file.id}</a></h3>
             <LeftToRead it={file} />
             <p className="reason">{x.importance.get(file.id)?.reason}</p>
           </div>
@@ -81,6 +82,26 @@ export function ScrollColumn() {
         </section>
       ))}
     </div>
+  )
+}
+
+/**
+ * At the top of a section, pinned there while it scrolls by until the next section's pushes it out: where its box is,
+ * folder by folder down to the box (after `lead`, e.g. the step's number). A click on one shows it out of the column.
+ */
+function Breadcrumbs({ id, place, lead }: { id: string; place: TourPlace | null; lead?: string }) {
+  const x = useContext(X)
+  const path = ancestorsOf(x.ix, id).reverse().flatMap(around => x.ix.items.get(around) ?? [])
+  return (
+    <nav className="scroll-crumbs">
+      {lead && <span className="scroll-crumbs-lead">{lead}</span>}
+      {path.length ? path.map((crumb, index) => (
+        <Fragment key={crumb.id}>
+          {index > 0 && <span>›</span>}
+          <a className={crumb.id === id ? 'here' : ''} title={whereTitleGoes(x)} onClick={() => x.leaveColumnAt(crumb.id, place)}>{crumb.name}</a>
+        </Fragment>
+      )) : <code>{id}</code>}
+    </nav>
   )
 }
 
