@@ -4,14 +4,17 @@ use crate::types::{BoxContent, ChangeStatus, CodeNote, CodeSpan, DiffLineKind, D
 use std::collections::HashMap;
 use std::path::Path;
 
-/// The tours among `boxes`: every Markdown file labelled `kind: tour`, read from the working tree.
+/// The tours among `boxes`: every Markdown file labelled `kind: tour`, read from the working tree. The tours the
+/// change adds or edits come first and the old ones, which it leaves as they were, last.
 pub fn read_tours(repo_root: &Path, boxes: &[MapBox]) -> Vec<Tour> {
     let code = CodeById::new(boxes);
     let is_tour = |map_box: &&MapBox| {
         let labelled_tour = matches!(&map_box.content, BoxContent::Doc { labels } if labels.kind == Some(DocKind::Tour));
         labelled_tour && map_box.status != ChangeStatus::Removed
     };
-    boxes.iter().filter(is_tour).filter_map(|tour_box| {
+    let touched_by_the_change = |tour_box: &&MapBox| tour_box.status != ChangeStatus::Same;
+    let (new_tours, old_tours): (Vec<&MapBox>, Vec<&MapBox>) = boxes.iter().filter(is_tour).partition(touched_by_the_change);
+    new_tours.into_iter().chain(old_tours).filter_map(|tour_box| {
         let text = std::fs::read_to_string(repo_root.join(&tour_box.file.0)).ok()?;
         Some(parse_tour(&tour_box.file, &tour_box.doc, &text, &code))
     }).collect()
