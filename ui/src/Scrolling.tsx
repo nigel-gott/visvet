@@ -13,6 +13,8 @@ import { filesByLeftToRead, LeftToRead, mostLeftToRead } from './ToRead'
 import { BoxBubble, type TourPlace } from './Tours'
 import { FileText } from './Views'
 
+/** How long after the column scrolls itself to a step or file its scroll events are its own, in milliseconds. */
+const OWN_SCROLL_MS = 150
 /** How far below the column's top edge a section's start may be and still count as the one in view, in pixels. */
 const IN_VIEW_BELOW_TOP = 120
 
@@ -41,16 +43,24 @@ export function ScrollColumn() {
   const column = useRef<HTMLDivElement>(null)
   /** The section last reported as in view, so the column scrolls only for a step or selection chosen elsewhere. */
   const inView = useRef<number | null>(null)
+  /** Until when scrolling is the column's own, to a step or file chosen elsewhere, not the user's. */
+  const scrolledHereUntil = useRef(0)
   const wanted = tour ? x.tour!.step : sections.findIndex(section => section.id === x.sel)
   useEffect(() => {
     if (wanted < 0 || wanted === inView.current) return
     inView.current = wanted
+    // A step near the end can't reach the top: the scroll this makes must not report another step as in view.
+    scrolledHereUntil.current = performance.now() + OWN_SCROLL_MS
     column.current?.querySelectorAll('.scroll-section')[wanted]?.scrollIntoView({ block: 'start' })
   }, [wanted, tour?.file])
   const report = () => {
+    if (performance.now() < scrolledHereUntil.current) return
     const top = column.current!.getBoundingClientRect().top
     const starts = [...column.current!.querySelectorAll('.scroll-section')].map(section => section.getBoundingClientRect().top)
-    const at = Math.max(0, starts.findLastIndex(start => start <= top + IN_VIEW_BELOW_TOP))
+    const scroller = column.current!
+    // At the very end, the last section counts as in view, though its start can't reach the top.
+    const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
+    const at = atEnd ? starts.length - 1 : Math.max(0, starts.findLastIndex(start => start <= top + IN_VIEW_BELOW_TOP))
     if (at === inView.current || !sections[at]) return
     inView.current = at
     x.scrolledTo(sections[at].id, sections[at].place)
