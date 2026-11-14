@@ -206,8 +206,11 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   const [hotNote, setHotNote] = useState<number | null>(null)
   /** With notes beside the code: the space they make in it, so none covers code or another note. */
   const [room, setRoom] = useState<NoteRoom>({ above: new Map(), below: new Map(), inLine: new Map() })
+  const hasChanges = diff.some(l => l.kind !== 'ctx')
+  /** Whether the diff shows the old and new code side by side; a tour's notes then sit under their lines, not beside. */
+  const sideBySide = x.sideBySide && hasChanges
   /** Whether there are notes to sit beside the code; only then do lines get space made for them. */
-  const besideNotes = beside && notes.length > 0
+  const besideNotes = beside && notes.length > 0 && !sideBySide
   const view = useRef<HTMLDivElement>(null)
   useScrollToFirstNote(view, notes)
   useShownText(view, file, diff)
@@ -216,7 +219,6 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   const coloured = useMemo(() => highlighter && colourLines(highlighter, diff, language), [highlighter, diff, language])
   // Long unchanged runs fold only around a change; unchanged code shows whole.
   // Folding never hides a tour's noted lines.
-  const hasChanges = diff.some(l => l.kind !== 'ctx')
   const changed = hasChanges && !notes.length
   const wordKey = useColouredWords(view, language === 'lisp' ? file : undefined, diff, [coloured, unfolded])
   const runs: { start: number; lines: DiffLine[] }[] = []
@@ -227,17 +229,16 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   const lineRow = (l: DiffLine, row: number, side = '') => (
     <div key={'l' + row} className={`ln ${l.kind} ${isNoted(l, notes) ? 'noted' : ''} ${side}`} data-row={row} data-line={l.kind === 'del' ? undefined : l.line} style={besideNotes && l.kind !== 'del' ? { marginTop: room.above.get(l.line), marginBottom: room.below.get(l.line) } : undefined}>
       <span className="no">{l.line}</span>
-      {markedText(l, coloured?.[row], notedColumns(l, notes), room.inLine, hotNote, setHotNote)}
+      {markedText(l, coloured?.[row], notedColumns(l, notes), besideNotes ? room.inLine : NO_GAPS, hotNote, setHotNote)}
     </div>
   )
   /** The notes whose code ends on line `l`, in bubbles under it. */
-  const bubblesUnder = (l: DiffLine) => !beside && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)
-  const sideBySide = x.sideBySide && hasChanges && !besideNotes
+  const bubblesUnder = (l: DiffLine) => !besideNotes && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)
   const rows = sideBySide ? sideBySideRows(diff, runs, folds, fold, lineRow, bubblesUnder, coloured) : runs.flatMap(({ start, lines }) => folds(start, lines)
     ? fold(start, lines)
     : lines.map((l, k) => <Fragment key={start + k}>{lineRow(l, start + k)}{bubblesUnder(l)}</Fragment>))
   /** Beside a diff with changes: the switch between one column (unified) and the code as it was and as it is, side by side. */
-  const layoutSwitch = hasChanges && !besideNotes && (
+  const layoutSwitch = hasChanges && (
     <button className="md-toggle diff-layout" title={sideBySide ? 'Show the change in one column' : 'Show the code as it was on the left, as it is on the right'}
       onClick={event => { event.stopPropagation(); x.setSideBySide(!sideBySide) }}>{sideBySide ? 'Unified' : 'Side by side'}</button>
   )
@@ -245,7 +246,7 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
   if (!besideNotes) return <div className={diffClass} ref={view} {...wordHover.handlers}>{layoutSwitch}{wordKey}{rows}{wordHover.card}</div>
   return (
     <div className="beside-notes" style={{ paddingLeft: MARGIN_NOTE_WIDTH }}>
-      <div className={wordHover.pointsAtWord ? 'diff at-word' : 'diff'} ref={view} {...wordHover.handlers}>{wordKey}{rows}{wordHover.card}</div>
+      <div className={diffClass} ref={view} {...wordHover.handlers}>{layoutSwitch}{wordKey}{rows}{wordHover.card}</div>
       <NotesBeside notes={notes} code={view} hotNote={hotNote} setHotNote={setHotNote} room={room} setRoom={setRoom} />
     </div>
   )
@@ -304,6 +305,9 @@ function oldLineNumbers(diff: DiffLine[]) {
   oldSide.forEach((row, at) => { numbers[row] = first + at })
   return numbers
 }
+
+/** No gaps in a line for notes: their place when they sit under their lines, not beside. */
+const NO_GAPS = new Map<number, number>()
 
 /** A stretch of a line that a note's code covers: from column `from` up to `to`, which note (its index), and whether its code ends here. */
 type NotedColumns = { from: number; to: number; note: number; ends: boolean }
