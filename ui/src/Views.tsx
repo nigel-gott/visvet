@@ -243,7 +243,7 @@ export function DiffView({ diff, language, notes = [], beside = false, file }: {
     </div>
   )
   /** The notes whose code ends on line `l`, in bubbles under it. */
-  const bubblesUnder = (l: DiffLine) => !besideNotes && l.kind !== 'del' && notes.filter(note => note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)
+  const bubblesUnder = (l: DiffLine) => !besideNotes && l.kind !== 'del' && notes.filter(note => note.note && note.span!.end.line === l.line).map(note => <CodeBubble key={note.code} note={note} />)
   const rows = sideBySide ? sideBySideRows(diff, runs, folds, fold, lineRow, bubblesUnder, coloured) : runs.flatMap(({ start, lines }) => [
     fold(start, lines),
     ...(folds(start, lines) ? [] : lines.map((l, k) => <Fragment key={start + k}>{lineRow(l, start + k)}{bubblesUnder(l)}</Fragment>)),
@@ -474,7 +474,8 @@ function NotesBeside({ notes, code, hotNote, setHotNote, room, setRoom }: {
       // Top to bottom by where each note's code starts in the file, not on screen: the space made below moves the code,
       // and an order read from the screen could then swap two notes' sides back and forth for ever.
       const startOf = (index: number) => notes[index].span!.start
-      const topDown = notes.map((_, index) => index).sort((upper, lower) => startOf(upper).line - startOf(lower).line || startOf(upper).column - startOf(lower).column)
+      // A heading with no note under it only outlines its code: it gets no bubble.
+      const topDown = notes.map((_, index) => index).filter(index => notes[index].note).sort((upper, lower) => startOf(upper).line - startOf(lower).line || startOf(upper).column - startOf(lower).column)
       const made: NoteRoom = { above: new Map(), below: new Map(), inLine: new Map() }
       const addAbove = (line: number, extra: number) => made.above.set(line, (made.above.get(line) ?? 0) + extra)
       const addBelow = (line: number, extra: number) => made.below.set(line, Math.max(made.below.get(line) ?? 0, extra))
