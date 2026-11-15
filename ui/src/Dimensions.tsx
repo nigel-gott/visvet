@@ -157,7 +157,7 @@ export function DimensionView({ id, reading = false }: { id: string | null; read
       )}
       {isGone && <p className="read-list">This page's file is gone.</p>}
       {!isGone && reading && <ReadingText it={page} />}
-      {page && !reading && <MarkdownPage key={page.id} text={currentText(page.diff)} file={page.id} />}
+      {page && !reading && <MarkdownPage key={page.id} text={currentText(page.diff)} file={page.id} diff={page.diff} />}
       {highlight && page && (
         // Pressing the button mustn't clear the highlight before its click lands.
         <button className={highlight.below ? 'highlight-comment below' : 'highlight-comment'} style={{ left: highlight.left, top: highlight.top }}

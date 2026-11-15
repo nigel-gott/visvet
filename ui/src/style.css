@@ -562,7 +562,10 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .md-page hr { border: 0; border-top: 1px solid var(--line) }
 .md-page .md-added, .md-page .md-changed { padding-left: 4px }
 .md-page .md-added { background: var(--add-bg); box-shadow: -4px 0 var(--add) }
-.md-page .md-changed { background: color-mix(in srgb, var(--chg) 14%, transparent); box-shadow: -4px 0 var(--chg) }
+.md-page .md-changed { background: color-mix(in srgb, var(--chg) 20%, transparent); box-shadow: -4px 0 var(--chg) }
+.md-page .md-removed { background: var(--del-bg); box-shadow: -4px 0 var(--del); padding-left: 4px; text-decoration: line-through; text-decoration-color: var(--del); opacity: .75 }
+.md-page .md-removed > :first-child { margin-top: 0 } .md-page .md-removed > :last-child { margin-bottom: 0 }
+.md-page .md-removed-item, .md-page .md-removed-item ul { list-style: none; padding-left: 0 }
 .md-page .noted { outline: 2px solid var(--ai); outline-offset: 2px; border-radius: 3px }
 .md-link { color: var(--sel); cursor: pointer }
 .md-link:hover { text-decoration: underline }
