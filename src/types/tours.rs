@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use super::{MapId, RepoPath};
 
+/// The start of a tour's file name that picks which tours the UI lists, e.g. "m2.".
+#[derive(Clone, Debug)]
+pub struct TourPrefix(pub String);
+
 /// A guided path through the code, in an order that builds understanding: a Markdown file with `kind: tour`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../ui/src/contract.ts")]
