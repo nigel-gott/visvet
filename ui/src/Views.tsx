@@ -176,19 +176,21 @@ const TREE_START_WIDTH = 300
 const nameOf = (x: Ctx, id: string) => x.ix.items.get(id)?.name ?? id
 
 /**
- * A file's or box's text: for Markdown, the rendered page, with a Raw button to see the diff instead; anything else, or
- * Markdown with a tour's notes on its code, as the diff. Either way its lines on screen count as explored (see Explored.tsx).
+ * A file's or box's text: for Markdown, the rendered page with its changes marked and a tour's notes under their
+ * blocks, and a button to see the diff instead; anything else as the diff. Either way its lines on screen count as
+ * explored (see Explored.tsx).
  */
 export function FileText({ it, diff, language, notes = [], beside = false }: { it: Item; diff: DiffLine[]; language: Language; notes?: CodeNote[]; beside?: boolean }) {
   const [showsRaw, setShowsRaw] = useState(false)
-  const rendersMarkdown = language === 'markdown' && !notes.length
+  const rendersMarkdown = language === 'markdown'
   const page = useRef<HTMLDivElement>(null)
   useShownText(page, rendersMarkdown ? fileOf(it) : undefined, diff)
   if (!rendersMarkdown) return <DiffView diff={diff} language={language} notes={notes} beside={beside} file={fileOf(it)} />
+  const rawName = diff.some(line => line.kind !== 'ctx') ? 'Diff' : 'Raw'
   return (
     <div className="md-file" ref={page}>
-      <button className="md-toggle" onClick={event => { event.stopPropagation(); setShowsRaw(!showsRaw) }}>{showsRaw ? 'Rendered' : 'Raw'}</button>
-      {showsRaw ? <DiffView diff={diff} language={language} /> : <MarkdownPage text={currentText(diff)} file={it.id} />}
+      <button className="md-toggle" onClick={event => { event.stopPropagation(); setShowsRaw(!showsRaw) }}>{showsRaw ? 'Rendered' : rawName}</button>
+      {showsRaw ? <DiffView diff={diff} language={language} notes={notes} /> : <MarkdownPage text={currentText(diff)} file={it.id} diff={diff} notes={notes} />}
     </div>
   )
 }

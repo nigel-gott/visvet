@@ -559,6 +559,10 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .md-page table { border-collapse: collapse; font-size: 12px }
 .md-page th, .md-page td { padding: 3px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top }
 .md-page hr { border: 0; border-top: 1px solid var(--line) }
+.md-page .md-added, .md-page .md-changed { padding-left: 4px }
+.md-page .md-added { background: var(--add-bg); box-shadow: -4px 0 var(--add) }
+.md-page .md-changed { background: color-mix(in srgb, var(--chg) 14%, transparent); box-shadow: -4px 0 var(--chg) }
+.md-page .noted { outline: 2px solid var(--ai); outline-offset: 2px; border-radius: 3px }
 .md-link { color: var(--sel); cursor: pointer }
 .md-link:hover { text-decoration: underline }
 .md-dead-link { text-decoration: underline dotted var(--muted) }
