@@ -4,9 +4,9 @@ mod watch;
 use language_server::{LanguageServer, NameInCode};
 use crate::state::visvet_dir::HandOff;
 use watch::RepoEvent;
-use crate::review::{build_review, compare, coverage};
+use crate::review::{build_review, compare, coverage, tours};
 use crate::state::{explored, importance, reviewed, store};
-use crate::{types::{Author, DiffLine, MapId, RepoPath, Review, NameMeaning, ReviewAnnotations, ThreadId, ThreadState, View}};
+use crate::{types::{Author, TourPrefix, DiffLine, MapId, RepoPath, Review, NameMeaning, ReviewAnnotations, ThreadId, ThreadState, View}};
 use axum::{
     Json, Router,
     extract::{Path as UrlPath, Query, Request, State},
@@ -46,7 +46,7 @@ pub struct Addr {
 /// Shared server state: the repo, the diff base, events for the UI, the host names it answers to, and the language
 /// server that says where names are defined.
 #[derive(Clone)]
-struct App { repo_root: PathBuf, base: String, tx: broadcast::Sender<RepoEvent>, hosts: Vec<String>, language_server: Arc<LanguageServer> }
+struct App { repo_root: PathBuf, base: String, tours: Option<TourPrefix>, tx: broadcast::Sender<RepoEvent>, hosts: Vec<String>, language_server: Arc<LanguageServer> }
 
 /// A handler result whose error is a 500 with a message.
 type Res<T> = Result<T, (StatusCode, String)>;
@@ -57,7 +57,7 @@ fn err(e: impl Display) -> (StatusCode, String) {
 }
 
 /// Serves the API and UI to the allowed host names, prints the URL and opens the browser.
-pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: bool) -> anyhow::Result<()> {
+pub async fn serve(repo_root: PathBuf, base: String, tours: Option<TourPrefix>, addr: Addr, open_browser: bool) -> anyhow::Result<()> {
     let local = format!("http://{}:{}", if addr.host == "0.0.0.0" { "127.0.0.1" } else { &addr.host }, addr.port);
     let mut hosts: Vec<String> = [addr.host.as_str(), "127.0.0.1", "localhost"].iter().map(|h| format!("{h}:{}", addr.port)).collect();
     // The host (with any port) from the public URL, e.g. "mac.tailnet.ts.net".
@@ -66,7 +66,7 @@ pub async fn serve(repo_root: PathBuf, base: String, addr: Addr, open_browser: b
     let to_ui = tx.clone();
     let _watcher = watch::watch(repo_root.clone(), move |e| _ = to_ui.send(e))?;
     let language_server = Arc::new(LanguageServer::of(&repo_root));
-    let app = App { repo_root, base, tx, hosts, language_server };
+    let app = App { repo_root, base, tours, tx, hosts, language_server };
     let router = Router::new()
         .route("/api/review", get(review))
         .route("/api/events", get(events))
@@ -104,6 +104,9 @@ async fn check_host(State(app): State<App>, req: Request, next: Next) -> Respons
 async fn review(State(app): State<App>) -> Res<Json<Review>> {
     let m = tokio::task::spawn_blocking(move || -> anyhow::Result<Review> {
         let mut m = build_review(&app.repo_root, &app.base)?;
+        if let Some(prefix) = &app.tours {
+            m.tours = tours::only_those_starting_with(m.tours, prefix, &app.repo_root);
+        }
         m.annotations = annotations(&app.repo_root)?;
         coverage::add(&app.repo_root, &mut m);
         Ok(m)

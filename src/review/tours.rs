@@ -1,6 +1,6 @@
 //! Tours: reads each Markdown file labelled `kind: tour` into steps, and checks each step against the code as it
 //! is now, so a step whose box or code has gone is marked stale instead of pointing somewhere wrong.
-use crate::types::{BoxContent, ChangeStatus, CodeNote, CodeSpan, DiffLineKind, DocKind, MapBox, MapId, RepoPath, StepView, TextPosition, Tour, TourStep};
+use crate::types::{TourPrefix, BoxContent, ChangeStatus, CodeNote, CodeSpan, DiffLineKind, DocKind, MapBox, MapId, RepoPath, StepView, TextPosition, Tour, TourStep};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -20,6 +20,16 @@ pub fn read_tours(repo_root: &Path, boxes: &[MapBox]) -> Vec<Tour> {
         let text = std::fs::read_to_string(repo_root.join(&tour_box.file.0)).ok()?;
         Some(parse_tour(&tour_box.file, &tour_box.doc, &text, &code))
     }).collect()
+}
+
+/// Only the tours whose file name starts with `prefix`, in the order `tours/README.md` first names them; a tour the
+/// README does not name goes last.
+pub fn only_those_starting_with(tours: Vec<Tour>, prefix: &TourPrefix, repo_root: &Path) -> Vec<Tour> {
+    let readme = std::fs::read_to_string(repo_root.join("tours/README.md")).unwrap_or_default();
+    let file_name = |tour: &Tour| tour.file.0.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut picked: Vec<Tour> = tours.into_iter().filter(|tour| file_name(tour).starts_with(&prefix.0)).collect();
+    picked.sort_by_key(|tour| readme.find(&file_name(tour)).unwrap_or(usize::MAX));
+    picked
 }
 
 /// Every box's and member's current lines of code, by id: each line's number in its file, and its text.

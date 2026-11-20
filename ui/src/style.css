@@ -375,7 +375,8 @@ main { grid-area: 2 / 2; min-height: 0 }
 /* The tours button and, while a tour plays, its title, Back and Next and step number; each opens a list below. */
 .tour-bar { position: relative; display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap }
 /* A playing tour: a purple strip of its own across the bottom of the top bar. */
-.tour-bar.playing { order: 1; flex-basis: calc(100% + 20px); margin: 0 -10px -6px; padding: 5px 10px; border-top: 1px solid color-mix(in srgb, var(--ai) 35%, transparent);
+/* min-width 0: else the strip is as wide as the tour's whole title on one line, wider than a phone. */
+.tour-bar.playing { order: 1; flex-basis: calc(100% + 20px); min-width: 0; margin: 0 -10px -6px; padding: 5px 10px; border-top: 1px solid color-mix(in srgb, var(--ai) 35%, transparent);
   background: var(--tour-bg) }
 .tour-open { height: 28px; padding: 0 12px; border: 1px solid var(--ai); border-radius: 14px; background: var(--tour-bg); color: var(--ai); font-size: 13px; font-weight: 600; cursor: pointer }
 .tour-bar.playing .tour-open { border-color: transparent; background: none; padding: 0 6px }
@@ -397,6 +398,10 @@ main { grid-area: 2 / 2; min-height: 0 }
 @media (max-width: 700px) {
   header { position: relative }
   .tour-bar, .settings { position: static }
+  /* A phone is too narrow for the playing tour's strip on one row: it wraps, the step's title on a row of its own. */
+  .tour-bar.playing { flex-wrap: wrap; row-gap: 4px }
+  .tour-bar.playing .tour-step-title { order: -1; flex-basis: 100%; margin-left: 0; padding-inline: 6px }
+  .tour-bar.playing .tour-open { min-width: 0; overflow: hidden; text-overflow: ellipsis }
   .tour-menu, .tour-bar.playing .tour-menu, .settings-menu { top: 100%; left: 8px; right: 8px; width: auto }
 }
 .tour-card { padding: 12px }
@@ -555,6 +560,13 @@ mark.noted-code.hot { background: color-mix(in srgb, var(--ai) 55%, transparent)
 .md-page table { border-collapse: collapse; font-size: 12px }
 .md-page th, .md-page td { padding: 3px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top }
 .md-page hr { border: 0; border-top: 1px solid var(--line) }
+.md-page .md-added, .md-page .md-changed { padding-left: 4px }
+.md-page .md-added { background: var(--add-bg); box-shadow: -4px 0 var(--add) }
+.md-page .md-changed { background: color-mix(in srgb, var(--chg) 20%, transparent); box-shadow: -4px 0 var(--chg) }
+.md-page .md-removed { background: var(--del-bg); box-shadow: -4px 0 var(--del); padding-left: 4px; text-decoration: line-through; text-decoration-color: var(--del); opacity: .75 }
+.md-page .md-removed > :first-child { margin-top: 0 } .md-page .md-removed > :last-child { margin-bottom: 0 }
+.md-page .md-removed-item, .md-page .md-removed-item ul { list-style: none; padding-left: 0 }
+.md-page .noted { outline: 2px solid var(--ai); outline-offset: 2px; border-radius: 3px }
 .md-link { color: var(--sel); cursor: pointer }
 .md-link:hover { text-decoration: underline }
 .md-dead-link { text-decoration: underline dotted var(--muted) }
@@ -708,3 +720,31 @@ main { position: relative }
 .rich-heading { margin: 10px 0 4px; font-weight: 600 }
 .rich-heading.h1, .rich-heading.h2 { font-size: 1.1em }
 .rich-code { max-width: 100%; margin: 6px 0; padding: 6px 8px; overflow-x: auto; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); font: 12px/1.45 var(--mono); white-space: pre }
+
+/* A diff side by side (Views.tsx, `sideBySideRows`): the code as it was on the left, as it is on the right, a row
+   each; folds, notes and the switch span both. */
+.diff.side-by-side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) }
+.diff.side-by-side > :not(.ln) { grid-column: 1 / -1 }
+.diff.side-by-side > .md-toggle { justify-self: end }
+.diff.side-by-side > .ln.left { border-right: 1px solid var(--line) }
+.ln.empty { background: var(--panel) }
+.diff > .diff-layout { float: right }
+
+/* One scroll (Scrolling.tsx): every tour step, or every file of the "To read" list, one after another in the map's place. */
+.one-scroll.on { border-color: var(--sel); background: var(--sel-bg); color: var(--sel) }
+.to-read > .one-scroll { margin: 0 0 6px }
+.scroll-column .scroll-section + .scroll-section { margin-top: 40px; border-top: 3px solid var(--line) }
+.scroll-file-head { max-width: 1400px; margin: 12px auto 0; padding: 0 8px }
+.scroll-file-head .reason { margin: 4px 0 0; color: var(--muted) }
+.scroll-column h3 a { cursor: pointer }
+.scroll-column h3 a:hover { text-decoration: underline }
+.scroll-crumbs { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline;
+  padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 14px; color: var(--muted) }
+.scroll-crumbs a { cursor: pointer; color: var(--fg) }
+.scroll-crumbs a:hover { text-decoration: underline }
+.scroll-crumbs a.here { font-weight: 600 }
+.scroll-crumbs-lead { margin-right: 8px; color: var(--ai); font-weight: 600 }
+/* The characters that differ between a removed line and the line added in its place, darker than the line's tint. */
+.ln.del .changed-chars { background: color-mix(in srgb, var(--del) 30%, transparent) }
+.ln.add .changed-chars { background: color-mix(in srgb, var(--add) 30%, transparent) }
+.diff > .fold.open { opacity: .7 }

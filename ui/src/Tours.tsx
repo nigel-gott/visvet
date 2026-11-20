@@ -5,6 +5,7 @@
 import { useContext, useEffect, useRef, useState, type RefObject } from 'react'
 import { X, type Ctx } from './context'
 import { Rich } from './Rich'
+import { OneScrollSwitch } from './Scrolling'
 import type { CodeNote, Tour, TourStep } from './contract'
 
 /** The step bubble's id in the map's layout, where it is a box of its own beside the step's box. */
@@ -163,6 +164,7 @@ export function TourBar() {
       {x.guide
         ? <button className="tour-next" title="The next move on the way to the next step (→)" onClick={() => takeNextMove(x)}>{nextMoveLabel(x, x.guide)} ›</button>
         : <button className="tour-next" title="Next step (→)" onClick={() => x.showStep(last ? null : { file: tour.file, step: number + 1 })}>{last ? 'Finish ✓' : 'Next ›'}</button>}
+      <OneScrollSwitch />
       <button className="tour-leave" title="Leave the tour" onClick={() => x.showStep(null)}>✕</button>
       {menu && <StepList tour={tour} number={number} go={go} />}
     </div>

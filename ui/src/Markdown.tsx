@@ -3,17 +3,23 @@
 import { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { Element } from 'hast'
+import type { Element, ElementContent, Root } from 'hast'
 import { X } from './context'
-import { targetOf } from './pages'
+import type { CodeNote, DiffLine } from './contract'
+import { currentText, targetOf } from './pages'
 import { Link, isWebAddress } from './Rich'
+import { BoxBubble } from './Tours'
 
 /**
  * The rendered page; ```mermaid blocks are drawn as diagrams; GitHub-style tables and task lists work, and raw HTML in
  * the file is left out, never run. Links, and diagram nodes with a `click` link, go to the file they name (see `useFollow`).
+ * Given the file's `diff`, the blocks it changed are marked added or changed, and a tour's `notes` sit under the block
+ * holding their code (see `markChangesAndNotes`).
  */
-export function MarkdownPage({ text, file }: { text: string; file: string }) {
+export function MarkdownPage({ text, file, diff, notes = [] }: { text: string; file: string; diff?: DiffLine[]; notes?: CodeNote[] }) {
   const follow = useFollow(file)
+  const latestNotes = useRef(notes)
+  latestNotes.current = notes
   // The components are made once per file: new ones on every render would make React rebuild every diagram, so
   // the page would blank and jump whenever anything around it changed, e.g. opening a comment. They follow links
   // with the latest `follow`.
@@ -23,20 +29,158 @@ export function MarkdownPage({ text, file }: { text: string; file: string }) {
     const followLatest = (href: string) => latestFollow.current(href)
     return {
       a: ({ href, children }) => <PageLink href={href ?? ''} file={file} follow={followLatest}>{children}</PageLink>,
-      pre: ({ node, children }) => {
+      pre: ({ node, className, children }) => {
         const diagram = mermaidSource(node)
-        return diagram === undefined ? <pre>{children}</pre> : <MermaidDiagram source={diagram} follow={followLatest} />
+        return diagram === undefined ? <pre className={className}>{children}</pre> : <div className={className}><MermaidDiagram source={diagram} follow={followLatest} /></div>
+      },
+      aside: ({ node }) => {
+        const removed = node?.properties.dataRemoved
+        if (typeof removed === 'string') return <RemovedText text={removed} />
+        const note = latestNotes.current[Number(node?.properties.dataNote)]
+        // A note with no text only marks its block, as a code note with no text only outlines its code.
+        return note?.note.trim() ? <BoxBubble note={note} /> : null
       },
     }
   }, [file])
   return (
     <div className="md-page">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={diff ? [markChangesAndNotes(diff, notes)] : []} components={components}>
         {text}
       </ReactMarkdown>
     </div>
   )
 }
+
+/** A line of the page as rendered: its number in the file, whether it is new, and the lines removed just before it. */
+type PageLine = { fileLine: number; added: boolean; blank: boolean; removedBefore: string[] }
+
+/** The lines of the page, in order, from the file's diff: the current lines, less the front matter `currentText` leaves out. */
+function pageLines(diff: DiffLine[]): { lines: PageLine[]; removedAtEnd: string[] } {
+  const lines: PageLine[] = []
+  let removed: string[] = []
+  for (const line of diff) {
+    if (line.kind === 'del') { removed.push(line.text); continue }
+    lines.push({ fileLine: line.line, added: line.kind === 'add', blank: !line.text.trim(), removedBefore: removed })
+    removed = []
+  }
+  return { lines: lines.slice(lines.length - currentText(diff).split('\n').length), removedAtEnd: removed }
+}
+
+/** Blocks marked when they changed: the smallest pieces a reader takes in as one. */
+const MARKED_WHEN_CHANGED = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'pre', 'blockquote', 'tr'])
+/** Blocks a tour's note sits under; in a list item, at its end. */
+const NOTE_ANCHORS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'pre', 'blockquote', 'table'])
+
+/** Whether page line `line` (counted from 1) is inside `block`. */
+const holds = (block: Element, line: number) => !!block.position && block.position.start.line <= line && line <= block.position.end.line
+
+/** Whether `text` is anything but blank lines. */
+const hasText = (text: string[]) => text.some(line => line.trim())
+
+/**
+ * A rehype plugin: marks each innermost block whose lines are all new `md-added`, and one with some new lines, or
+ * lines removed inside it or replaced by its own, `md-changed`. Removed lines show where they were, struck through
+ * (see `removedGhost`). A file that is all new is left unmarked. Each note becomes an `aside` (drawn as its bubble)
+ * under the innermost block holding the first line of its code, which is marked `noted`; a note on no block goes at the end.
+ */
+function markChangesAndNotes(diff: DiffLine[], notes: CodeNote[]) {
+  const { lines, removedAtEnd } = pageLines(diff)
+  const marksChanges = lines.some(line => !line.added)
+  const noteLines = notes.map(note => lines.findIndex(line => line.fileLine === note.span?.start.line) + 1)
+  const placed = new Set<number>()
+  const changeOf = (block: Element) => {
+    const { start, end } = block.position!
+    const inside = lines.slice(start.line - 1, end.line)
+    // Lines removed just before a block that is otherwise as it was belong between blocks, not to it.
+    const replaced = inside.some((line, index) => hasText(line.removedBefore) && (index > 0 || line.added))
+    if (inside.every(line => line.added) && !replaced) return 'md-added'
+    return replaced || inside.some(line => line.added) ? 'md-changed' : undefined
+  }
+  /** Marks the changed blocks in `node`; says whether it marked any. */
+  const markChanges = (node: Root | Element): boolean => {
+    const marksInside = node.children.map(child => child.type === 'element' && markChanges(child)).some(Boolean)
+    if (marksInside || node.type !== 'element' || !node.position || !MARKED_WHEN_CHANGED.has(node.tagName)) return marksInside
+    const change = changeOf(node)
+    if (change) node.properties.className = [...classesOf(node), change]
+    return change !== undefined
+  }
+  /** Puts the `removed` lines just before the innermost marked block in `node` holding page line `line`; says whether it found one. */
+  const placeRemovedIn = (node: Root | Element, line: number, removed: string[]): boolean => {
+    const at = node.children.findIndex(child => child.type === 'element' && holds(child, line))
+    const block = node.children[at] as Element | undefined
+    if (!block) return false
+    if (placeRemovedIn(block, line, removed)) return true
+    if (!MARKED_WHEN_CHANGED.has(block.tagName)) return false
+    node.children.splice(at, 0, ...removedGhost(block.tagName, removed))
+    return true
+  }
+  const placeRemoved = (tree: Root) => {
+    lines.forEach((line, index) => {
+      if (!hasText(line.removedBefore)) return
+      const nextWithText = lines.findIndex((later, laterIndex) => laterIndex >= index && !later.blank)
+      if (nextWithText < 0) return tree.children.push(...removedGhost('div', line.removedBefore))
+      const pageLine = nextWithText + 1
+      if (placeRemovedIn(tree, pageLine, line.removedBefore)) return
+      const after = tree.children.findIndex(child => child.type === 'element' && !!child.position && child.position.end.line >= pageLine)
+      tree.children.splice(after < 0 ? tree.children.length : after, 0, ...removedGhost('div', line.removedBefore))
+    })
+    if (hasText(removedAtEnd)) tree.children.push(...removedGhost('div', removedAtEnd))
+  }
+  const noteBubble = (note: number): Element => ({ type: 'element', tagName: 'aside', properties: { dataNote: note }, children: [] })
+  const placeNotes = (node: Root | Element) => {
+    node.children = node.children.flatMap((child): ElementContent[] => {
+      if (child.type !== 'element') return [child as ElementContent]
+      placeNotes(child)
+      if (!NOTE_ANCHORS.has(child.tagName)) return [child]
+      const here = noteLines.flatMap((line, note) => (!placed.has(note) && holds(child, line) ? [note] : []))
+      if (!here.length) return [child]
+      here.forEach(note => placed.add(note))
+      child.properties.className = [...classesOf(child), 'noted']
+      if (child.tagName !== 'li') return [child, ...here.map(noteBubble)]
+      child.children.push(...here.map(noteBubble))
+      return [child]
+    })
+  }
+  return () => (tree: Root) => {
+    if (marksChanges) markChanges(tree)
+    placeNotes(tree)
+    if (marksChanges) placeRemoved(tree)
+    tree.children.push(...notes.flatMap((_, note) => (placed.has(note) ? [] : [noteBubble(note)])))
+  }
+}
+
+/**
+ * Removed lines as blocks that fit beside a `sibling` block of that tag: a table row of cells per line beside a row,
+ * a list item beside an item, else an `aside` drawn as `RemovedText`.
+ */
+function removedGhost(sibling: string, removed: string[]): Element[] {
+  const text = removed.filter(line => line.trim())
+  const cell = (cellText: string): Element => ({ type: 'element', tagName: 'td', properties: {}, children: [{ type: 'text', value: cellText.trim() }] })
+  if (sibling === 'tr') {
+    const cellsOf = (row: string) => row.trim().replace(/^\||\|$/g, '').split('|').map(cell)
+    return text.map(row => ({ type: 'element', tagName: 'tr', properties: { className: ['md-removed'] }, children: cellsOf(row) }))
+  }
+  const aside: Element = { type: 'element', tagName: 'aside', properties: { dataRemoved: dedent(text).join('\n') }, children: [] }
+  return [sibling === 'li' ? { type: 'element', tagName: 'li', properties: { className: ['md-removed-item'] }, children: [aside] } : aside]
+}
+
+/** `lines` less the indentation they all share, so an indented piece of a list reads as Markdown on its own. */
+function dedent(lines: string[]) {
+  const shared = Math.min(...lines.map(line => line.length - line.trimStart().length))
+  return lines.map(line => line.slice(shared))
+}
+
+/** Removed Markdown, rendered and struck through; its links lead nowhere, since what they named may be gone. */
+function RemovedText({ text }: { text: string }) {
+  return (
+    <div className="md-removed">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: ({ children }) => <span>{children}</span> }}>{text}</ReactMarkdown>
+    </div>
+  )
+}
+
+/** The classes already on `block`. */
+const classesOf = (block: Element) => (Array.isArray(block.properties.className) ? block.properties.className : [])
 
 /**
  * Following a link from `file` to another repo file: a dimension's page opens in its dimension's view, anything else

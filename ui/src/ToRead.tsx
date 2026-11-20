@@ -4,10 +4,11 @@
 // important file not read yet, falling to 0 as it is read. The file tree shows it as a meter, and "To read" lists
 // the files with the most left first.
 
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { X, type Ctx } from './context'
 import { exploredOf } from './Explored'
 import { subtree, type Item } from './model'
+import { OneScrollSwitch } from './Scrolling'
 
 /** The most files the list shows; the rest wait until these are read. */
 const LONGEST_LIST = 50
@@ -61,6 +62,12 @@ export function LeftToRead({ it }: { it: Item }) {
   return <meter className="left-to-read" max={100} low={SOME_LEFT} high={MUCH_LEFT} optimum={0} value={left} title={`Left to read: ${Math.round(left)} of 100. ${ofFile}`} />
 }
 
+/** The files with anything left to read, the most first, each with how much: as the "To read" list orders them. */
+export const filesByLeftToRead = (x: Ctx) => x.ix.all.filter(it => it.kind === 'file').map(file => ({ file, left: leftToRead(x, file) ?? 0 })).filter(rated => rated.left > 0).sort((one, other) => other.left - one.left)
+
+/** The first files of that list, as they are now: a change to the code may have replaced or removed some since it was made. */
+export const mostLeftToRead = (x: Ctx, files: { file: Item }[]) => files.slice(0, LONGEST_LIST).flatMap(listed => x.ix.items.get(listed.file.id) ?? [])
+
 /**
  * In place of the file tree: the files with the most left to read, first, each with its path, meter and the AI's
  * reason. A click opens it. The order is as it was when the list was opened: reading a file empties its meter but
@@ -68,13 +75,17 @@ export function LeftToRead({ it }: { it: Item }) {
  */
 export function ToRead() {
   const x = useContext(X)
-  const [files] = useState(() => x.ix.all.filter(it => it.kind === 'file').map(file => ({ file, left: leftToRead(x, file) ?? 0 })).filter(rated => rated.left > 0).sort((one, other) => other.left - one.left))
-  // A file as it is now, which a change to the code may have replaced or removed since the list was opened.
-  const mostLeft = files.slice(0, LONGEST_LIST).flatMap(listed => x.ix.items.get(listed.file.id) ?? [])
+  const [files] = useState(() => filesByLeftToRead(x))
+  const mostLeft = mostLeftToRead(x, files)
+  const list = useRef<HTMLDivElement>(null)
+  // The file being read (in the one scrolling column, the one in view) stays in sight in the list.
+  useEffect(() => { list.current?.querySelector('.orow.sel')?.scrollIntoView({ block: 'nearest' }) }, [x.sel])
   return (
-    <div className="to-read">
+    <div className="to-read" ref={list}>
+      <OneScrollSwitch />
       {mostLeft.map(file => (
-        <div key={file.id} className={x.sel === file.id ? 'orow sel' : 'orow'} title={file.id} onClick={() => x.goTo(file.id)}>
+        // In the one scrolling column, a click scrolls it to the file (see Scrolling.tsx).
+        <div key={file.id} className={x.sel === file.id ? 'orow sel' : 'orow'} title={file.id} onClick={() => (x.scrollColumnShown ? x.select(file.id) : x.goTo(file.id))}>
           <span className="name">{file.id}</span>
           <LeftToRead it={file} />
           <span className="reason">{x.importance.get(file.id)?.reason}</span>

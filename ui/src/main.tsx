@@ -20,6 +20,7 @@ import { DocPreview, type DocToShow } from './DocPreview'
 import { DimensionSwitch, DimensionView } from './Dimensions'
 import { isDimensionPage } from './pages'
 import { ModeSwitch, TreeButton } from './Reading'
+import { ScrollColumn } from './Scrolling'
 import { isPhone } from './size'
 import { bubbleBoxOf, NotesPlace, RouteOverlay, StepBubble, stepTarget, TourBar, useTourStep, type Guide, type Route, type TourPlace } from './Tours'
 
@@ -335,6 +336,10 @@ function App() {
   const [mode, setMode] = useSetting('visvet:mode', isPhone() ? 'read' : 'map')
   const reading = mode === 'read'
   const [hideReviewed, setHideReviewed] = useSetting('visvet:hide-reviewed', 'no')
+  const [diffLayout, setDiffLayout] = useSetting('visvet:diff-layout', 'unified')
+  const [readingFlow, setReadingFlow] = useSetting('visvet:reading-flow', 'steps')
+  const readsInOneScroll = readingFlow === 'one-scroll'
+  const [listsToRead, setListsToRead] = useState(false)
   const reviewedById = useMemo(() => new Map(reviewed?.map(marked => [marked.file, marked.state])), [reviewed])
   const seenLinesById = useMemo(() => new Map(explored?.map(file => [file.file, file.seen_lines])), [explored])
   const importanceById = useMemo(() => new Map(importance?.map(rated => [rated.file, rated])), [importance])
@@ -486,6 +491,16 @@ function App() {
     if (!chosen) setDimension(dimensionShown)
     if (chosen && isPhone()) showTree(false)
   }
+  const scrollColumnShown = readsInOneScroll && (!!playingStep || listsToRead)
+  /** In the scrolling column, a tour's Back, Next and steps list only change the step: the column scrolls to it. */
+  const showStepOrScroll = (place: TourPlace | null, jump?: boolean) => (readsInOneScroll && place ? setTour(place) : showStep(place, jump))
+  const leaveColumnAt = (id: string, place: TourPlace | null) => {
+    setReadingFlow('steps')
+    const step = place && stepTarget(model.tours.find(t => t.file === place.file), place.step)
+    if (place) setTour(place)
+    if (reading) read(id)
+    else showBox(id, step ? step.view : 'context')
+  }
   const x: Ctx = {
     model, ix, sel, hl: new Set(hl), select, focus, dimension: dimensionShown, setDimension: reading ? readCode : setDimension,
     reading, setReads, treeShown, showTree,
@@ -496,7 +511,10 @@ function App() {
       else focus(id)
     }, goTo: reading ? read : goTo, back, scope, zoom: id => void (zoomer.run ? zoomer.run(id, () => go({ scope: id, map })) : go({ scope: id, map })),
     // While the user drives to the next step, the step they left hides its bubble and notes.
-    tour, showStep, notesBeside: notesPlace !== 'in', setNotesBeside: beside => setNotesPlace(beside ? 'beside' : 'in'), docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
+    sideBySide: diffLayout === 'side-by-side', setSideBySide: chosen => setDiffLayout(chosen ? 'side-by-side' : 'unified'),
+    listsToRead, setListsToRead, readsInOneScroll, setReadsInOneScroll: chosen => setReadingFlow(chosen ? 'one-scroll' : 'steps'),
+    scrollColumnShown, scrolledTo: (id, place) => { if (place) setTour(place); select(id, true) }, leaveColumnAt,
+    tour, showStep: showStepOrScroll, notesBeside: notesPlace !== 'in', setNotesBeside: beside => setNotesPlace(beside ? 'beside' : 'in'), docShown, showDoc, route, guide, headingFor: heading?.place ?? null, stepBox: guide ? undefined : playingStep?.target, stepNotes: guide ? [] : playingStep?.code_notes ?? [],
     expanded, expand: id => setWide({ view, ids: flip(expanded, id) }),
     expandAll: ids => setWide({ view, ids: flipAll(expanded, ids) }),
     threads, reviewed: reviewedById, explored: seenLinesById, importance: importanceById, readLately, hideReviewed: hideReviewed === 'yes', setHideReviewed: hide => setHideReviewed(hide ? 'yes' : 'no'),
@@ -509,8 +527,8 @@ function App() {
         <Header error={error} />
         <FileTree />
         <main>
-          <Graph visible={!dimension && !reading} pop={pop} />
-          {reading ? <DimensionView id={readingId} reading /> : dimension && <DimensionView id={dimension} />}
+          <Graph visible={!dimension && !reading && !scrollColumnShown} pop={pop} />
+          {scrollColumnShown ? <ScrollColumn /> : reading ? <DimensionView id={readingId} reading /> : dimension && <DimensionView id={dimension} />}
         </main>
         <LostStep />
         <RouteOverlay />

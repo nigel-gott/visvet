@@ -10,7 +10,7 @@ mod view;
 use crate::review::coverage;
 use crate::state::store;
 use crate::state::visvet_dir::HandOff;
-use crate::types::{Author, Importance, MapId, RepoPath, Show, ThreadId, ThreadState};
+use crate::types::{TourPrefix, Author, Importance, MapId, RepoPath, Show, ThreadId, ThreadState};
 use crate::{git, server};
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
@@ -36,6 +36,9 @@ struct ServeArgs {
     /// Don't open a browser
     #[arg(long)]
     no_open: bool,
+    /// List only the tours whose file name starts with this, e.g. "m2.", in the order tours/README.md names them
+    #[arg(long)]
+    tours: Option<String>,
     #[command(flatten)]
     addr: server::Addr,
 }
@@ -135,7 +138,7 @@ pub async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let repo_root = git::top_folder(&cli.repo)?;
     match cli.cmd.unwrap_or(Cmd::Serve(cli.serve)) {
-        Cmd::Serve(s) => server::serve(repo_root, s.base, s.addr, !s.no_open).await,
+        Cmd::Serve(s) => server::serve(repo_root, s.base, s.tours.map(TourPrefix), s.addr, !s.no_open).await,
         Cmd::Explain { symbol, why } => store::add_note(&repo_root, MapId(symbol), why.join(" ")),
         Cmd::Graph { base } => graph::print(&repo_root, &base),
         Cmd::View => view::print(&repo_root),
